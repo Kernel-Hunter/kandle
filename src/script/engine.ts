@@ -1,0 +1,184 @@
+import { Compiler, SOURCE_SERIES, type CompiledScript, type InputDef, type InputValue, type ScriptMeta } from './compiler';
+import { ScriptError } from './errors';
+import type { Outputs } from './outputs';
+import { parse } from './parser';
+import { Frame, type Candle, type SymbolContext } from './runtime';
+import { Color } from './values';
+
+export type { Candle, SymbolContext } from './runtime';
+export type { InputDef, InputValue, ScriptMeta } from './compiler';
+
+export interface RunResult {
+  error: ScriptError | null;
+  /** Bars executed in this call. */
+  barsRun: number;
+  incremental: boolean;
+  ms: number;
+}
+
+/** Brings a stored or user-entered value back into the range an input allows. */
+export function validateInput(def: InputDef, value: unknown): InputValue {
+  const fallback = def.defval;
+  switch (def.type) {
+    case 'int':
+    case 'float': {
+      let n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+      if (!Number.isFinite(n)) return fallback;
+      if (def.type === 'int') n = Math.round(n);
+      if (def.options && def.options.length > 0) return def.options.includes(n) ? n : fallback;
+      if (def.minval !== undefined) n = Math.max(def.minval, n);
+      if (def.maxval !== undefined) n = Math.min(def.maxval, n);
+      return n;
+    }
+    case 'bool':
+      return typeof value === 'boolean' ? value : fallback;
+    case 'string':
+      if (typeof value !== 'string') return fallback;
+      if (def.options && def.options.length > 0 && !def.options.includes(value)) return fallback;
+      return value;
+    case 'source':
+      return typeof value === 'string' && value in SOURCE_SERIES ? value : fallback;
+    case 'color':
+      return typeof value === 'string' && Color.fromHex(value) ? value : fallback;
+  }
+}
+
+/** A compiled script plus its runtime state. Each chart indicator owns one. */
+export class ScriptEngine {
+  private root: Frame | null = null;
+  private needsFull = true;
+  private values: InputValue[];
+  lastError: ScriptError | null = null;
+
+  constructor(
+    private readonly compiled: CompiledScript,
+    readonly source: string,
+  ) {
+    this.values = compiled.inputs.map((i) => i.defval);
+    compiled.rt.inputValues = this.values;
+  }
+
+  get meta(): ScriptMeta {
+    return this.compiled.meta;
+  }
+
+  get inputs(): InputDef[] {
+    return this.compiled.inputs;
+  }
+
+  get outputs(): Outputs {
+    return this.compiled.outputs;
+  }
+
+  get barCount(): number {
+    return this.compiled.rt.count;
+  }
+
+  /** Values keyed by input key, ready to store. */
+  inputValues(): Record<string, InputValue> {
+    const out: Record<string, InputValue> = {};
+    for (const def of this.compiled.inputs) out[def.key] = this.values[def.index];
+    return out;
+  }
+
+  /** Applies stored values; unknown keys are ignored and bad values fall back to defaults. */
+  setInputValues(values: Record<string, unknown>): void {
+    for (const def of this.compiled.inputs) {
+      if (Object.prototype.hasOwnProperty.call(values, def.key)) this.values[def.index] = validateInput(def, values[def.key]);
+    }
+    this.needsFull = true;
+  }
+
+  setSymbol(ctx: SymbolContext): void {
+    const rt = this.compiled.rt;
+    if (rt.symbol.ticker === ctx.ticker && rt.symbol.period === ctx.period && rt.symbol.mintick === ctx.mintick) return;
+    rt.symbol = ctx;
+    this.needsFull = true;
+  }
+
+  /**
+   * Runs the script on `candles`. When only the last bar changed or a few bars were
+   * appended, re-runs just those bars; otherwise starts from the first bar.
+   */
+  run(candles: readonly Candle[]): RunResult {
+    const started = performance.now();
+    const rt = this.compiled.rt;
+    const prev = rt.count;
+    const n = candles.length;
+    let start = 0;
+    const canIncrement =
+      !this.needsFull &&
+      !this.compiled.mutatesState &&
+      this.root !== null &&
+      prev > 0 &&
+      n >= prev &&
+      n - prev <= 16 &&
+      rt.time[0] === candles[0].timestamp &&
+      rt.time[prev - 1] === candles[prev - 1].timestamp;
+
+    if (canIncrement) {
+      start = prev - 1;
+      rt.realtime = true;
+    } else {
+      this.reset();
+      rt.realtime = false;
+    }
+    for (let i = start; i < n; i++) rt.setBar(i, candles[i]);
+    rt.count = n;
+
+    const root = this.root!;
+    const body = this.compiled.body;
+    this.lastError = null;
+    let b = start;
+    try {
+      for (; b < n; b++) {
+        rt.bar = b;
+        rt.runId++;
+        rt.loopCount = 0;
+        rt.ctl = 0;
+        root.enter(rt);
+        body(root);
+      }
+      this.needsFull = false;
+    } catch (e) {
+      const err = e instanceof ScriptError ? e : new ScriptError(e instanceof Error ? e.message : String(e), null);
+      err.bar = b;
+      this.lastError = err;
+      this.needsFull = true;
+    }
+    return { error: this.lastError, barsRun: n - start, incremental: canIncrement, ms: performance.now() - started };
+  }
+
+  private reset(): void {
+    const rt = this.compiled.rt;
+    rt.truncate(0);
+    rt.count = 0;
+    const o = this.compiled.outputs;
+    for (const p of o.plots) {
+      p.values.length = 0;
+      p.colors.length = 0;
+    }
+    for (const s of o.shapes) {
+      s.values.length = 0;
+      s.colors.length = 0;
+      s.textColors.length = 0;
+    }
+    for (const f of o.fills) f.colors.length = 0;
+    for (const c of [...o.backgrounds, ...o.barColors]) c.colors.length = 0;
+    this.root = this.compiled.newRootFrame();
+  }
+}
+
+export type CompileResult = { ok: true; engine: ScriptEngine } | { ok: false; error: ScriptError };
+
+/** Parses and compiles a script. Errors carry line, column and character offsets. */
+export function compileScript(source: string): CompileResult {
+  try {
+    const program = parse(source);
+    const compiled = new Compiler().compile(program);
+    return { ok: true, engine: new ScriptEngine(compiled, source) };
+  } catch (e) {
+    if (e instanceof ScriptError) return { ok: false, error: e };
+    return { ok: false, error: new ScriptError(e instanceof Error ? e.message : String(e), null) };
+  }
+}
