@@ -1,0 +1,28 @@
+{
+  "name": "kandle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source charting app for crypto markets that you can run in the browser.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "klinecharts": "10.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.4"
+  },
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=22.12"
+  }
+}

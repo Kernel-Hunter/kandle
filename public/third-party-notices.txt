@@ -1,0 +1,14 @@
+Third-party notices
+===================
+
+This site bundles KLineChart (https://github.com/klinecharts/KLineChart),
+licensed under the Apache License, Version 2.0:
+http://www.apache.org/licenses/LICENSE-2.0
+
+KLineChart NOTICE file, reproduced as required by the license:
+
+KLineChart
+Copyright (c) 2019 lihu
+
+TradingView Lightweight Charts
+Copyright (с) 2019 TradingView, Inc. https://www.tradingview.com
