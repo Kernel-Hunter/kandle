@@ -63,6 +63,65 @@ const api = (): KandleApi => {
   return value;
 };
 
+let paintWhileHidden = false;
+let framePatched = false;
+let moveFramesToTimers: () => void = () => undefined;
+
+/**
+ * The chart engine only paints on animation frames, and browsers stop those in hidden
+ * tabs. While the agent bridge is on, fall back to timers in a hidden tab so agent
+ * changes and screenshots still render when the user is looking at another window.
+ */
+function keepPaintingWhenHidden(): void {
+  if (framePatched || typeof window.requestAnimationFrame !== 'function') return;
+  framePatched = true;
+  const native = window.requestAnimationFrame.bind(window);
+  const cancelNative = window.cancelAnimationFrame.bind(window);
+  // Our own ids, so a request can move from a real frame to a timer without the caller noticing.
+  const pending = new Map<number, { cb: FrameRequestCallback; frame?: number; timer?: number }>();
+  let nextId = 1;
+  const useTimers = () => paintWhileHidden && document.hidden;
+  const toTimer = (id: number) => {
+    const entry = pending.get(id);
+    if (!entry) return;
+    if (entry.frame !== undefined) cancelNative(entry.frame);
+    entry.frame = undefined;
+    entry.timer = window.setTimeout(() => {
+      pending.delete(id);
+      entry.cb(performance.now());
+    }, 16);
+  };
+  window.requestAnimationFrame = (cb: FrameRequestCallback): number => {
+    const id = nextId++;
+    const entry: { cb: FrameRequestCallback; frame?: number; timer?: number } = { cb };
+    pending.set(id, entry);
+    if (useTimers()) toTimer(id);
+    else
+      entry.frame = native((t) => {
+        pending.delete(id);
+        cb(t);
+      });
+    return id;
+  };
+  window.cancelAnimationFrame = (id: number): void => {
+    const entry = pending.get(id);
+    if (!entry) return;
+    pending.delete(id);
+    if (entry.frame !== undefined) cancelNative(entry.frame);
+    if (entry.timer !== undefined) window.clearTimeout(entry.timer);
+  };
+  // Frames already waiting when the tab is hidden would never run; move them to timers.
+  moveFramesToTimers = () => {
+    if (!useTimers()) return;
+    for (const [id, entry] of pending) if (entry.frame !== undefined) toTimer(id);
+  };
+  document.addEventListener('visibilitychange', moveFramesToTimers);
+}
+
+// Patch before the chart is created so its first frames are tracked too. It passes
+// straight through to the browser unless the bridge is on and the tab is hidden.
+if (typeof window !== 'undefined') keepPaintingWhenHidden();
+
 /**
  * Agent bridge, alerts, bar replay and multi-chart layouts. Kept out of app.ts so the
  * core chart stays small; App calls wrapLoader, onLiveCandle and start, nothing else.
@@ -213,7 +272,8 @@ export function createFeatures(deps: FeatureDeps): Features {
         background: () => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0f1115',
         paint: () =>
           new Promise<boolean>((resolve) => {
-            const timer = setTimeout(() => resolve(false), 800);
+            // In a hidden tab frames come from the timer fallback below, which browsers slow to about 1 per second.
+            const timer = setTimeout(() => resolve(false), document.hidden ? 4000 : 800);
             requestAnimationFrame(() =>
               requestAnimationFrame(() => {
                 clearTimeout(timer);
@@ -266,6 +326,8 @@ export function createFeatures(deps: FeatureDeps): Features {
       const applyBridge = (settings: ReturnType<typeof agentPanel.settings>) => {
         client?.stop();
         client = null;
+        paintWhileHidden = settings.enabled && Boolean(settings.token);
+        moveFramesToTimers();
         if (!settings.enabled || !settings.token) {
           agentPanel.setStatus('off');
           return;
