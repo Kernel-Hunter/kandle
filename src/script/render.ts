@@ -7,6 +7,8 @@ import type { RunResult, ScriptEngine, SymbolContext } from './engine';
 import type { LineStyle, PlotOutput, ShapeOutput } from './outputs';
 
 export const SCRIPT_INDICATOR = 'KANDLE_SCRIPT';
+/** Draws a strategy's trades on the price chart when the strategy itself sits in its own pane. */
+export const TRADES_INDICATOR = 'KANDLE_SCRIPT_TRADES';
 
 let registered = false;
 
@@ -14,6 +16,7 @@ export function registerScriptIndicator(): void {
   if (registered) return;
   registered = true;
   registerIndicator({ name: SCRIPT_INDICATOR, shortName: 'Script', calc: () => [] });
+  registerIndicator({ name: TRADES_INDICATOR, shortName: '', calc: () => [] });
 }
 
 type Row = Record<string, number | undefined>;
@@ -187,7 +190,124 @@ function drawScript(params: IndicatorDrawParams<Row, unknown, unknown>, engine: 
   for (const p of o.plots) if (p.visible) drawPlot(view, p);
   for (const s of o.shapes) drawShapes(view, engine, s, engine.meta.overlay);
   if (engine.meta.overlay) for (const bc of o.barColors) drawBarColors(view, engine, bc.colors, bc.offset);
+  if (engine.meta.overlay) drawTrades(view, engine);
   ctx.restore();
+}
+
+/** The indicator that shows a pane strategy's trades on the price chart. */
+export function tradesIndicator(id: string, engine: ScriptEngine): Omit<IndicatorCreate, 'paneId'> {
+  return {
+    name: TRADES_INDICATOR,
+    id,
+    shortName: '',
+    series: 'price',
+    figures: [],
+    calc: () => [],
+    draw: ({ ctx, chart, bounding, xAxis, yAxis }) => {
+      const n = engine.barCount;
+      if (n === 0) return true;
+      const range = chart.getVisibleRange();
+      const space = chart.getBarSpace();
+      const view: View = {
+        ctx,
+        x: (i) => xAxis.convertToPixel(i),
+        y: (v) => yAxis.convertToPixel(v),
+        from: Math.max(0, Math.floor(range.from) - 2),
+        to: Math.min(n - 1, Math.ceil(range.to) + 1),
+        bar: space.bar,
+        gap: space.gapBar,
+        width: bounding.width,
+        height: bounding.height,
+      };
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, bounding.width, bounding.height);
+      ctx.clip();
+      drawTrades(view, engine);
+      ctx.restore();
+      return true;
+    },
+    createTooltipDataSource: () => ({ name: '', calcParamsText: '', features: [], legends: [] }),
+  };
+}
+
+export const BUY_COLOR = '#2962ff';
+export const SELL_COLOR = '#e91e63';
+const WIN_COLOR = 'rgba(34,171,148,0.75)';
+const LOSS_COLOR = 'rgba(242,54,69,0.75)';
+
+/**
+ * Strategy fills as arrows (buys below the bar, sells above) labelled with the order's
+ * signal, and a dashed line from each entry to its exit, green for a win and red for a loss.
+ */
+function drawTrades(v: View, engine: ScriptEngine): void {
+  const report = engine.strategy;
+  if (!report) return;
+  const { ctx } = v;
+  const bars = engine.bars;
+  const n = engine.barCount;
+
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  for (const t of report.trades) {
+    if (t.exitBar < v.from || t.entryBar > v.to) continue;
+    ctx.strokeStyle = t.pnl >= 0 ? WIN_COLOR : LOSS_COLOR;
+    ctx.beginPath();
+    ctx.moveTo(v.x(t.entryBar), v.y(t.entryPrice));
+    ctx.lineTo(v.x(t.exitBar), v.y(t.exitPrice));
+    ctx.stroke();
+  }
+  // Open trades: a dotted line at the entry price up to the last bar.
+  ctx.setLineDash([2, 3]);
+  for (const t of report.openTrades) {
+    if (t.entryBar > v.to) continue;
+    ctx.strokeStyle = t.direction === 'long' ? BUY_COLOR : SELL_COLOR;
+    const y = Math.round(v.y(t.entryPrice)) + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(v.x(t.entryBar), y);
+    ctx.lineTo(v.x(n - 1), y);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // One marker per bar and side, listing each distinct label once.
+  const groups = new Map<number, { bar: number; side: 1 | -1; labels: string[] }>();
+  for (const f of report.fills) {
+    if (f.bar < v.from || f.bar > v.to) continue;
+    const key = f.bar * 2 + (f.side > 0 ? 0 : 1);
+    let g = groups.get(key);
+    if (!g) groups.set(key, (g = { bar: f.bar, side: f.side, labels: [] }));
+    if (!g.labels.includes(f.label)) g.labels.push(f.label);
+  }
+  const size = Math.max(6, Math.min(9, v.bar * 0.9));
+  const tagH = 15;
+  ctx.font = '600 10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const g of groups.values()) {
+    const x = v.x(g.bar);
+    const buy = g.side > 0;
+    const color = buy ? BUY_COLOR : SELL_COLOR;
+    // Arrow pointing at the bar, then a tag with the signal names beyond it.
+    const tip = buy ? v.y(bars.low[g.bar]) + 3 : v.y(bars.high[g.bar]) - 3;
+    const base = buy ? tip + size : tip - size;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, tip);
+    ctx.lineTo(x + size * 0.65, base);
+    ctx.lineTo(x - size * 0.65, base);
+    ctx.closePath();
+    ctx.fill();
+    const raw = g.labels.join(', ');
+    const text = raw.length > 24 ? `${raw.slice(0, 23)}…` : raw;
+    const w = Math.ceil(ctx.measureText(text).width) + 8;
+    const top = buy ? base + 2 : base - 2 - tagH;
+    ctx.beginPath();
+    ctx.roundRect(Math.round(x - w / 2), Math.round(top), w, tagH, 3);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, x, Math.round(top) + tagH / 2 + 0.5);
+  }
 }
 
 function drawBackground(v: View, colors: Array<string | null | undefined>, offset: number): void {

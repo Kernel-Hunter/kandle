@@ -724,8 +724,21 @@ export class App {
       }
     });
 
+    const api = scriptApi(manager);
+    const runScript = api.runScript;
+    // A strategy run from automation opens its results, so the user sees what the agent did.
+    api.runScript = (source, options) => {
+      const res = runScript(source, options);
+      if (res.ok && res.id && 'backtest' in res) void this.showStrategyResults(res.id);
+      return res;
+    };
     const handle = (window as unknown as Record<string, unknown>)[APP.id];
-    if (handle && typeof handle === 'object') Object.assign(handle, scriptApi(manager));
+    if (handle && typeof handle === 'object') Object.assign(handle, api);
+  }
+
+  async showStrategyResults(scriptId?: string): Promise<void> {
+    const panel = await this.loadScriptPanel();
+    panel.showStrategy(scriptId);
   }
 
   private loadScriptPanel(): Promise<ScriptPanel> {
@@ -733,6 +746,7 @@ export class App {
     this.scriptPanelLoading ??= import('./ui/scriptPanel').then(({ createScriptPanel }) => {
       const panel = createScriptPanel({ manager: this.scripts!, storage: this.storage, toast: (m, k) => this.toast(m, k),
         onVisibilityChange: (open) => this.scriptsBtn.classList.toggle('active', open),
+        onShowTime: (time) => this.chart.scrollToTimestamp(time, 200),
       });
       this.root.querySelector('.workspace')?.after(panel.root);
       this.scriptPanel = panel;

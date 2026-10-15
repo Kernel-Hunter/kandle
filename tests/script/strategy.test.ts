@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { backtestSummary } from '../../src/script/backtestJson';
 import { compileScript } from '../../src/script/engine';
 import { Broker, barPath, sharpeRatio, summarize, type ClosedTrade, type ExitParams, type StrategyConfig, type StrategyReport } from '../../src/script/strategy';
 import { CANDLES, compile, plotValues, run } from './fixtures';
@@ -576,5 +577,32 @@ plot(strategy.position_size)`);
       expect(t.exitBar).toBeGreaterThanOrEqual(t.entryBar);
       expect(t.commission).toBeGreaterThan(0);
     }
+  });
+
+  it('summarizes a backtest as JSON for automation', () => {
+    const e = run(`strategy("x", overlay = true, initial_capital = 1000)
+if ta.crossover(ta.sma(close, 5), ta.sma(close, 20))
+    strategy.entry("L", strategy.long)
+if ta.crossunder(ta.sma(close, 5), ta.sma(close, 20))
+    strategy.entry("S", strategy.short)`);
+    const r = e.strategy!;
+    const json = backtestSummary(r, 3);
+    expect(json.totalTrades).toBe(r.trades.length);
+    expect(json.trades).toHaveLength(3);
+    expect(json.trades[2].n).toBe(r.trades.length);
+    const last = r.trades[r.trades.length - 1];
+    expect(json.trades[2]).toMatchObject({
+      direction: last.direction,
+      entryTime: new Date(last.entryTime).toISOString(),
+      exitTime: new Date(last.exitTime).toISOString(),
+      entrySignal: last.entrySignal,
+      exitSignal: last.exitSignal,
+      pnl: Math.round(last.pnl * 100) / 100,
+    });
+    expect(json.openTrades).toHaveLength(r.openTrades.length);
+    expect(json.summary.netProfit).toBe(Math.round(r.summary.netProfit * 100) / 100);
+    expect(json.settings.initialCapital).toBe(1000);
+    expect(JSON.parse(JSON.stringify(json))).toEqual(json);
+    expect(backtestSummary(r, 0).trades).toEqual([]);
   });
 });

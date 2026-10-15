@@ -14,6 +14,7 @@ import type { KeyValueStorage } from '../store/layout';
 import { APP } from '../config';
 import { h, ICONS } from './dom';
 import { editorTheme, scriptLanguageSupport } from './scriptLanguage';
+import { createStrategyView, formatMoney } from './strategyView';
 import './scriptPanel.css';
 
 export interface ScriptPanelOptions {
@@ -21,6 +22,8 @@ export interface ScriptPanelOptions {
   storage: KeyValueStorage;
   toast: (message: string, kind?: 'info' | 'error') => void;
   onVisibilityChange?: (open: boolean) => void;
+  /** Scrolls the chart to a time (clicking a trade in the Strategy tab). */
+  onShowTime?: (time: number) => void;
 }
 
 export interface ScriptPanel {
@@ -32,7 +35,11 @@ export interface ScriptPanel {
   /** The editor view, for tests and automation. */
   view: EditorView;
   run(): RunScriptResult;
+  /** Opens the panel on the Strategy tab, showing the strategy with `id` if given. */
+  showStrategy(id?: string): void;
 }
+
+type PanelTab = 'editor' | 'strategy';
 
 const NEW_TARGET = '';
 
@@ -40,6 +47,7 @@ interface Draft {
   source: string;
   target: string;
   height?: number;
+  tab?: PanelTab;
 }
 
 function toDiagnostic(doc: EditorState['doc'], e: ScriptErrorInfo): Diagnostic {
@@ -64,7 +72,14 @@ export function createScriptPanel(opts: ScriptPanelOptions): ScriptPanel {
     try {
       const raw = storage.getItem(draftKey);
       const d = raw ? (JSON.parse(raw) as Partial<Draft>) : null;
-      if (d && typeof d.source === 'string') return { source: d.source, target: typeof d.target === 'string' ? d.target : NEW_TARGET, height: typeof d.height === 'number' ? d.height : undefined };
+      if (d && typeof d.source === 'string') {
+        return {
+          source: d.source,
+          target: typeof d.target === 'string' ? d.target : NEW_TARGET,
+          height: typeof d.height === 'number' ? d.height : undefined,
+          tab: d.tab === 'strategy' ? 'strategy' : 'editor',
+        };
+      }
     } catch {
       // ignore broken drafts
     }
@@ -74,13 +89,14 @@ export function createScriptPanel(opts: ScriptPanelOptions): ScriptPanel {
   const draft = loadDraft();
   let target = manager.get(draft.target) ? draft.target : NEW_TARGET;
   let height = Math.min(Math.max(draft.height ?? 300, 140), 900);
+  let tab: PanelTab = draft.tab ?? 'editor';
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   const saveDraft = () => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
-        storage.setItem(draftKey, JSON.stringify({ source: view.state.doc.toString(), target, height }));
+        storage.setItem(draftKey, JSON.stringify({ source: view.state.doc.toString(), target, height, tab }));
       } catch {
         // storage full or blocked; the draft is a convenience only
       }
@@ -91,7 +107,13 @@ export function createScriptPanel(opts: ScriptPanelOptions): ScriptPanel {
 
   const targetSelect = h('select', { class: 'sp-select', 'aria-label': 'Script to edit', title: 'Script to edit' }) as HTMLSelectElement;
   const examples = h('select', { class: 'sp-select', 'aria-label': 'Examples', title: 'Load an example script' }) as HTMLSelectElement;
-  examples.append(h('option', { value: '' }, 'Examples'), ...EXAMPLES.map((ex, i) => h('option', { value: String(i) }, ex.name)));
+  const exampleGroup = (label: string, strategies: boolean) =>
+    h(
+      'optgroup',
+      { label },
+      ...EXAMPLES.flatMap((ex, i) => (/^strategy\(/m.test(ex.source) === strategies ? [h('option', { value: String(i) }, ex.name)] : [])),
+    );
+  examples.append(h('option', { value: '' }, 'Examples'), exampleGroup('Indicators', false), exampleGroup('Strategies', true));
   const status = h('span', { class: 'sp-status muted', 'aria-live': 'polite' });
   const runBtn = h('button', { class: 'btn btn-primary sp-run', title: 'Add to chart (Ctrl+Enter or Cmd+Enter)' }) as HTMLButtonElement;
   const newBtn = h('button', { class: 'btn sp-new', title: 'Start a new script' }, 'New');
@@ -99,19 +121,42 @@ export function createScriptPanel(opts: ScriptPanelOptions): ScriptPanel {
   const message = h('div', { class: 'sp-message', role: 'status' });
   const editorHost = h('div', { class: 'sp-editor' });
   const resize = h('div', { class: 'sp-resize', title: 'Drag to resize', role: 'separator', 'aria-orientation': 'horizontal' });
+  const editorTab = h('button', { class: 'sp-tab', type: 'button', role: 'tab' }, 'Editor');
+  const strategyTab = h('button', { class: 'sp-tab', type: 'button', role: 'tab' }, 'Strategy');
+  const strategy = createStrategyView({ manager, onShowTime: opts.onShowTime });
+  const editorTools = h('div', { class: 'sp-tools' }, targetSelect, examples, newBtn, h('span', { class: 'spacer' }), status, runBtn);
+  const strategyTools = h('div', { class: 'sp-tools' }, strategy.tools);
+  const editorPane = h('div', { class: 'sp-pane' }, editorHost, message);
+  const strategyPane = h('div', { class: 'sp-pane' }, strategy.root);
 
   const root = h(
     'section',
-    { class: 'script-panel', hidden: true, 'aria-label': 'Script editor' },
+    { class: 'script-panel', hidden: true, 'aria-label': 'Script editor and strategy results' },
     resize,
-    h('header', { class: 'sp-head' }, h('span', { class: 'sp-title' }, 'Script'), targetSelect, examples, newBtn, h('span', { class: 'spacer' }), status, runBtn, closeBtn),
-    editorHost,
-    message,
+    h('header', { class: 'sp-head' }, h('div', { class: 'sp-tabs', role: 'tablist' }, editorTab, strategyTab), editorTools, strategyTools, closeBtn),
+    editorPane,
+    strategyPane,
   );
   root.style.height = `${height}px`;
 
-  const setMessage = (text: string, kind: 'error' | 'ok' | '' = '') => {
-    message.textContent = text;
+  const setTab = (next: PanelTab) => {
+    tab = next;
+    const onEditor = tab === 'editor';
+    editorTab.classList.toggle('active', onEditor);
+    strategyTab.classList.toggle('active', !onEditor);
+    editorTab.setAttribute('aria-selected', String(onEditor));
+    strategyTab.setAttribute('aria-selected', String(!onEditor));
+    editorTools.hidden = !onEditor;
+    editorPane.hidden = !onEditor;
+    strategyTools.hidden = onEditor;
+    strategyPane.hidden = onEditor;
+    strategy.setVisible(!root.hidden && !onEditor);
+    saveDraft();
+  };
+
+  const setMessage = (text: string, kind: 'error' | 'ok' | '' = '', action?: { label: string; run: () => void }) => {
+    message.replaceChildren(text);
+    if (action) message.append(' ', h('button', { class: 'sp-link', type: 'button', onclick: action.run }, action.label));
     message.className = `sp-message ${kind ? `sp-${kind}` : ''}`;
   };
 
@@ -194,7 +239,18 @@ export function createScriptPanel(opts: ScriptPanelOptions): ScriptPanel {
     view.dispatch(setDiagnostics(view.state, []));
     const info = manager.get(target);
     const ms = info?.lastRunMs ?? performance.now() - started;
-    setMessage(`${info?.title ?? 'Script'} is on the chart.`, 'ok');
+    const report = manager.report(target);
+    if (report) {
+      const s = report.summary;
+      const trades = `${s.totalClosedTrades} closed trade${s.totalClosedTrades === 1 ? '' : 's'}`;
+      const id = target;
+      setMessage(`${info?.title ?? 'Strategy'} is on the chart: ${trades}, net profit ${formatMoney(s.netProfit)} (${formatMoney(s.netProfitPercent)}%).`, 'ok', {
+        label: 'Show results',
+        run: () => panel.showStrategy(id),
+      });
+    } else {
+      setMessage(`${info?.title ?? 'Script'} is on the chart.`, 'ok');
+    }
     status.textContent = `${ms.toFixed(1)} ms`;
     return res;
   }
@@ -202,6 +258,11 @@ export function createScriptPanel(opts: ScriptPanelOptions): ScriptPanel {
   // ------------------------------------------------------------------ events
 
   runBtn.addEventListener('click', () => run());
+  editorTab.addEventListener('click', () => {
+    setTab('editor');
+    view.focus();
+  });
+  strategyTab.addEventListener('click', () => setTab('strategy'));
   closeBtn.addEventListener('click', () => panel.close());
   newBtn.addEventListener('click', () => {
     target = NEW_TARGET;
@@ -265,12 +326,26 @@ export function createScriptPanel(opts: ScriptPanelOptions): ScriptPanel {
       }
       refreshTargets();
       root.hidden = false;
+      setTab(tab);
       opts.onVisibilityChange?.(true);
-      requestAnimationFrame(() => view.focus());
+      if (tab === 'editor') requestAnimationFrame(() => view.focus());
+    },
+    showStrategy(id?: string) {
+      // The overview needs room for the figures, the equity curve and the stats table.
+      if (height < 360) {
+        height = Math.min(360, Math.max(160, window.innerHeight - 260));
+        root.style.height = `${height}px`;
+      }
+      root.hidden = false;
+      refreshTargets();
+      setTab('strategy');
+      strategy.select(id);
+      opts.onVisibilityChange?.(true);
     },
     close() {
       if (root.contains(document.activeElement) && document.activeElement instanceof HTMLElement) document.activeElement.blur();
       root.hidden = true;
+      strategy.setVisible(false);
       opts.onVisibilityChange?.(false);
     },
     toggle() {
@@ -280,5 +355,6 @@ export function createScriptPanel(opts: ScriptPanelOptions): ScriptPanel {
     isOpen: () => !root.hidden,
   };
   refreshTargets();
+  setTab(tab);
   return panel;
 }

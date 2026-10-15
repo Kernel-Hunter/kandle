@@ -3,9 +3,10 @@
  * values, and reports changes so the layout can be saved.
  */
 import type { Chart } from 'klinecharts';
-import { compileScript, type InputDef, type InputValue, type RunResult, type ScriptEngine, type SymbolContext } from './engine';
+import { compileScript, type InputDef, type InputValue, type RunResult, type ScriptEngine, type StrategyReport, type SymbolContext } from './engine';
 import type { ScriptError } from './errors';
-import { registerScriptIndicator, scriptIndicator, SCRIPT_INDICATOR } from './render';
+import { registerScriptIndicator, scriptIndicator, tradesIndicator, SCRIPT_INDICATOR } from './render';
+import { backtestSummary, type BacktestJson } from './backtestJson';
 import { MAX_SCRIPTS, MAX_SCRIPT_LENGTH, type ScriptRecord } from './persist';
 
 export { sanitizeScripts, MAX_SCRIPTS, MAX_SCRIPT_LENGTH, type ScriptRecord } from './persist';
@@ -36,6 +37,8 @@ export interface ScriptInfo {
   inputs: InputDef[];
   values: Record<string, InputValue>;
   plots: string[];
+  /** Declared with strategy(), so it has backtest results. */
+  strategy: boolean;
   error: string | null;
   /** Milliseconds of the last full run. */
   lastRunMs: number | null;
@@ -54,6 +57,8 @@ interface Item {
   id: string;
   engine: ScriptEngine;
   indicatorId: string;
+  /** Trade markers on the price chart for a strategy shown in its own pane. */
+  tradesId: string | null;
   lastFullMs: number | null;
   reportedError: string | null;
 }
@@ -74,6 +79,7 @@ const newId = () => `s${Date.now().toString(36)}${(counter++).toString(36)}`;
 export class ScriptManager {
   private items: Item[] = [];
   private readonly listeners = new Set<() => void>();
+  private readonly runListeners = new Set<(id: string) => void>();
 
   constructor(private readonly host: ScriptHost) {
     registerScriptIndicator();
@@ -82,6 +88,12 @@ export class ScriptManager {
   onChange(fn: () => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
+  }
+
+  /** Called after every run of a strategy script (new data, input changes), with its id. */
+  onStrategyRun(fn: (id: string) => void): () => void {
+    this.runListeners.add(fn);
+    return () => this.runListeners.delete(fn);
   }
 
   private changed(persist = true): void {
@@ -113,6 +125,7 @@ export class ScriptManager {
       inputs: e.inputs.map((d) => ({ ...d })),
       values: e.inputValues(),
       plots: e.outputs.plots.map((p) => p.title),
+      strategy: e.isStrategy,
       error: e.lastError ? e.lastError.format() : null,
       lastRunMs: i.lastFullMs,
     };
@@ -135,6 +148,11 @@ export class ScriptManager {
     });
   }
 
+  /** Backtest results of a strategy script; null for indicators and unknown ids. */
+  report(id: string): StrategyReport | null {
+    return this.items.find((i) => i.id === id)?.engine.strategy ?? null;
+  }
+
   /** Compiles and test-runs a script on the loaded candles without touching the chart. */
   private prepare(source: string, inputs?: Record<string, unknown>): { engine: ScriptEngine; ms: number | null } | { error: RunScriptResult } {
     if (typeof source !== 'string' || !source.trim()) return { error: { ok: false, error: '1:1 The script is empty' } };
@@ -155,7 +173,7 @@ export class ScriptManager {
   }
 
   private attach(id: string, engine: ScriptEngine, indicatorId: string): Item {
-    const item: Item = { id, engine, indicatorId, lastFullMs: null, reportedError: null };
+    const item: Item = { id, engine, indicatorId, tradesId: null, lastFullMs: null, reportedError: null };
     const chart = this.host.chart();
     const create = scriptIndicator({
       id: indicatorId,
@@ -169,8 +187,18 @@ export class ScriptManager {
       chart.createIndicator(create, false);
       const created = chart.getIndicators({ id: indicatorId })[0];
       if (created) chart.setPaneOptions({ id: created.paneId, height: 120 });
+      if (engine.isStrategy) {
+        item.tradesId = `${indicatorId}_trades`;
+        chart.createIndicator({ ...tradesIndicator(item.tradesId, engine), paneId: this.host.candlePaneId }, true);
+      }
     }
     return item;
+  }
+
+  private detach(item: Item): void {
+    const chart = this.host.chart();
+    chart.removeIndicator({ id: item.indicatorId });
+    if (item.tradesId) chart.removeIndicator({ id: item.tradesId });
   }
 
   private afterRun(item: Item, r: RunResult): void {
@@ -181,6 +209,7 @@ export class ScriptManager {
       if (message) this.host.toast(`${item.engine.meta.shortTitle}: ${message}`, 'error');
       this.changed(false);
     }
+    if (item.engine.isStrategy) for (const fn of this.runListeners) fn(item.id);
   }
 
   /** Adds a script to the chart. Returns its id, or the first error. */
@@ -203,8 +232,7 @@ export class ScriptManager {
     const old = this.items[index];
     const prepared = this.prepare(source, old.engine.inputValues());
     if ('error' in prepared) return prepared.error;
-    const chart = this.host.chart();
-    chart.removeIndicator({ id: old.indicatorId });
+    this.detach(old);
     // A fresh indicator id makes the chart drop any cached result of the old script.
     const item = this.attach(id, prepared.engine, `${SCRIPT_INDICATOR}_${id}_${(counter++).toString(36)}`);
     item.lastFullMs ??= prepared.ms;
@@ -226,7 +254,7 @@ export class ScriptManager {
   remove(id: string): boolean {
     const item = this.items.find((i) => i.id === id);
     if (!item) return false;
-    this.host.chart().removeIndicator({ id: item.indicatorId });
+    this.detach(item);
     this.items = this.items.filter((i) => i !== item);
     this.changed();
     return true;
@@ -268,7 +296,24 @@ export function scriptApi(manager: ScriptManager) {
       }
       if (!res.ok || !res.id) return res;
       const info = manager.get(res.id);
-      return { ...res, title: info?.title, overlay: info?.overlay, plots: manager.lastValues(res.id) };
+      const report = manager.report(res.id);
+      return {
+        ...res,
+        title: info?.title,
+        overlay: info?.overlay,
+        plots: manager.lastValues(res.id),
+        ...(report ? { backtest: backtestSummary(report, 20) } : {}),
+      };
+    },
+    /**
+     * Backtest results of a strategy script: the one with `id`, or the most recently added
+     * strategy. `trades` is how many of the latest closed trades to include (default 50).
+     */
+    getBacktest: (id?: string, trades = 50): (BacktestJson & { id: string; title: string }) | null => {
+      const info = id ? manager.get(id) : [...manager.list()].reverse().find((s) => s.strategy);
+      const report = info ? manager.report(info.id) : null;
+      if (!info || !report) return null;
+      return { id: info.id, title: info.title, ...backtestSummary(report, trades) };
     },
     listScripts: (): ScriptInfo[] => manager.list(),
     removeScript: (id: string): boolean => manager.remove(id),
