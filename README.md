@@ -1,6 +1,6 @@
 # Kandle
 
-Kandle is a free, open-source charting app for crypto markets. It runs in your browser, needs no account or API key, and keeps your layouts on your own machine.
+Kandle is a free, open-source charting app for crypto, stock and forex markets. It runs in your browser and keeps your layouts on your own machine. Crypto charts need no account or API key; stock and forex charts use a free key from a data provider that you paste in.
 
 It has alerts, bar replay and multi-chart layouts, and an AI agent such as Claude Code, Codex, Cursor or Gemini CLI can read the chart and draw on it through a local MCP server.
 
@@ -12,8 +12,9 @@ Live demo: link coming soon.
 
 ## Features
 
-- Live candles from Binance and Coinbase public market data. History loads over REST and updates stream over websockets.
-- Symbol search across every Binance spot pair and every Coinbase product.
+- Live crypto candles from Binance, Coinbase, Bybit, OKX and Kraken public market data, with no key. History loads over REST and updates stream over websockets.
+- US and global stocks, ETFs and forex from Twelve Data, Alpaca or Polygon with your own free API key. See [Data sources](#data-sources).
+- Symbol search for the chosen source, with Crypto, Stock, ETF, Forex and Index badges.
 - Timeframes: 1m, 5m, 15m, 1H, 4H, 1D, 1W. Scroll left to load older history.
 - 34 indicators, with as many on the chart as you like: MA, EMA, SMA, WMA, HMA, Bollinger Bands, Donchian Channel, VWAP, Supertrend, Parabolic SAR, Volume, MACD, RSI, Stochastic RSI, KDJ, ATR, OBV, CCI, DMI/ADX, Williams %R, ROC, Momentum, TRIX, Awesome Oscillator and more. Every parameter can be edited.
 - Drawing tools: trend line, ray, extended line, horizontal line and ray, vertical line, parallel channel, rectangle, Fibonacci retracement, price range, text notes and price labels. Select a drawing to move it or delete it. An optional magnet snaps points to candle prices.
@@ -186,7 +187,7 @@ Click **Layout** to show 1 chart, 2 side by side or 4 in a grid. The first chart
 
 - Strategy scripts with backtest results, and `request.*` for other symbols and timeframes in scripts.
 - Desktop app for macOS, Windows, and Linux.
-- More data sources: Kraken, Bybit, CSV import, and stock data with your own API keys.
+- CSV import.
 
 ## Run it locally
 
@@ -219,7 +220,7 @@ BASE_PATH=/kandle/ pnpm build
 ```
 src/
   config.ts          app name and identifiers
-  data/              exchange adapters behind a DataSource interface
+  data/              market data adapters behind a DataSource interface, API keys, rate limits
   chart/             chart engine glue, extra indicators, extra drawing tools
   store/             layout persistence
   script/            Kandle Script: lexer, parser, runtime, built-ins, chart renderer
@@ -236,9 +237,42 @@ tests/               unit tests
 
 To add an exchange, implement the `DataSource` interface in `src/data/types.ts` and register it in `src/data/sources.ts`.
 
-## Data
+## Data sources
 
-Market data comes straight from each exchange's public API in your browser. Kandle has no server and does not store or redistribute data. Exchange availability depends on your region; for Binance the app uses the public market data hosts first.
+Click **Data** in the top bar to see every source, add keys and test them. In symbol search, pick the source above the results.
+
+| Source | Markets | Key needed | Updates |
+| --- | --- | --- | --- |
+| Binance | Crypto | No | Live |
+| Coinbase | Crypto | No | Live |
+| Bybit | Crypto | No | Live |
+| OKX | Crypto | No | Live |
+| Kraken | Crypto | No | Live. History is limited to the latest 720 bars per timeframe. |
+| Twelve Data | Stocks, ETFs, forex, crypto | Free key | Live for the symbols your plan streams, otherwise refreshed once a minute |
+| Alpaca | US stocks and ETFs | Free key ID and secret | Live from the IEX feed (volume covers IEX trades only) |
+| Polygon | Stocks, ETFs, forex, crypto, indices | Free key | End of day on the free plan, marked Delayed |
+
+Free keys:
+
+- Twelve Data: sign up at [twelvedata.com](https://twelvedata.com/register). The free plan allows 8 requests a minute and 800 a day.
+- Alpaca: open a free account at [alpaca.markets](https://app.alpaca.markets/signup) (paper trading is enough) and create an API key. The free plan uses the IEX feed and allows 200 requests a minute.
+- Polygon: sign up at [polygon.io](https://polygon.io/dashboard/signup). The free plan has 2 years of end-of-day data and 5 requests a minute.
+
+Finnhub is not included: its free plan does not include historical candles, so it cannot draw a chart.
+
+How keys are handled:
+
+- Keys stay in this browser. They are saved in local storage under `kandle:apikey:<source>` and are never sent anywhere except to that provider's own API. Kandle has no server.
+- Keys go in request headers where the provider allows it. The Twelve Data websocket only accepts the key in its URL, which goes to Twelve Data only.
+- **Remove key** in the Data dialog deletes it from the browser.
+
+Free plans have tight limits, so Kandle caches responses, counts requests against each plan's per-minute limit, and backs off when a provider answers 429. When a limit is reached the chart says "Free plan limit reached, try again in N s" instead of retrying in a loop.
+
+Stock charts only have bars for trading hours. Nights, weekends and holidays get no empty bars, and the chart places bars side by side, so there are no gaps on the time axis.
+
+Market data comes straight from each provider's official public API in your browser. Kandle does not store or redistribute it, and each provider's terms apply. Exchange availability depends on your region; for Binance the app uses the public market data hosts first.
+
+![The Data sources dialog over an OKX chart](docs/screenshot-sources.png)
 
 ## License
 
