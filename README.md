@@ -21,6 +21,7 @@ Live demo: link coming soon.
 - Dark and light themes.
 - Keyboard shortcuts for most actions. Press `?` in the app to see them all.
 - Export the chart as a PNG image.
+- Scripts: write your own indicators in Kandle Script, with an editor under the chart and ten example scripts.
 - Alerts on price levels, drawn lines and indicator values, with browser notifications.
 - Bar replay to step through history one candle at a time.
 - 1, 2 or 4 charts on screen, each with its own symbol, timeframe and indicators.
@@ -33,6 +34,8 @@ Live demo: link coming soon.
 | --- | --- |
 | Any letter or digit | Search symbols |
 | `/` or `Alt+I` | Indicators |
+| `Alt+S` | Script editor |
+| `Ctrl+Enter` or `Cmd+Enter` | Add or update the script on the chart (in the editor) |
 | `Alt+1` to `Alt+7` | Timeframes 1m to 1W |
 | `Alt+T` | Trend line |
 | `Alt+R` | Ray |
@@ -100,7 +103,7 @@ Cursor (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project) and Gemini CLI 
 | `set_alert`, `list_alerts`, `remove_alert` | Alerts on price, drawn lines and indicators |
 | `start_replay`, `step_replay`, `stop_replay` | Bar replay |
 | `set_layout` | 1, 2 or 4 charts, sync options, symbol and timeframe per chart |
-| `run_script` | Runs a Kandle script when the script engine is present |
+| `run_script` | Adds a Kandle script to the main chart and returns its id and latest plot values, or the error with line and column |
 
 Most tools take an optional `pane` (1 to 4) when several charts are showing. Times can be ISO 8601 dates or Unix times in seconds or milliseconds. Inputs are validated and errors say what to fix.
 
@@ -120,6 +123,46 @@ Most tools take an optional `pane` (1 to 4) when several charts are showing. Tim
 - Programs running as your user on the same computer can read `~/.kandle/bridge-token`. That is the same trust level as the agent itself.
 
 Settings: `--port` or `KANDLE_PORT` (default 7457, change the port in the Agent dialog to match), `KANDLE_TOKEN` for a fixed code, `KANDLE_HOME` for the token folder.
+
+## Scripts
+
+Kandle Script lets you write your own indicators. It is compatible with the scripting language most chart users already know, so many existing indicator scripts run with few or no changes.
+
+Click **Scripts** (or press `Alt+S`) to open the editor under the chart. Write a script, or pick one from **Examples**, and press `Ctrl+Enter` (`Cmd+Enter` on a Mac) to add it to the chart. Errors are underlined as you type, with the line, column and message below the editor. Pick a script from the list at the top left of the editor to change it later.
+
+```
+//@version=5
+indicator("EMA cross", overlay = true)
+fastLen = input.int(9, "Fast", minval = 1)
+slowLen = input.int(21, "Slow", minval = 1)
+
+fast = ta.ema(close, fastLen)
+slow = ta.ema(close, slowLen)
+
+plot(fast, "Fast", color.orange, 2)
+plot(slow, "Slow", color.blue, 2)
+plotshape(ta.crossover(fast, slow), "Up", shape.triangleup, location.belowbar, color.green)
+```
+
+Scripts with `overlay = true` draw on the price chart; the others get their own pane. Inputs show up in the **Indicators** dialog, where you can change them without touching the code. Scripts and their input values are saved with your layout. When a new candle arrives or the last one changes, only the last bar is calculated again; a full run over 1,500 bars takes a few milliseconds for typical scripts.
+
+The examples are a moving average cross, RSI with bands, MACD, Bollinger Bands, Supertrend, VWAP bands, Stochastic, an ATR trailing stop, a Donchian breakout and volume spikes.
+
+![The script editor with an RSI script, and Supertrend and Bollinger Bands scripts on the chart](docs/screenshot-scripts.png)
+
+### What is supported
+
+- Syntax: `//@version=5` and `//@version=6` headers, comments, indented blocks, line wrapping inside brackets or after an operator, `var` and `varip`, type names on declarations (`float x = na`), `=`, `:=` and `+= -= *= /= %=`, `?:`, `and`, `or`, `not`, `if` / `else if` / `else`, `switch` with or without a value, `for i = a to b by step`, `for x in array`, `for [i, x] in array`, `while`, `break`, `continue`, functions on one line or several, default and named arguments, tuples (`[a, b] = f()`), user methods (`method f(float x) =>`) and method calls such as `values.push(x)`.
+- Series: every value has history, read with `x[n]`. `na`, `na()`, `nz()` and `fixnan()`. Variables declared with `var` keep their value from bar to bar. Each call of a function keeps its own history.
+- Data: `open`, `high`, `low`, `close`, `volume`, `hl2`, `hlc3`, `ohlc4`, `hlcc4`, `time`, `bar_index`, `last_bar_index`, `year`, `month`, `dayofmonth`, `dayofweek`, `hour`, `minute`, `barstate.*`, `syminfo.ticker`, `syminfo.mintick`, `timeframe.period`, `timeframe.change()`.
+- `ta.*`: `sma`, `ema`, `rma`, `wma`, `vwma`, `hma`, `rsi`, `macd`, `stoch`, `atr`, `tr`, `bb`, `bbw`, `kc`, `cci`, `mfi`, `obv`, `vwap` (with optional anchor and bands), `supertrend`, `dmi`, `wpr`, `change`, `mom`, `roc`, `highest`, `lowest`, `highestbars`, `lowestbars`, `crossover`, `crossunder`, `cross`, `rising`, `falling`, `stdev`, `variance`, `dev`, `cum`, `valuewhen`, `barssince`, `pivothigh`, `pivotlow`, `linreg`, `correlation`, `percentrank`, `median`.
+- `math.*`: `abs`, `max`, `min`, `avg`, `sum`, `round`, `floor`, `ceil`, `sqrt`, `pow`, `log`, `log10`, `exp`, `sign`, trigonometry, `pi` and `e`.
+- `input`, `input.int`, `input.float`, `input.bool`, `input.string` (with `options`), `input.source`, `input.color`, `input.price`.
+- `color.*` constants, `color.new`, `color.rgb`, `color.from_gradient`, and `#RRGGBB` or `#RRGGBBAA` literals.
+- `str.tostring`, `str.format`, `str.length`, `str.contains`, `str.upper`, `str.lower` and a few more. `array.*` for float, int, bool, string and color arrays.
+- Output: `indicator()` with `title`, `shorttitle`, `overlay`, `format` and `precision`; `plot` with the line, step line, histogram, columns, circles, cross and area styles, per-bar colors, `linewidth` and `offset`; `plotshape`; `plotchar`; `hline`; `fill` between two plots or two hlines; `bgcolor`; `barcolor` (on price-chart scripts).
+
+Not supported yet: strategies and backtesting, `request.*` (other symbols or timeframes), drawing objects (`label`, `line`, `box`, `table`), user-defined types and enums, `import`, `matrix` and `map`, and gradient fills. Using one of these gives a clear "not supported yet" error that points at the line.
 
 ## Alerts
 
@@ -141,7 +184,7 @@ Click **Layout** to show 1 chart, 2 side by side or 4 in a grid. The first chart
 
 ## Roadmap
 
-- Scripts: a scripting language for custom indicators, with an editor panel. Classic indicators will be rewritten as example scripts.
+- Strategy scripts with backtest results, and `request.*` for other symbols and timeframes in scripts.
 - Desktop app for macOS, Windows, and Linux.
 - More data sources: Kraken, Bybit, CSV import, and stock data with your own API keys.
 
@@ -179,6 +222,7 @@ src/
   data/              exchange adapters behind a DataSource interface
   chart/             chart engine glue, extra indicators, extra drawing tools
   store/             layout persistence
+  script/            Kandle Script: lexer, parser, runtime, built-ins, chart renderer
   ui/                symbol search, indicator panel, dialogs
   agent/             agent bridge client, request handlers, Agent dialog
   alerts/            alert evaluation, notifications, alert manager
@@ -200,4 +244,4 @@ Market data comes straight from each exchange's public API in your browser. Kand
 
 MIT. See [LICENSE](LICENSE).
 
-Charts are drawn with [KLineChart](https://github.com/klinecharts/KLineChart), licensed under Apache-2.0. Its notices are in `public/third-party-notices.txt`.
+Charts are drawn with [KLineChart](https://github.com/klinecharts/KLineChart), licensed under Apache-2.0. The script editor uses [CodeMirror](https://codemirror.net), licensed under MIT. Their notices are in `public/third-party-notices.txt`.
