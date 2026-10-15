@@ -342,7 +342,7 @@ export function createFeatures(deps: FeatureDeps): Features {
           url: `ws://127.0.0.1:${settings.port}`,
           token: settings.token,
           app: APP.id,
-          version: '0.1.0',
+          version: '0.2.0',
           handle: (method, params) => dispatch(handlers, method, params),
           onStatus: (status, detail) => agentPanel.setStatus(status, detail),
           onActivity: (method, ok, error) => agentPanel.logActivity(method, ok, error),
