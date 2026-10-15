@@ -186,6 +186,79 @@ plot(avg, "Average", color.blue)
 bgcolor(spike ? color.new(color.orange, 88) : na)
 `,
   },
+  {
+    name: 'EMA cross strategy',
+    source: `//@version=5
+strategy("EMA Cross Strategy", shorttitle = "EMA Cross", overlay = true, initial_capital = 10000, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_type = strategy.commission.percent, commission_value = 0.05)
+fastLen = input.int(12, "Fast EMA", minval = 1)
+slowLen = input.int(26, "Slow EMA", minval = 1)
+
+fast = ta.ema(close, fastLen)
+slow = ta.ema(close, slowLen)
+
+// Always in the market: a cross up goes long, a cross down reverses to short.
+// Orders fill at the open of the next bar.
+if ta.crossover(fast, slow)
+    strategy.entry("Long", strategy.long)
+if ta.crossunder(fast, slow)
+    strategy.entry("Short", strategy.short)
+
+plot(fast, "Fast", color.orange, 2)
+plot(slow, "Slow", color.blue, 2)
+`,
+  },
+  {
+    name: 'RSI mean reversion strategy',
+    source: `//@version=5
+strategy("RSI Mean Reversion", shorttitle = "RSI MR", overlay = true, initial_capital = 10000, default_qty_type = strategy.percent_of_equity, default_qty_value = 50, commission_value = 0.05)
+len = input.int(14, "RSI length", minval = 2)
+oversold = input.int(30, "Buy when RSI crosses up")
+overbought = input.int(70, "Sell when RSI crosses up")
+stopPct = input.float(3.0, "Stop loss %", minval = 0.1, step = 0.5)
+targetPct = input.float(4.0, "Take profit %", minval = 0.1, step = 0.5)
+
+r = ta.rsi(close, len)
+
+if ta.crossover(r, oversold) and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+    // Stop and target in ticks from the fill price, placed together with the entry.
+    ticksPerPct = close / 100 / syminfo.mintick
+    strategy.exit("Exit", "Long", profit = targetPct * ticksPerPct, loss = stopPct * ticksPerPct, comment_profit = "Target", comment_loss = "Stop")
+if ta.crossover(r, overbought)
+    strategy.close("Long", comment = "RSI high")
+
+inTrade = strategy.position_size > 0
+plot(inTrade ? strategy.position_avg_price * (1 + targetPct / 100) : na, "Target", color.green, 1, plot.style_linebr)
+plot(inTrade ? strategy.position_avg_price * (1 - stopPct / 100) : na, "Stop", color.red, 1, plot.style_linebr)
+`,
+  },
+  {
+    name: 'Donchian breakout strategy',
+    source: `//@version=5
+strategy("Donchian Breakout Strategy", shorttitle = "Breakout", overlay = true, initial_capital = 10000, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.05, slippage = 2)
+entryLen = input.int(20, "Entry channel", minval = 1)
+exitLen = input.int(10, "Exit channel", minval = 1)
+
+upper = ta.highest(high, entryLen)
+lower = ta.lowest(low, entryLen)
+exitLow = ta.lowest(low, exitLen)
+exitHigh = ta.highest(high, exitLen)
+
+// Stop orders just outside the channel fill on the breakout bar itself.
+if strategy.position_size <= 0
+    strategy.entry("Long", strategy.long, stop = upper + syminfo.mintick)
+if strategy.position_size >= 0
+    strategy.entry("Short", strategy.short, stop = lower - syminfo.mintick)
+// Exit on a break of the shorter channel in the other direction.
+strategy.exit("Long exit", "Long", stop = exitLow - syminfo.mintick)
+strategy.exit("Short exit", "Short", stop = exitHigh + syminfo.mintick)
+
+plot(upper, "Upper", color.teal)
+plot(lower, "Lower", color.teal)
+pos = strategy.position_size
+plot(pos > 0 ? exitLow : pos < 0 ? exitHigh : na, "Exit level", color.orange, 1, plot.style_linebr)
+`,
+  },
 ];
 
 /** What a new, empty script starts with. */

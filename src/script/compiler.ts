@@ -7,9 +7,11 @@ import type { Arg, Expr, Program, Stmt, TypeRef } from './ast';
 import { BuiltinError, CONSTANTS, FUNCTIONS, KNOWN_UNSUPPORTED_NAMESPACES, VARIABLES, num, type BuiltinFunction } from './builtins/registry';
 import './builtins/core';
 import './builtins/ta';
+import './builtins/strategy';
 import { ScriptError, type Span } from './errors';
 import { PLOT_PALETTE, SHAPE_SIZES, emptyOutputs, type BarColorOutput, type FillOutput, type HlineOutput, type Outputs, type PlotOutput, type ShapeOutput } from './outputs';
 import { Frame, Runtime, SLOT_PLAIN, SLOT_VAR, SLOT_VARIP, type FrameLayout } from './runtime';
+import { Broker, DEFAULT_STRATEGY, type CommissionType, type QtyType, type StrategyConfig } from './strategy';
 import { Color, PlotHandle, ScriptArray, Tuple, isNa, truthy, valuesEqual, typeName } from './values';
 
 export type InputType = 'int' | 'float' | 'bool' | 'string' | 'source' | 'color';
@@ -37,6 +39,8 @@ export interface ScriptMeta {
   precision: number | null;
   format: string | null;
   version: number | null;
+  /** Broker settings when the script is declared with strategy(). */
+  strategy: StrategyConfig | null;
 }
 
 /** Built-in series that can be read with history and chosen by input.source. */
@@ -141,6 +145,46 @@ const INDICATOR_PARAMS = [
   'behind_chart',
 ];
 
+/** strategy() takes the indicator() parameters plus the broker settings, in this order. */
+const STRATEGY_PARAMS = [
+  'title',
+  'shorttitle',
+  'overlay',
+  'format',
+  'precision',
+  'scale',
+  'pyramiding',
+  'calc_on_order_fills',
+  'calc_on_every_tick',
+  'max_bars_back',
+  'backtest_fill_limits_assumption',
+  'default_qty_type',
+  'default_qty_value',
+  'initial_capital',
+  'currency',
+  'slippage',
+  'commission_type',
+  'commission_value',
+  'process_orders_on_close',
+  'close_entries_rule',
+  'margin_long',
+  'margin_short',
+  'explicit_plot_zorder',
+  'max_lines_count',
+  'max_labels_count',
+  'max_boxes_count',
+  'calc_bars_count',
+  'risk_free_rate',
+  'use_bar_magnifier',
+  'fill_orders_on_standard_ohlc',
+  'max_polylines_count',
+  'dynamic_requests',
+  'behind_chart',
+];
+
+const QTY_TYPES: readonly QtyType[] = ['fixed', 'cash', 'percent_of_equity'];
+const COMMISSION_TYPES: readonly CommissionType[] = ['percent', 'cash_per_contract', 'cash_per_order'];
+
 const UNSUPPORTED_CALLS = new Set(['plotcandle', 'plotbar', 'plotarrow', 'study', 'library', 'max_bars_back', 'alert', 'runtime.error']);
 
 const cssOf = (v: unknown): string | null => (v instanceof Color ? v.css() : null);
@@ -232,8 +276,10 @@ export class Compiler {
   readonly rt = new Runtime();
   readonly outputs: Outputs = emptyOutputs();
   readonly inputs: InputDef[] = [];
-  private meta: ScriptMeta = { title: 'Script', shortTitle: 'Script', overlay: false, precision: null, format: null, version: null };
+  private meta: ScriptMeta = { title: 'Script', shortTitle: 'Script', overlay: false, precision: null, format: null, version: null, strategy: null };
   private sawDeclaration = false;
+  /** First use of a strategy.* function or variable, checked once the whole script is compiled. */
+  private strategyUse: { name: string; span: Span } | null = null;
   private readonly functions = new Map<string, UserFunction>();
   private mutatesState = false;
   private fc: FnCtx = { kinds: [], history: [], stateCount: 0, global: true };
@@ -247,6 +293,9 @@ export class Compiler {
   compile(program: Program): CompiledScript {
     this.meta.version = program.version;
     const body = this.block(program.body, false);
+    if (this.strategyUse && !this.meta.strategy) {
+      throw new ScriptError(`'${this.strategyUse.name}' can only be used in a script declared with strategy()`, this.strategyUse.span);
+    }
     const layout: FrameLayout = { kinds: this.globalCtx.kinds, history: this.globalCtx.history };
     return {
       meta: this.meta,
@@ -563,6 +612,7 @@ export class Compiler {
     if (info) return this.reader(info);
     const getter = VARIABLES.get(name);
     if (getter) {
+      this.noteStrategyUse(name, span);
       const rt = this.rt;
       return () => getter(rt);
     }
@@ -593,6 +643,7 @@ export class Compiler {
       }
       const getter = VARIABLES.get(name);
       if (getter) {
+        this.noteStrategyUse(name, e.span);
         const rt = this.rt;
         return () => getter(rt);
       }
@@ -604,9 +655,13 @@ export class Compiler {
     throw new ScriptError(`Fields like '.${e.name}' are not supported yet`, e.span);
   }
 
+  private noteStrategyUse(name: string, span: Span): void {
+    if (!this.strategyUse && name.startsWith('strategy.')) this.strategyUse = { name, span };
+  }
+
   private unknown(name: string, span: Span, isCall: boolean): ScriptError {
     const ns = name.includes('.') ? name.slice(0, name.indexOf('.')) : null;
-    if (ns && (KNOWN_UNSUPPORTED_NAMESPACES.has(ns) || ['ta', 'math', 'str', 'color', 'array', 'input', 'timeframe', 'syminfo', 'barstate', 'plot', 'shape', 'location', 'size', 'display', 'format', 'hline'].includes(ns))) {
+    if (ns && (KNOWN_UNSUPPORTED_NAMESPACES.has(ns) || ['ta', 'math', 'str', 'color', 'array', 'input', 'timeframe', 'syminfo', 'barstate', 'plot', 'shape', 'location', 'size', 'display', 'format', 'hline', 'strategy'].includes(ns))) {
       return new ScriptError(`'${name}' is not supported yet`, span);
     }
     if (UNSUPPORTED_CALLS.has(name)) return new ScriptError(`'${name}' is not supported yet`, span);
@@ -785,8 +840,7 @@ export class Compiler {
     if (user) return this.userCall(user, e.args, e.span, null);
     if (name === this.compilingFunction) throw new ScriptError(`'${name}' cannot call itself; recursion is not supported`, callee.span);
 
-    if (name === 'indicator') return this.indicatorCall(e.args, e.span);
-    if (name === 'strategy') throw new ScriptError('Strategies are not supported yet; use indicator()', e.span);
+    if (name === 'indicator' || name === 'strategy') return this.declarationCall(name, e.args, e.span);
     if (name === 'input' || name.startsWith('input.')) return this.inputCall(name, e.args, e.span);
     if (name in OUTPUT_PARAMS) return this.outputCall(name, e.args, e.span);
 
@@ -832,6 +886,7 @@ export class Compiler {
     }
     const bound = this.bindArgs(name, def.params, def.required, !!def.variadic, args, span);
     const fns = bound.map((x) => (x ? this.expr(x) : null));
+    this.noteStrategyUse(name, span);
     if (def.mutates) this.mutatesState = true;
     const rt = this.rt;
     const n = fns.length;
@@ -994,23 +1049,70 @@ export class Compiler {
 
   // ------------------------------------------------------------------ indicator() and inputs
 
-  private indicatorCall(args: Arg[], span: Span): Fn {
-    if (!this.isGlobalScope()) throw new ScriptError('indicator() must be called at the top level', span);
-    if (this.sawDeclaration) throw new ScriptError('indicator() can only be called once', span);
+  /** indicator() or strategy(): title, display settings and, for strategies, the broker settings. */
+  private declarationCall(kind: 'indicator' | 'strategy', args: Arg[], span: Span): Fn {
+    if (!this.isGlobalScope()) throw new ScriptError(`${kind}() must be called at the top level`, span);
+    if (this.sawDeclaration) throw new ScriptError('A script can call indicator() or strategy() only once', span);
     this.sawDeclaration = true;
-    const b = this.bindArgs('indicator', INDICATOR_PARAMS, 1, false, args, span);
-    const title = this.requireConst(b[0], 'The indicator title');
-    if (typeof title !== 'string' || !title.trim()) throw new ScriptError('indicator() needs a title string', b[0]?.span ?? span);
-    const shortTitle = this.requireConst(b[1], 'shorttitle');
-    const overlay = this.requireConst(b[2], 'overlay');
-    const format = this.requireConst(b[3], 'format');
-    const precision = this.requireConst(b[4], 'precision');
+    const params = kind === 'strategy' ? STRATEGY_PARAMS : INDICATOR_PARAMS;
+    const b = this.bindArgs(kind, params, 1, false, args, span);
+    const get = (p: string) => this.requireConst(b[params.indexOf(p)], p);
+    const title = get('title');
+    if (typeof title !== 'string' || !title.trim()) throw new ScriptError(`${kind}() needs a title string`, b[0]?.span ?? span);
+    const shortTitle = get('shorttitle');
+    const overlay = get('overlay');
+    const format = get('format');
+    const precision = get('precision');
     this.meta.title = title.trim();
     this.meta.shortTitle = typeof shortTitle === 'string' && shortTitle.trim() ? shortTitle.trim() : this.meta.title;
     this.meta.overlay = overlay === true;
     this.meta.format = typeof format === 'string' ? format : null;
     this.meta.precision = typeof precision === 'number' && precision >= 0 ? Math.min(10, Math.floor(precision)) : null;
+    if (kind === 'strategy') {
+      const config = this.strategyConfig(b, params);
+      this.meta.strategy = config;
+      this.rt.strategy = new Broker(config);
+      // Orders and positions depend on every earlier bar, so live updates recompute from the start.
+      this.mutatesState = true;
+    }
     return () => NaN;
+  }
+
+  private strategyConfig(b: Array<Expr | undefined>, params: string[]): StrategyConfig {
+    const config: StrategyConfig = { ...DEFAULT_STRATEGY };
+    const arg = (p: string) => b[params.indexOf(p)];
+    const number = (p: string, min: number, integer = false): number | undefined => {
+      const e = arg(p);
+      if (!e) return undefined;
+      const v = this.requireConst(e, p);
+      if (typeof v !== 'number' || v !== v || v < min) throw new ScriptError(`${p} must be a number of at least ${min}`, e.span);
+      return integer ? Math.floor(v) : v;
+    };
+    const choice = <T extends string>(p: string, options: readonly T[], prefix: string): T | undefined => {
+      const e = arg(p);
+      if (!e) return undefined;
+      const v = this.requireConst(e, p);
+      if (typeof v !== 'string' || !options.includes(v as T)) throw new ScriptError(`${p} must be one of ${options.map((o) => prefix + o).join(', ')}`, e.span);
+      return v as T;
+    };
+    const capital = number('initial_capital', 0);
+    if (capital !== undefined) {
+      if (capital <= 0) throw new ScriptError('initial_capital must be more than 0', arg('initial_capital')!.span);
+      config.initialCapital = capital;
+    }
+    config.defaultQtyType = choice('default_qty_type', QTY_TYPES, 'strategy.') ?? config.defaultQtyType;
+    const qty = number('default_qty_value', 0);
+    if (qty !== undefined) {
+      if (qty <= 0) throw new ScriptError('default_qty_value must be more than 0', arg('default_qty_value')!.span);
+      config.defaultQtyValue = qty;
+    }
+    config.commissionType = choice('commission_type', COMMISSION_TYPES, 'strategy.commission.') ?? config.commissionType;
+    config.commissionValue = number('commission_value', 0) ?? config.commissionValue;
+    config.slippage = number('slippage', 0, true) ?? config.slippage;
+    config.pyramiding = number('pyramiding', 0, true) ?? config.pyramiding;
+    const onClose = arg('process_orders_on_close') ? this.requireConst(arg('process_orders_on_close'), 'process_orders_on_close') : undefined;
+    if (onClose !== undefined) config.processOrdersOnClose = onClose === true;
+    return config;
   }
 
   private inputCall(name: string, args: Arg[], span: Span): Fn {

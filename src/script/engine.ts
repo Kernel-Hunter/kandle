@@ -3,10 +3,12 @@ import { ScriptError } from './errors';
 import type { Outputs } from './outputs';
 import { parse } from './parser';
 import { Frame, type Candle, type Runtime, type SymbolContext } from './runtime';
+import type { StrategyReport } from './strategy';
 import { Color } from './values';
 
 export type { Candle, SymbolContext } from './runtime';
 export type { InputDef, InputValue, ScriptMeta } from './compiler';
+export type { StrategyReport } from './strategy';
 
 export interface RunResult {
   error: ScriptError | null;
@@ -48,6 +50,7 @@ export class ScriptEngine {
   private root: Frame | null = null;
   private needsFull = true;
   private values: InputValue[];
+  private report: StrategyReport | null = null;
   lastError: ScriptError | null = null;
 
   constructor(
@@ -77,6 +80,18 @@ export class ScriptEngine {
 
   get barCount(): number {
     return this.compiled.rt.count;
+  }
+
+  get isStrategy(): boolean {
+    return this.compiled.rt.strategy !== null;
+  }
+
+  /** Backtest results of the last run, or null for indicators. */
+  get strategy(): StrategyReport | null {
+    const rt = this.compiled.rt;
+    if (!rt.strategy) return null;
+    this.report ??= rt.strategy.report(rt.time, rt.close, rt.symbol.periodSeconds);
+    return this.report;
   }
 
   /** Values keyed by input key, ready to store. */
@@ -133,7 +148,9 @@ export class ScriptEngine {
 
     const root = this.root!;
     const body = this.compiled.body;
+    const broker = rt.strategy;
     this.lastError = null;
+    this.report = null;
     let b = start;
     try {
       for (; b < n; b++) {
@@ -141,8 +158,11 @@ export class ScriptEngine {
         rt.runId++;
         rt.loopCount = 0;
         rt.ctl = 0;
+        // Orders placed on earlier bars fill against this bar before the script sees it.
+        broker?.beginBar(b, rt.time[b], rt.open[b], rt.high[b], rt.low[b], rt.close[b]);
         root.enter(rt);
         body(root);
+        broker?.endBar(b, rt.close[b]);
       }
       this.needsFull = false;
     } catch (e) {
@@ -170,6 +190,7 @@ export class ScriptEngine {
     }
     for (const f of o.fills) f.colors.length = 0;
     for (const c of [...o.backgrounds, ...o.barColors]) c.colors.length = 0;
+    rt.strategy?.reset(rt.symbol.mintick);
     this.root = this.compiled.newRootFrame();
   }
 }

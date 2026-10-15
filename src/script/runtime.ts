@@ -6,6 +6,7 @@
  * again (a live update of the last candle) overwrites that bar's values instead of
  * stacking on top of them.
  */
+import type { Broker } from './strategy';
 
 export interface Candle {
   timestamp: number;
@@ -105,6 +106,8 @@ export class Runtime {
   inputValues: unknown[] = [];
   /** True while the last bar is still forming (live data). */
   realtime = false;
+  /** Order and position state of a strategy script; null for indicators. */
+  strategy: Broker | null = null;
   /** Guards against runaway loops: iterations allowed per bar. */
   loopLimit = 500_000;
   loopCount = 0;

@@ -5,8 +5,9 @@ import { sanitizeLayout } from '../../src/store/layout';
 import { CANDLES, compile } from './fixtures';
 
 describe('example scripts', () => {
-  it('ships ten examples', () => {
-    expect(EXAMPLES).toHaveLength(10);
+  it('ships ten indicators and three strategies', () => {
+    expect(EXAMPLES).toHaveLength(13);
+    expect(EXAMPLES.filter((ex) => compile(ex.source).isStrategy)).toHaveLength(3);
   });
 
   for (const ex of [...EXAMPLES, { name: 'New script', source: NEW_SCRIPT }]) {
@@ -18,6 +19,11 @@ describe('example scripts', () => {
       const drawn = o.plots.some((p) => p.values.some((v) => !Number.isNaN(v)));
       expect(drawn).toBe(true);
       expect(e.inputs.length).toBeGreaterThan(0);
+      if (e.isStrategy) {
+        const r = e.strategy!;
+        expect(r.trades.length).toBeGreaterThan(0);
+        expect(r.summary.netProfit).toBeCloseTo(r.trades.reduce((s, t) => s + t.pnl, 0), 6);
+      }
     });
   }
 });

@@ -60,7 +60,6 @@ export function len(v: unknown): number {
 
 /** Names that exist in the original language but are not implemented here yet. */
 export const KNOWN_UNSUPPORTED_NAMESPACES = new Set([
-  'strategy',
   'request',
   'label',
   'line',

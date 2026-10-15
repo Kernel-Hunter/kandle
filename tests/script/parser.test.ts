@@ -209,7 +209,7 @@ describe('error messages carry line:column', () => {
     expect(errorOf('x = foo(1)')).toBe("1:5 Unknown function 'foo' (it may not be supported yet)");
     expect(errorOf('x = request.security(syminfo.tickerid, "D", close)')).toBe("1:5 'request.security' is not supported yet");
     expect(errorOf('x = ta.alma(close, 9, 0.85, 6)')).toBe("1:5 'ta.alma' is not supported yet");
-    expect(errorOf('strategy("s")')).toMatch(/Strategies are not supported yet/);
+    expect(errorOf('strategy("s")\nstrategy.risk.allow_entry_in(strategy.direction.long)')).toBe("2:1 'strategy.risk.allow_entry_in' is not supported yet");
     expect(errorOf('label.new(bar_index, high, "x")')).toBe("1:1 'label.new' is not supported yet");
     expect(errorOf('x = y + 1')).toBe("1:5 Unknown variable 'y'");
     expect(errorOf('import foo/bar/1')).toMatch(/'import' is not supported yet/);
