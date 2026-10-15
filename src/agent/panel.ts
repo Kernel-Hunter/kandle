@@ -45,6 +45,18 @@ const STATUS_TEXT: Record<BridgeStatus, string> = {
   replaced: 'Another Kandle tab or window is connected to the agent. Turn the bridge off and on to take over.',
 };
 
+/**
+ * Pages served from a public origin (the hosted app) need the browser's permission to reach
+ * 127.0.0.1. Chrome asks for it the first time; until the user allows it, the bridge just waits.
+ */
+const LOCAL_NETWORK_HINT =
+  'If your browser asks to let this site connect to devices on your local network, allow it: kandle-mcp runs on 127.0.0.1. If you blocked it, allow it again in the site settings next to the address bar.';
+
+function servedFromThisComputer(): boolean {
+  const host = location.hostname;
+  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host.endsWith('.localhost');
+}
+
 export const AGENT_ICON =
   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 12h.01M15 12h.01M9.5 15.5h5"/></svg>';
 
@@ -164,7 +176,9 @@ export function createAgentPanel(options: AgentPanelOptions) {
     portInput.value = String(settings.port);
     const shown: BridgeStatus = settings.enabled ? status : 'off';
     for (const dot of [statusDot, button.querySelector('.agent-dot')!]) dot.className = `agent-dot agent-${shown}`;
-    statusText.textContent = detail && shown !== 'connected' ? `${STATUS_TEXT[shown]} ${detail}`.trim() : STATUS_TEXT[shown];
+    let text = detail && shown !== 'connected' ? `${STATUS_TEXT[shown]} ${detail}`.trim() : STATUS_TEXT[shown];
+    if (shown === 'waiting' && !servedFromThisComputer()) text = `${text} ${LOCAL_NETWORK_HINT}`;
+    statusText.textContent = text;
     button.title = `AI agent bridge: ${STATUS_TEXT[shown]}`;
     button.classList.toggle('active', shown === 'connected');
     activityList.replaceChildren(
