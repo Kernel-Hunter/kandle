@@ -25,7 +25,7 @@ await client.connect(transport);
 
 const call = async (name, args = {}) => {
   const res = await client.callTool({ name, arguments: args });
-  const text = res.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n');
+  const text = (res.content ?? []).filter((c) => c.type === 'text').map((c) => c.text).join('\n');
   console.log(`\n# ${name} ${JSON.stringify(args)}${res.isError ? '  (error)' : ''}`);
   console.log(text.length > 1200 ? `${text.slice(0, 1200)}...` : text);
   return res;
@@ -47,16 +47,28 @@ if (!status.connected) {
   console.log('Connected.');
 }
 
-await call('set_symbol', { symbol: 'ETH/USDT', exchange: 'binance' });
+await call('set_layout', { charts: 1 });
+await call('clear_drawings');
+await call('remove_alert', { id: 'all' });
+await call('set_symbol', { symbol: 'BTC/USDT', exchange: 'binance' });
 await call('set_timeframe', { timeframe: '4h' });
+await call('remove_indicator', { name: 'RSI' }).catch(() => undefined);
 await call('add_indicator', { name: 'RSI', params: [14] });
 const state = JSON.parse((await call('get_chart_state')).content[0].text);
-const price = state.last_price;
-const level = Math.round(price * 1.02 * 100) / 100;
-const line = JSON.parse((await call('draw', { type: 'horizontal_line', points: [{ price: level }] })).content[0].text);
-await call('draw', { type: 'text', points: [{ time: state.last_bar.time, price: level }], text: 'Resistance to watch' });
-await call('set_alert', { type: 'drawing', drawing_id: line.id, condition: 'crosses', message: `ETHUSDT crossed ${level}` });
-await call('set_alert', { type: 'price', level: Math.round(price * 0.98 * 100) / 100, condition: 'crosses_down' });
+const candles = JSON.parse((await call('get_candles', { limit: 120 })).content[0].text);
+const highs = candles.rows.map((r) => r[2]);
+const lows = candles.rows.map((r) => r[3]);
+const top = Math.max(...highs);
+const bottom = Math.min(...lows);
+const topBar = candles.rows[highs.indexOf(top)];
+const bottomBar = candles.rows[lows.indexOf(bottom)];
+const noteBar = candles.rows[candles.rows.length - 25];
+const resistance = JSON.parse((await call('draw', { type: 'horizontal_line', points: [{ price: top }] })).content[0].text);
+await call('draw', { type: 'horizontal_line', points: [{ price: bottom }] });
+await call('draw', { type: 'fib', points: [{ time: bottomBar[0], price: bottom }, { time: topBar[0], price: top }] });
+await call('draw', { type: 'text', points: [{ time: noteBar[0], price: top }], text: '120-bar high' });
+await call('set_alert', { type: 'drawing', drawing_id: resistance.id, condition: 'crosses_up', message: `BTCUSDT broke the 120-bar high ${top}` });
+await call('set_alert', { type: 'price', level: Math.round(state.last_price * 0.97), condition: 'crosses_down' });
 await call('list_alerts');
 await call('get_candles', { limit: 3, include_indicators: true });
 const shot = await call('screenshot');
@@ -65,6 +77,12 @@ if (out && image) {
   writeFileSync(out, Buffer.from(image.data, 'base64'));
   console.log(`\nSaved screenshot to ${out}`);
 }
+await call('start_replay', { bars_back: 30 });
+await call('step_replay', { bars: 2 });
+await call('stop_replay');
+await call('set_layout', { charts: 4, sync: { crosshair: true }, panes: [{}, { symbol: 'BTCUSDT', timeframe: '1h' }] });
+await call('get_chart_state', { pane: 2 });
+await call('set_layout', { charts: 1 });
 await call('run_script', { code: 'plot(close)' });
 await call('set_symbol', { symbol: 'NOPE' });
 
