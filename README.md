@@ -2,7 +2,7 @@
 
 **Free, open-source charts for crypto, stocks and forex, and your AI agent can drive them.**
 
-Indicators, drawing tools, your own scripts, alerts, bar replay and up to four charts on screen. No account, no paywall, no limit on indicators. It runs in your browser and keeps everything on your machine.
+Indicators, drawing tools, your own scripts and strategy backtests, alerts, bar replay and up to four charts on screen. No account, no paywall, no limit on indicators. It runs in your browser and keeps everything on your machine.
 
 Claude Code, Codex, Cursor or Gemini CLI can read the chart, draw support and resistance, add indicators, write scripts and set alerts while you watch.
 
@@ -36,6 +36,7 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 - Keyboard shortcuts for most actions. Press `?` in the app to see them all.
 - Export the chart as a PNG image.
 - Scripts: write your own indicators in Kandle Script, with an editor under the chart and ten example scripts.
+- Strategy backtests: write a strategy script, see its trades on the chart, and get net profit, drawdown, win rate, an equity curve and the list of trades.
 - Alerts on price levels, drawn lines and indicator values, with browser notifications.
 - Bar replay to step through history one candle at a time.
 - 1, 2 or 4 charts on screen, each with its own symbol, timeframe and indicators.
@@ -122,7 +123,8 @@ Cursor (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project) and Gemini CLI 
 | `set_alert`, `list_alerts`, `remove_alert` | Alerts on price, drawn lines and indicators |
 | `start_replay`, `step_replay`, `stop_replay` | Bar replay |
 | `set_layout` | 1, 2 or 4 charts, sync options, symbol and timeframe per chart |
-| `run_script` | Adds a Kandle script to the main chart and returns its id and latest plot values, or the error with line and column |
+| `run_script` | Adds a Kandle script to the main chart and returns its id and latest plot values, or the error with line and column. For a strategy it also returns the backtest summary and the last 20 trades |
+| `get_backtest` | Settings, summary and up to 500 trades of a strategy script on the chart |
 
 Most tools take an optional `pane` (1 to 4) when several charts are showing. Times can be ISO 8601 dates or Unix times in seconds or milliseconds. Inputs are validated and errors say what to fix.
 
@@ -145,7 +147,7 @@ Settings: `--port` or `KANDLE_PORT` (default 7457, change the port in the Agent 
 
 ## Scripts
 
-Kandle Script lets you write your own indicators. It is compatible with the scripting language most chart users already know, so many existing indicator scripts run with few or no changes.
+Kandle Script lets you write your own indicators and backtest strategies. It is compatible with the scripting language most chart users already know, so many existing indicator scripts run with few or no changes.
 
 Click **Scripts** (or press `Alt+S`) to open the editor under the chart. Write a script, or pick one from **Examples**, and press `Ctrl+Enter` (`Cmd+Enter` on a Mac) to add it to the chart. Errors are underlined as you type, with the line, column and message below the editor. Pick a script from the list at the top left of the editor to change it later.
 
@@ -165,9 +167,54 @@ plotshape(ta.crossover(fast, slow), "Up", shape.triangleup, location.belowbar, c
 
 Scripts with `overlay = true` draw on the price chart; the others get their own pane. Inputs show up in the **Indicators** dialog, where you can change them without touching the code. Scripts and their input values are saved with your layout. When a new candle arrives or the last one changes, only the last bar is calculated again; a full run over 1,500 bars takes a few milliseconds for typical scripts.
 
-The examples are a moving average cross, RSI with bands, MACD, Bollinger Bands, Supertrend, VWAP bands, Stochastic, an ATR trailing stop, a Donchian breakout and volume spikes.
+The indicator examples are a moving average cross, RSI with bands, MACD, Bollinger Bands, Supertrend, VWAP bands, Stochastic, an ATR trailing stop, a Donchian breakout and volume spikes. The strategy examples are an EMA cross that is always in the market, RSI mean reversion with a stop and a target, and a Donchian channel breakout.
 
 ![The script editor with an RSI script, and Supertrend and Bollinger Bands scripts on the chart](docs/screenshot-scripts.png)
+
+### Strategies and backtesting
+
+Declare a script with `strategy()` instead of `indicator()` and it becomes a backtest. Orders placed with `strategy.entry`, `strategy.exit` and `strategy.close` are filled by a broker emulator on the bars loaded in the chart. Each fill is drawn on the price chart as an arrow with its signal name, with a dashed line from entry to exit (green for a win, red for a loss). The **Strategy** tab under the chart has two views:
+
+- **Overview**: net profit, closed trades, percent profitable, profit factor, max drawdown, average trade, Sharpe ratio and buy and hold, the equity curve against buy and hold, and a table with gross profit and loss, average and largest wins and losses, and commission paid.
+- **List of trades**: every trade with its direction, entry and exit signal, time and price, quantity, profit, cumulative profit, run-up and drawdown. Click a trade to scroll the chart to it.
+
+```
+//@version=5
+strategy("EMA cross", overlay = true, initial_capital = 10000,
+     default_qty_type = strategy.percent_of_equity, default_qty_value = 100,
+     commission_type = strategy.commission.percent, commission_value = 0.05)
+fast = ta.ema(close, input.int(12, "Fast"))
+slow = ta.ema(close, input.int(26, "Slow"))
+
+if ta.crossover(fast, slow)
+    strategy.entry("Long", strategy.long)
+    // Stop 3% below and target 6% above the signal bar's close.
+    strategy.exit("Exit", "Long", stop = close * 0.97, limit = close * 1.06)
+if ta.crossunder(fast, slow)
+    strategy.close("Long")
+
+plot(fast, "Fast", color.orange)
+plot(slow, "Slow", color.blue)
+```
+
+How orders fill:
+
+- The script runs once at the close of each bar. An order placed on a bar fills on a later bar: a market order at the next open, a limit or stop order when a bar's range reaches its price. With `process_orders_on_close = true`, market orders fill at the close of the bar that placed them.
+- Kandle has no data inside a bar, so it assumes price moved from the open to the nearer of the high and the low, then to the other one, then to the close (high first when both are equally far). When one bar touches both the stop and the target of an exit, the level nearer the open fills. This is an assumption, and a real trade on such a bar could have gone the other way.
+- A limit or stop order whose price is already passed at the open (a gap) fills at the open.
+- Limit orders fill at their price. Market and stop orders fill `slippage` ticks worse. Commission is charged on every entry and every exit.
+- An entry in the opposite direction closes the open position and opens the new one. More entries in the same direction are allowed up to `pyramiding` (0, the default, allows one).
+- `strategy.exit` levels given in ticks (`profit`, `loss`, `trail_points`, `trail_offset`) are measured from each trade's fill price. An exit placed on the same bar as its entry protects the trade from the bar it fills on.
+- Order sizes come from `default_qty_type` and `default_qty_value` unless `qty` is given. Cash and percent of equity sizes use the fill price. Quantities are not rounded to lot sizes and there are no margin calls.
+- The whole history is recalculated when new data arrives, so the results always match the bars on the chart. Scroll left to load older bars and the backtest covers them too.
+
+How the figures are measured: max drawdown is the largest fall of bar-close equity from an earlier peak. The Sharpe ratio uses the equity at the end of each UTC day (each bar on daily and weekly charts): the mean return over its standard deviation, annualized over 365 days, with a risk-free rate of 0. Buy and hold is the price change from the first loaded close to the last close, applied to the initial capital. Open profit counts the commission already paid on entry.
+
+Supported: `strategy()` with `initial_capital` (default 100000), `default_qty_type` (`strategy.fixed`, `strategy.cash`, `strategy.percent_of_equity`), `default_qty_value`, `commission_type` (`strategy.commission.percent`, `cash_per_contract`, `cash_per_order`), `commission_value`, `slippage`, `pyramiding` and `process_orders_on_close`. Orders: `strategy.entry`, `strategy.order`, `strategy.exit` (`profit`, `limit`, `loss`, `stop`, `trail_price` or `trail_points` with `trail_offset`, `qty`, `qty_percent`, `comment_profit`, `comment_loss`, `comment_trailing`), `strategy.close` (with `qty`, `qty_percent` and `immediately`), `strategy.close_all`, `strategy.cancel` and `strategy.cancel_all`, with `strategy.long` and `strategy.short`. State: `strategy.position_size`, `position_avg_price`, `equity`, `netprofit`, `openprofit`, `grossprofit`, `grossloss`, `max_drawdown`, `closedtrades`, `opentrades`, `wintrades`, `losstrades`, `eventrades`, `initial_capital`, and per-trade values such as `strategy.closedtrades.profit(i)` and `strategy.opentrades.entry_price(i)`. `currency` and `calc_on_every_tick` are accepted and ignored; OCA group arguments are accepted and not modelled.
+
+Agents get the same results: `run_script` returns the backtest summary and the last 20 trades of a strategy, and `get_backtest` returns up to 500 trades.
+
+![A Donchian breakout strategy on BTC/USDT with its trades on the chart and the Strategy tab open](docs/screenshot-strategy.png)
 
 ### What is supported
 
@@ -179,9 +226,10 @@ The examples are a moving average cross, RSI with bands, MACD, Bollinger Bands, 
 - `input`, `input.int`, `input.float`, `input.bool`, `input.string` (with `options`), `input.source`, `input.color`, `input.price`.
 - `color.*` constants, `color.new`, `color.rgb`, `color.from_gradient`, and `#RRGGBB` or `#RRGGBBAA` literals.
 - `str.tostring`, `str.format`, `str.length`, `str.contains`, `str.upper`, `str.lower` and a few more. `array.*` for float, int, bool, string and color arrays.
+- Strategies: see [Strategies and backtesting](#strategies-and-backtesting).
 - Output: `indicator()` with `title`, `shorttitle`, `overlay`, `format` and `precision`; `plot` with the line, step line, histogram, columns, circles, cross and area styles, per-bar colors, `linewidth` and `offset`; `plotshape`; `plotchar`; `hline`; `fill` between two plots or two hlines; `bgcolor`; `barcolor` (on price-chart scripts).
 
-Not supported yet: strategies and backtesting, `request.*` (other symbols or timeframes), drawing objects (`label`, `line`, `box`, `table`), user-defined types and enums, `import`, `matrix` and `map`, and gradient fills. Using one of these gives a clear "not supported yet" error that points at the line.
+Not supported yet: `request.*` (other symbols or timeframes), `strategy.risk.*`, drawing objects (`label`, `line`, `box`, `table`), user-defined types and enums, `import`, `matrix` and `map`, and gradient fills. Using one of these gives a clear "not supported yet" error that points at the line.
 
 ## Alerts
 
@@ -203,7 +251,8 @@ Click **Layout** to show 1 chart, 2 side by side or 4 in a grid. The first chart
 
 ## Roadmap
 
-- Strategy scripts with backtest results, and `request.*` for other symbols and timeframes in scripts.
+- `request.*` for other symbols and timeframes in scripts.
+- Strategy settings in the Indicators dialog, `strategy.risk.*` and order groups (OCA).
 - Desktop app for macOS, Windows, and Linux.
 - CSV import.
 

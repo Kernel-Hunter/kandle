@@ -45,7 +45,7 @@ Cursor（`~/.cursor/mcp.json`）和 Gemini CLI（`~/.gemini/settings.json`）：
 
 只需要 Node.js 22.12 或更高版本。使用在线版时，浏览器可能会询问该页面是否可以访问本地网络设备，请允许，这样页面才能连接到 `127.0.0.1` 上的 `kandle-mcp`。
 
-助手可以使用 20 个工具：读取图表状态和 K 线数据、切换品种和周期、添加或删除指标、画线（趋势线、水平线、射线、矩形、斐波那契回撤、文字标注等）、截图、设置提醒、K 线回放、多图布局，以及运行脚本。[`skills/kandle/SKILL.md`](skills/kandle/SKILL.md) 提供了支撑阻力、趋势分析、指标共振等分析流程。
+助手可以使用 21 个工具：读取图表状态和 K 线数据、切换品种和周期、添加或删除指标、画线（趋势线、水平线、射线、矩形、斐波那契回撤、文字标注等）、截图、设置提醒、K 线回放、多图布局，运行脚本以及读取策略回测结果。[`skills/kandle/SKILL.md`](skills/kandle/SKILL.md) 提供了支撑阻力、趋势分析、指标共振等分析流程。
 
 安全性：桥接服务只监听 `127.0.0.1`；默认关闭，需要你手动打开；每个连接都必须先发送配对码；只接受来自本机页面和官方在线版的连接，并检查 `Host` 头以防止 DNS 重绑定。完整说明见 [English README](README.md#security-model)。
 
@@ -77,7 +77,11 @@ plot(slow, "Slow", color.blue, 2)
 plotshape(ta.crossover(fast, slow), "Up", shape.triangleup, location.belowbar, color.green)
 ```
 
-支持的语法和函数列表见 [English README](README.md#what-is-supported)。暂不支持策略回测和 `request.*`。
+### 策略回测
+
+把 `indicator()` 换成 `strategy()`，脚本就会在图表已加载的 K 线上回测：用 `strategy.entry`、`strategy.exit`（止损、止盈、移动止损）、`strategy.close` 下单，成交以箭头标在 K 线图上，图表下方的 **Strategy** 标签页显示净利润、胜率、盈亏比、最大回撤、夏普比率、资金曲线和逐笔交易列表。订单在下一根 K 线成交：市价单按开盘价，限价单和止损单在价格触及时成交；同一根 K 线同时触及止损和止盈时，假设价格先走向离开盘价较近的高点或低点。AI 助手通过 `run_script` 和 `get_backtest` 也能拿到同样的结果。完整说明见 [English README](README.md#strategies-and-backtesting)。
+
+支持的语法和函数列表见 [English README](README.md#what-is-supported)。暂不支持 `request.*`。
 
 ## 本地运行
 
