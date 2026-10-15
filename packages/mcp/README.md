@@ -5,9 +5,8 @@ MCP server (stdio) that lets AI agents read and draw on a running [Kandle](../..
 Your agent starts `kandle-mcp`. It listens for the Kandle app on `ws://127.0.0.1:7457`. In Kandle, click **Agent**, paste the pairing code and turn on **Agent bridge**.
 
 ```sh
-claude mcp add kandle -- npx -y kandle-mcp
-npx kandle-mcp --print-token   # show the pairing code
-npx kandle-mcp --help
+claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/latest/download/kandle-mcp.tgz kandle-mcp
+cat ~/.kandle/bridge-token     # show the pairing code
 ```
 
 See the main README for config snippets for Codex, Cursor and Gemini CLI, the tool list and the security model.

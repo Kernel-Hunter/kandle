@@ -2,12 +2,15 @@ import { timingSafeEqual } from 'node:crypto';
 
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
 
+/** The public demo, so the hosted app can pair without extra setup. */
+export const HOSTED_ORIGINS: readonly string[] = ['https://kernel-hunter.github.io'];
+
 /**
  * Browsers always send an Origin header on WebSocket upgrades and pages cannot fake it,
  * so this is what keeps a random website from talking to the bridge.
  *
  * Allowed: pages served from this machine (localhost, 127.0.0.1, ::1, *.localhost) on any
- * port, plus any origins the user lists in KANDLE_ALLOWED_ORIGINS. A missing Origin means
+ * port, the hosted demo, plus any origins the user lists in KANDLE_ALLOWED_ORIGINS. A missing Origin means
  * a non-browser client on this machine (for example a test script); those are allowed
  * because they still need the pairing code.
  */
@@ -15,7 +18,7 @@ export function isAllowedOrigin(origin: string | undefined, extra: readonly stri
   if (origin === undefined || origin === '') return true;
   if (origin === 'null') return false; // sandboxed iframes, file:// pages
   const wanted = origin.toLowerCase().replace(/\/+$/, '');
-  if (extra.some((o) => o.toLowerCase().replace(/\/+$/, '') === wanted)) return true;
+  if ([...HOSTED_ORIGINS, ...extra].some((o) => o.toLowerCase().replace(/\/+$/, '') === wanted)) return true;
   let url: URL;
   try {
     url = new URL(origin);

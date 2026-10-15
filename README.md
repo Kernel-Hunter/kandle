@@ -1,14 +1,27 @@
 # Kandle
 
-Kandle is a free, open-source charting app for crypto, stock and forex markets. It runs in your browser and keeps your layouts on your own machine. Crypto charts need no account or API key; stock and forex charts use a free key from a data provider that you paste in.
+**Free, open-source charts for crypto, stocks and forex, and your AI agent can drive them.**
 
-It has alerts, bar replay and multi-chart layouts, and an AI agent such as Claude Code, Codex, Cursor or Gemini CLI can read the chart and draw on it through a local MCP server.
+Indicators, drawing tools, your own scripts, alerts, bar replay and up to four charts on screen. No account, no paywall, no limit on indicators. It runs in your browser and keeps everything on your machine.
+
+Claude Code, Codex, Cursor or Gemini CLI can read the chart, draw support and resistance, add indicators, write scripts and set alerts while you watch.
+
+**[Open Kandle in your browser](https://kernel-hunter.github.io/kandle/)** · [Connect your agent](#use-it-with-your-ai-agent) · [Write a script](#scripts)
+
+[![CI](https://github.com/Kernel-Hunter/kandle/actions/workflows/ci.yml/badge.svg)](https://github.com/Kernel-Hunter/kandle/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+[English](README.md) · [简体中文](README.zh-CN.md)
 
 ![Kandle showing ETH/USDT with indicators and drawings](docs/screenshot-week1.png)
 
-## Try it
+## Connect your agent in one line
 
-Live demo: link coming soon.
+```sh
+claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/latest/download/kandle-mcp.tgz kandle-mcp
+```
+
+Then open Kandle, click **Agent**, paste the pairing code your agent gives you and turn on **Agent bridge**. Ask it something like "mark the last swing high and low on BTC and draw a Fibonacci retracement between them". Setup for other agents is [below](#use-it-with-your-ai-agent).
 
 ## Features
 
@@ -58,17 +71,19 @@ Kandle ships an MCP server, `kandle-mcp`. Your agent starts it, and the Kandle t
 ### Set up
 
 1. Add the server to your agent (the snippets are below).
-2. Ask the agent for the Kandle pairing code. It calls `get_bridge_status` and shows a code like `K7QD-9MXR-2HPA`. You can also run `npx kandle-mcp --print-token`.
+2. Ask the agent for the Kandle pairing code. It calls `get_bridge_status` and shows a code like `K7QD-9MXR-2HPA`. The code is also saved in `~/.kandle/bridge-token`.
 3. In Kandle, click **Agent** in the top bar, paste the code, and turn on **Agent bridge**. The dot on the button turns green when the agent is connected.
 
 The code is saved in your browser and in `~/.kandle/bridge-token`, so you only pair once.
 
-`kandle-mcp` is not on npm yet. Until it is, build it from this repo with `pnpm install && pnpm build` and use `node /path/to/kandle/packages/mcp/bin/kandle-mcp.js` in place of `npx -y kandle-mcp` in the snippets. Inside the repo, `npx kandle-mcp` and `pnpm mcp` also work.
+This works with the [hosted app](https://kernel-hunter.github.io/kandle/) and with a copy you run yourself. With the hosted app, your browser may ask whether the page can reach devices on your local network; allow it so the page can talk to `kandle-mcp` on `127.0.0.1`.
+
+`npx` runs `kandle-mcp` from the latest GitHub release, so you only need Node.js 22.12 or newer. To run it from a clone instead, use `pnpm install && pnpm build` and point your agent at `node /path/to/kandle/packages/mcp/bin/kandle-mcp.js`.
 
 Claude Code:
 
 ```sh
-claude mcp add kandle -- npx -y kandle-mcp
+claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/latest/download/kandle-mcp.tgz kandle-mcp
 ```
 
 Codex (`~/.codex/config.toml`):
@@ -76,7 +91,7 @@ Codex (`~/.codex/config.toml`):
 ```toml
 [mcp_servers.kandle]
 command = "npx"
-args = ["-y", "kandle-mcp"]
+args = ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/latest/download/kandle-mcp.tgz", "kandle-mcp"]
 ```
 
 Cursor (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project) and Gemini CLI (`~/.gemini/settings.json`):
@@ -84,7 +99,10 @@ Cursor (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project) and Gemini CLI 
 ```json
 {
   "mcpServers": {
-    "kandle": { "command": "npx", "args": ["-y", "kandle-mcp"] }
+    "kandle": {
+      "command": "npx",
+      "args": ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/latest/download/kandle-mcp.tgz", "kandle-mcp"]
+    }
   }
 }
 ```
@@ -117,7 +135,7 @@ Most tools take an optional `pane` (1 to 4) when several charts are showing. Tim
 - The bridge only listens on `127.0.0.1`. Nothing is reachable from other machines.
 - The app connects to the server, not the other way round, and only after you turn on **Agent bridge**. It is off by default and you can turn it off at any time.
 - Every connection must send the pairing code first. The code has about 59 bits of randomness, is compared in constant time, and the server stops accepting codes for a minute after 5 wrong ones.
-- The server rejects WebSocket connections from web pages that are not served from `localhost`, `127.0.0.1` or `[::1]`, so a website you visit cannot connect even if it guesses the port. Add other origins, such as a hosted copy of Kandle, with `KANDLE_ALLOWED_ORIGINS`.
+- The server rejects WebSocket connections from web pages that are not served from `localhost`, `127.0.0.1` or `[::1]`, so a website you visit cannot connect even if it guesses the port. The hosted app at `https://kernel-hunter.github.io` is also allowed. Add other origins, such as your own hosted copy, with `KANDLE_ALLOWED_ORIGINS`.
 - The server rejects requests whose `Host` header is not a loopback address, which blocks DNS rebinding.
 - The agent can only do what the tools allow: read chart data, change symbols, indicators, drawings, alerts, replay and layout, and take screenshots of the chart. It cannot read other tabs, your files or your browser storage.
 - Only one Kandle tab is connected at a time. A newer tab takes over and the older one shows that it was replaced.

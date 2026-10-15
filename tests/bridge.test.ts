@@ -41,6 +41,9 @@ describe('bridge security checks', () => {
     expect(isAllowedOrigin('http://[::1]:5173')).toBe(true);
     expect(isAllowedOrigin('http://kandle.localhost')).toBe(true);
     expect(isAllowedOrigin(undefined)).toBe(true);
+    expect(isAllowedOrigin('https://kernel-hunter.github.io')).toBe(true);
+    expect(isAllowedOrigin('https://kernel-hunter.github.io.evil.example')).toBe(false);
+    expect(isAllowedOrigin('http://kernel-hunter.github.io')).toBe(false);
     expect(isAllowedOrigin('https://evil.example')).toBe(false);
     expect(isAllowedOrigin('http://localhost.evil.example')).toBe(false);
     expect(isAllowedOrigin('null')).toBe(false);

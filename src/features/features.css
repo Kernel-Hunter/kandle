@@ -454,9 +454,9 @@
 
 .agent-cmd code {
   flex: 1;
+  min-width: 0;
   font: 12px var(--mono);
-  overflow-x: auto;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .agent-activity {

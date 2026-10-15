@@ -39,7 +39,7 @@ const STATUS_TEXT: Record<BridgeStatus, string> = {
   connecting: 'Connecting',
   connected: 'Connected to your agent',
   waiting: 'Waiting for kandle-mcp. Start your agent with the Kandle MCP server.',
-  bad_token: 'Wrong pairing code. Ask your agent for the code (get_bridge_status) or run npx kandle-mcp --print-token.',
+  bad_token: 'Wrong pairing code. Ask your agent for the code (it calls get_bridge_status) or open ~/.kandle/bridge-token.',
   locked: 'Too many wrong codes. Waiting a minute before trying again.',
   protocol: 'This kandle-mcp version does not match the app. Update both.',
   replaced: 'Another Kandle tab or window is connected to the agent. Turn the bridge off and on to take over.',
@@ -75,7 +75,7 @@ export function createAgentPanel(options: AgentPanelOptions) {
   const statusDot = h('span', { class: 'agent-dot' });
   const statusText = h('span', { class: 'agent-status-text' });
   const activityList = h('ul', { class: 'agent-activity' });
-  const command = 'claude mcp add kandle -- npx -y kandle-mcp';
+  const command = `claude mcp add kandle -- ${APP.mcpNpx}`;
 
   const apply = () => {
     const token = normalizeToken(tokenInput.value);
@@ -143,7 +143,7 @@ export function createAgentPanel(options: AgentPanelOptions) {
           onclick: () => void navigator.clipboard?.writeText(command).catch(() => undefined),
         }, 'Copy'),
       ),
-      h('p', {}, '2. Ask the agent for the Kandle pairing code (it calls get_bridge_status), or run npx kandle-mcp --print-token in a terminal.'),
+      h('p', {}, '2. Ask the agent for the Kandle pairing code (it calls get_bridge_status). It is also saved in ~/.kandle/bridge-token.'),
       h('p', {}, '3. Paste the code above and turn on Agent bridge. The code is stored in this browser, so you only do this once.'),
     ),
     h('div', { class: 'col-title' }, 'Recent agent actions'),

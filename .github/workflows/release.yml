@@ -20,14 +20,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm build
-      # The MCP server ships as a tarball on the release, so `npx -y <url>` works
-      # without an npm account. Its version must match the tag.
+      # The MCP server ships as a tarball on the release, so npx can run it from the URL
+      # without an npm account. Its version must match the tag. kandle-mcp.tgz is the same
+      # file under a fixed name, so releases/latest/download/kandle-mcp.tgz always works.
       - name: Pack kandle-mcp
         run: |
           version="${GITHUB_REF_NAME#v}"
           test "$(node -p "require('./packages/mcp/package.json').version")" = "$version"
           cd packages/mcp && npm pack --pack-destination ../..
+          cd ../.. && cp "kandle-mcp-$version.tgz" kandle-mcp.tgz
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" kandle-mcp-*.tgz --title "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" kandle-mcp-*.tgz kandle-mcp.tgz --title "$GITHUB_REF_NAME" --generate-notes
