@@ -1,10 +1,38 @@
+import { AlpacaSource } from './alpaca';
 import { BinanceSource } from './binance';
+import { BybitSource } from './bybit';
 import { CoinbaseSource } from './coinbase';
-import type { DataSource, SymbolMeta } from './types';
+import { keyStore } from './keys';
+import { KrakenSource } from './kraken';
+import { OkxSource } from './okx';
+import { PolygonSource } from './polygon';
+import { TwelveDataSource } from './twelvedata';
+import type { DataSource, MarketType, SymbolMeta } from './types';
 import type { KeyValueStorage } from '../store/layout';
 import { APP } from '../config';
 
-export const SOURCES: readonly DataSource[] = [new BinanceSource(), new CoinbaseSource()];
+/** Keyless crypto exchanges first, then providers that need the user's own free key. */
+export const SOURCES: readonly DataSource[] = [
+  new BinanceSource(),
+  new CoinbaseSource(),
+  new BybitSource(),
+  new OkxSource(),
+  new KrakenSource(),
+  new TwelveDataSource(),
+  new AlpacaSource(),
+  new PolygonSource(),
+];
+
+/** Markets a source covers; sources that do not say are crypto exchanges. */
+export function sourceMarkets(source: DataSource): readonly MarketType[] {
+  return source.markets ?? ['crypto'];
+}
+
+/** True when the source needs a key and every key field has a value saved in this browser. */
+export function hasKey(source: DataSource): boolean {
+  if (!source.auth) return true;
+  return keyStore().has(source.id, source.auth.fields.map((f) => f.id));
+}
 
 export function getSource(id: string): DataSource {
   return SOURCES.find((s) => s.id === id) ?? SOURCES[0];

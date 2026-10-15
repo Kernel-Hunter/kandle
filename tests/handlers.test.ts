@@ -157,6 +157,15 @@ describe('bridge handlers', () => {
     await expect(call(handlers, 'set_symbol', { symbol: 'BTCUSDT', exchange: 'kraken' })).rejects.toThrow(/Unknown exchange/);
   });
 
+  it('falls back to provider search for sources that only list popular symbols', async () => {
+    const ibm = { symbol: 'IBM', base: 'IBM', quote: 'USD', pricePrecision: 2, volumePrecision: 0, market: 'stock' as const };
+    const searchSymbols = vi.fn(async () => [ibm]);
+    const { handlers, main } = setup({ sources: () => ['binance', 'twelvedata'], searchSymbols });
+    await call(handlers, 'set_symbol', { symbol: 'IBM', exchange: 'twelvedata' });
+    expect(searchSymbols).toHaveBeenCalledWith('twelvedata', 'IBM');
+    expect(main.pane.setSymbol).toHaveBeenCalledWith('twelvedata', ibm);
+  });
+
   it('does not wait when nothing changes', async () => {
     const { handlers, main } = setup();
     await call(handlers, 'set_timeframe', { timeframe: '1h' });

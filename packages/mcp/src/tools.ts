@@ -23,6 +23,9 @@ export const DRAWING_TYPES = [
   'price_range',
 ] as const;
 
+/** Data source ids, matching SOURCES in src/data/sources.ts. */
+export const EXCHANGES = ['binance', 'coinbase', 'bybit', 'okx', 'kraken', 'twelvedata', 'alpaca', 'polygon'] as const;
+
 export const ALERT_CONDITIONS = ['crosses', 'crosses_up', 'crosses_down', 'touches'] as const;
 
 const time = z
@@ -46,7 +49,7 @@ export const schemas = {
       .max(40)
       .regex(/^[A-Za-z0-9._:/-]+$/, 'Symbols use letters, digits and . _ : / -')
       .describe('Market symbol such as BTCUSDT, ETH/USDT or BTC-USD'),
-    exchange: z.enum(['binance', 'coinbase']).optional().describe('Data source. Defaults to the chart\'s current exchange.'),
+    exchange: z.enum(EXCHANGES).optional().describe('Data source. Defaults to the chart\'s current exchange. twelvedata, alpaca and polygon need a key saved in Kandle.'),
     pane,
   }),
   set_timeframe: z.object({
@@ -117,7 +120,7 @@ export const schemas = {
       .array(
         z.object({
           symbol: z.string().min(1).max(40).regex(/^[A-Za-z0-9._:/-]+$/).optional(),
-          exchange: z.enum(['binance', 'coinbase']).optional(),
+          exchange: z.enum(EXCHANGES).optional(),
           timeframe: z.enum(TIMEFRAME_INPUTS).optional(),
         }),
       )

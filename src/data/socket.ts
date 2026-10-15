@@ -10,6 +10,8 @@ export interface ManagedSocketOptions {
   onStatus?: (status: StreamStatus) => void;
   /** Reconnect delays in ms; the last value repeats. */
   backoff?: number[];
+  /** Some exchanges drop quiet connections unless the client pings. */
+  heartbeat?: { intervalMs: number; message: string };
 }
 
 /**
@@ -22,6 +24,11 @@ export function openManagedSocket(options: ManagedSocketOptions): () => void {
   let closed = false;
   let socket: WebSocketLike | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let pinger: ReturnType<typeof setInterval> | null = null;
+  const stopPing = () => {
+    if (pinger) clearInterval(pinger);
+    pinger = null;
+  };
 
   const connect = () => {
     if (closed) return;
@@ -32,6 +39,13 @@ export function openManagedSocket(options: ManagedSocketOptions): () => void {
       attempt = 0;
       options.onStatus?.('live');
       options.onOpen?.(ws);
+      const hb = options.heartbeat;
+      if (hb) {
+        stopPing();
+        pinger = setInterval(() => {
+          if (socket === ws && ws.readyState === 1) ws.send(hb.message);
+        }, hb.intervalMs);
+      }
     };
     ws.onmessage = (event) => {
       if (typeof event.data === 'string') options.onMessage(event.data);
@@ -41,6 +55,7 @@ export function openManagedSocket(options: ManagedSocketOptions): () => void {
     };
     ws.onclose = () => {
       if (closed || socket !== ws) return;
+      stopPing();
       const delay = backoff[Math.min(attempt, backoff.length - 1)];
       attempt += 1;
       options.onStatus?.('reconnecting');
@@ -53,6 +68,7 @@ export function openManagedSocket(options: ManagedSocketOptions): () => void {
   return () => {
     closed = true;
     if (timer) clearTimeout(timer);
+    stopPing();
     const ws = socket;
     socket = null;
     if (ws) {

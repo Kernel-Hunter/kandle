@@ -1,0 +1,211 @@
+/* Data sources dialog and market badges. */
+
+.modal-data {
+  width: min(640px, 100%);
+}
+
+.ds-privacy {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.ds-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ds-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.ds-card.ds-focus {
+  border-color: var(--accent);
+}
+
+.ds-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ds-name {
+  font-weight: 650;
+  margin-right: 4px;
+}
+
+.ds-note,
+.ds-plan,
+.ds-status {
+  margin: 0;
+}
+
+.ds-status:empty {
+  display: none;
+}
+
+.ds-ok {
+  color: var(--up);
+}
+
+.ds-error {
+  color: var(--down);
+}
+
+.ds-info {
+  color: var(--muted);
+}
+
+.ds-keystate {
+  font-size: 11px;
+  color: var(--warn);
+}
+
+.ds-keystate.ok {
+  color: var(--muted);
+}
+
+.ds-fresh {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.ds-fresh-live {
+  color: var(--up);
+}
+
+.ds-fresh-end-of-day,
+.ds-fresh-delayed {
+  color: var(--warn);
+}
+
+.ds-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.ds-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ds-input {
+  padding: 7px 9px;
+  font: 13px var(--mono);
+}
+
+.ds-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ds-actions .btn.small {
+  align-self: center;
+}
+
+.ds-link {
+  color: var(--accent);
+}
+
+.mk-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--panel-2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.mk-crypto {
+  color: #e3a008;
+}
+
+.mk-stock {
+  color: #2f80ed;
+}
+
+.mk-etf {
+  color: #8b5cf6;
+}
+
+.mk-forex {
+  color: #22ab94;
+}
+
+.mk-index {
+  color: #f2994a;
+}
+
+/* symbol search additions */
+
+.search-sources {
+  flex-wrap: wrap;
+}
+
+.search-sources .seg {
+  flex-wrap: wrap;
+}
+
+.seg-btn .key-mark {
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--warn);
+}
+
+.result-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.result-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.result-exchange {
+  font-size: 11px;
+}
+
+.search-need-key {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.status-polling .dot,
+.status-delayed .dot {
+  background: var(--warn);
+}

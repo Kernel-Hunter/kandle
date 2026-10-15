@@ -22,7 +22,8 @@ describe('tool schemas', () => {
 
   it('rejects bad input with field errors', () => {
     expect(schemas.set_symbol.safeParse({ symbol: 'BTC USDT; rm -rf' }).success).toBe(false);
-    expect(schemas.set_symbol.safeParse({ symbol: 'BTCUSDT', exchange: 'kraken' }).success).toBe(false);
+    expect(schemas.set_symbol.safeParse({ symbol: 'BTCUSDT', exchange: 'ftx' }).success).toBe(false);
+    expect(schemas.set_symbol.safeParse({ symbol: 'XBTUSD', exchange: 'kraken' }).success).toBe(true);
     expect(schemas.set_timeframe.safeParse({ timeframe: '2h' }).success).toBe(false);
     expect(schemas.get_candles.safeParse({ limit: 50_000 }).success).toBe(false);
     expect(schemas.draw.safeParse({ type: 'circle', points: [{ price: 1 }] }).success).toBe(false);

@@ -250,6 +250,7 @@ export function createFeatures(deps: FeatureDeps): Features {
         pane: (index) => layout.pane(index) as PaneLike | null,
         sources: () => SOURCES.map((s) => s.id),
         symbols: (source) => loadSymbols(getSource(source), deps.storage),
+        searchSymbols: async (source, query) => (await getSource(source).search?.(query)) ?? [],
         fetchCandles: (source, symbol, timeframe, options) => getSource(source).fetchCandles(symbol, timeframe, options),
         draw: (overlay, points, text) => {
           const id = api().draw(overlay, points, text);

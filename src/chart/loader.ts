@@ -79,11 +79,19 @@ export function createDataLoader(hooks: LoaderHooks): DataLoader & { generation(
         timeframe,
         (candle) => {
           if (myGeneration !== generation) return;
+          // Some feeds replay a few recent bars on connect; the chart already has those.
+          if (lastCandle && candle.time < lastCandle.time) return;
           lastCandle = candle;
           params.callback(candleToKLine(candle));
           hooks.onLiveCandle?.(candle);
         },
-        { seed: lastCandle, onStatus: (s) => hooks.onStreamStatus?.(s) },
+        {
+          seed: lastCandle,
+          onStatus: (s) => hooks.onStreamStatus?.(s),
+          onError: (message) => {
+            if (myGeneration === generation) hooks.onError?.(`${symbol}: ${message}`);
+          },
+        },
       );
     },
 

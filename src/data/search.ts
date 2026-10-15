@@ -36,3 +36,9 @@ export function searchSymbols(symbols: SymbolMeta[], query: string, limit = 80):
   scored.sort((a, b) => a.score - b.score || quoteRank(a.s) - quoteRank(b.s) || a.s.symbol.length - b.s.symbol.length || a.s.symbol.localeCompare(b.s.symbol));
   return scored.slice(0, limit).map((x) => x.s);
 }
+
+/** Label for a symbol: "BTC/USDT" for pairs, the ticker alone for stocks, ETFs and indices. */
+export function displayName(meta: SymbolMeta): string {
+  if (meta.market === 'stock' || meta.market === 'etf' || meta.market === 'index') return meta.base;
+  return `${meta.base}/${meta.quote}`;
+}

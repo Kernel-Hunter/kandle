@@ -47,6 +47,8 @@ export interface HostEnv {
   pane(index: number): PaneLike | null;
   sources(): string[];
   symbols(source: string): Promise<SymbolMeta[]>;
+  /** Provider-side search, for sources whose symbol list is only a short popular set. */
+  searchSymbols?(source: string, query: string): Promise<SymbolMeta[]>;
   fetchCandles(source: string, symbol: string, timeframe: TimeframeId, options: { before?: number; limit?: number }): Promise<Candle[]>;
   /** Draws on the main chart through the app so the drawing is saved and editable. */
   draw(overlay: string, points: DrawingPoint[], text?: string): string | null;
@@ -230,7 +232,13 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
 
   const resolveIn = async (source: string, symbol: string): Promise<SymbolMeta> => {
     if (!env.sources().includes(source)) throw new Error(`Unknown exchange ${source}. Use one of ${env.sources().join(', ')}.`);
-    return resolveSymbol(await env.symbols(source), symbol);
+    try {
+      return resolveSymbol(await env.symbols(source), symbol);
+    } catch (error) {
+      const found = env.searchSymbols ? await env.searchSymbols(source, symbol) : [];
+      if (!found.length) throw error;
+      return resolveSymbol(found, symbol);
+    }
   };
 
   /** Applies a change and waits for the chart to finish loading the new data. */

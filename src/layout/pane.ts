@@ -2,6 +2,7 @@ import { dispose, init, type Chart, type DeepPartial, type Styles } from 'klinec
 import { INDICATORS, getIndicatorDef } from '../chart/indicators';
 import { createDataLoader } from '../chart/loader';
 import { cachedSymbols, getSource } from '../data/sources';
+import { displayName } from '../data/search';
 import { TIMEFRAMES, getTimeframe, type TimeframeId } from '../data/timeframes';
 import type { Candle, SymbolMeta } from '../data/types';
 import { SwitchingLoader } from '../replay/loader';
@@ -214,7 +215,7 @@ export class SecondaryPane implements PaneHandle {
   }
 
   private renderHead(): void {
-    const label = this.meta ? `${this.meta.base}/${this.meta.quote}` : this.config.symbol;
+    const label = this.meta ? displayName(this.meta) : this.config.symbol;
     this.symbolBtn.replaceChildren(
       h('span', { html: ICONS.search, class: 'symbol-icon' }),
       h('span', { class: 'symbol-name' }, label),

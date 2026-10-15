@@ -12,6 +12,9 @@ import { createModal, promptText, topModal } from './ui/modal';
 import { createSymbolSearch } from './ui/symbolSearch';
 import { createIndicatorPanel, type ActiveIndicator } from './ui/indicatorPanel';
 import { createFeatures, type Features } from './features';
+import { displayName } from './data/search';
+import { keyStore } from './data/keys';
+import { createDataSourcesButton } from './ui/dataSources';
 import { ScriptManager, scriptApi } from './script/manager';
 import { symbolContext } from './script/render';
 import { scriptRows } from './ui/scriptInputs';
@@ -146,6 +149,7 @@ export class App {
     this.exposeForAutomation();
     this.initScripts();
     this.features.start();
+    this.initDataSources();
     // Warm the symbol list so search opens instantly.
     loadSymbols(getSource(this.layout.source), this.storage).catch(() => undefined);
   }
@@ -236,7 +240,7 @@ export class App {
     const source = getSource(this.layout.source);
     this.el.symbolBtn.replaceChildren(
       h('span', { html: ICONS.search, class: 'symbol-icon' }),
-      h('span', { class: 'symbol-name' }, this.meta ? `${this.meta.base}/${this.meta.quote}` : this.layout.symbol),
+      h('span', { class: 'symbol-name' }, this.meta ? displayName(this.meta) : this.layout.symbol),
       h('span', { class: 'symbol-source muted' }, source.name),
     );
     this.el.timeframes.querySelectorAll<HTMLButtonElement>('[data-tf]').forEach((b) => {
@@ -529,7 +533,7 @@ export class App {
   }
 
   private setStreamStatus(status: StreamStatus): void {
-    const labels: Record<StreamStatus, string> = { connecting: 'Connecting', live: 'Live', reconnecting: 'Reconnecting', closed: 'Offline' };
+    const labels: Record<StreamStatus, string> = { connecting: 'Connecting', live: 'Live', reconnecting: 'Reconnecting', closed: 'Offline', polling: 'Polling', delayed: 'Delayed' };
     this.el.status.className = `status status-${status}`;
     this.el.status.replaceChildren(h('span', { class: 'dot' }), h('span', { class: 'status-label' }, labels[status]));
   }
@@ -745,5 +749,16 @@ export class App {
   async toggleScriptEditor(): Promise<void> {
     const panel = await this.loadScriptPanel();
     panel.toggle();
+  }
+
+  // ---------------------------------------------------------------- data sources
+
+  /** Adds the Data sources button and reloads the main chart when its source's key changes. */
+  private initDataSources(): void {
+    const status = this.root.querySelector('.topbar .status');
+    status?.before(createDataSourcesButton());
+    keyStore().onChange((sourceId) => {
+      if (sourceId === this.layout.source) this.chart.resetData();
+    });
   }
 }
