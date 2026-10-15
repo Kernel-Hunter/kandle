@@ -11,6 +11,7 @@ import { h, ICONS, isTypingTarget } from './ui/dom';
 import { createModal, promptText, topModal } from './ui/modal';
 import { createSymbolSearch } from './ui/symbolSearch';
 import { createIndicatorPanel, type ActiveIndicator } from './ui/indicatorPanel';
+import { createFeatures, type Features } from './features';
 
 const DRAWINGS_GROUP = 'drawings';
 const CANDLE_PANE = 'candle_pane';
@@ -61,6 +62,8 @@ export class App {
   private magnet = false;
   private restoringDrawings = false;
   private lastPrice: number | null = null;
+  /** Agent bridge, alerts, bar replay and multi-chart layouts (src/features). */
+  private features!: Features;
 
   private readonly el = {
     symbolBtn: h('button', { class: 'symbol-btn', title: 'Search symbol (start typing anywhere)' }),
@@ -113,17 +116,21 @@ export class App {
     this.meta = await this.lookupMeta(this.layout.source, this.layout.symbol);
     this.chart.setSymbol(this.symbolInfo());
     this.chart.setPeriod(getTimeframe(this.layout.timeframe)!.period);
+    this.features = createFeatures({ app: this, chart: this.chart, storage: this.storage, root: this.root, styles: chartStyles });
     this.chart.setDataLoader(
-      createDataLoader({
+      this.features.wrapLoader(createDataLoader({
         resolve: () => ({ source: getSource(this.layout.source), symbol: this.layout.symbol, timeframe: this.layout.timeframe }),
         onError: (message) => this.toast(message, 'error'),
         onLoading: (loading) => {
           this.el.loading.hidden = !loading;
           if (!loading) this.refreshPriceFromChart();
         },
-        onLiveCandle: (candle) => this.updatePrice(candle),
+        onLiveCandle: (candle) => {
+          this.updatePrice(candle);
+          this.features.onLiveCandle(candle);
+        },
         onStreamStatus: (status) => this.setStreamStatus(status),
-      }),
+      })),
     );
 
     for (const ind of this.layout.indicators) this.addIndicator(ind.name, ind.params, false);
@@ -131,6 +138,7 @@ export class App {
     this.updateHeader();
     this.bindKeys();
     this.exposeForAutomation();
+    this.features.start();
     // Warm the symbol list so search opens instantly.
     loadSymbols(getSource(this.layout.source), this.storage).catch(() => undefined);
   }
