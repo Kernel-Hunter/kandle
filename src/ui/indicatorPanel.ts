@@ -15,6 +15,8 @@ export interface IndicatorPanelOptions {
   add: (name: string) => void;
   remove: (id: string) => void;
   update: (id: string, params: number[]) => void;
+  /** Extra rows for the "On chart" list (scripts). Gets a callback that re-renders the list. */
+  extraActive?: (rerender: () => void) => Node[];
 }
 
 export function createIndicatorPanel(options: IndicatorPanelOptions) {
@@ -79,7 +81,8 @@ export function createIndicatorPanel(options: IndicatorPanelOptions) {
 
   const renderActive = () => {
     const items = options.list();
-    if (items.length === 0) {
+    const extra = options.extraActive?.(() => renderActive()) ?? [];
+    if (items.length === 0 && extra.length === 0) {
       activeList.replaceChildren(h('p', { class: 'muted empty' }, 'No indicators yet. Pick one from the list.'));
       return;
     }
@@ -166,6 +169,7 @@ export function createIndicatorPanel(options: IndicatorPanelOptions) {
           params.length > 0 || def?.variadic ? fields : h('p', { class: 'muted small' }, 'No parameters'),
         );
       }),
+      ...extra,
     );
   };
 

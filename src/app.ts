@@ -12,6 +12,10 @@ import { createModal, promptText, topModal } from './ui/modal';
 import { createSymbolSearch } from './ui/symbolSearch';
 import { createIndicatorPanel, type ActiveIndicator } from './ui/indicatorPanel';
 import { createFeatures, type Features } from './features';
+import { ScriptManager, scriptApi } from './script/manager';
+import { symbolContext } from './script/render';
+import { scriptRows } from './ui/scriptInputs';
+import type { ScriptPanel } from './ui/scriptPanel';
 
 const DRAWINGS_GROUP = 'drawings';
 const CANDLE_PANE = 'candle_pane';
@@ -97,6 +101,8 @@ export class App {
       add: (name) => this.addIndicator(name),
       remove: (id) => this.removeIndicator(id),
       update: (id, params) => this.updateIndicator(id, params),
+      extraActive: (rerender) =>
+        this.scripts ? scriptRows(this.scripts, { rerender, onEdit: (id) => (this.indicatorPanel.close(), void this.openScriptEditor(id)) }) : [],
     });
     this.helpModal = this.buildHelp();
   }
@@ -138,6 +144,7 @@ export class App {
     this.updateHeader();
     this.bindKeys();
     this.exposeForAutomation();
+    this.initScripts();
     this.features.start();
     // Warm the symbol list so search opens instantly.
     loadSymbols(getSource(this.layout.source), this.storage).catch(() => undefined);
@@ -678,5 +685,65 @@ export class App {
       },
       chart: () => this.chart,
     };
+  }
+
+  // ---------------------------------------------------------------- scripts
+
+  private scripts: ScriptManager | null = null;
+  private scriptPanel: ScriptPanel | null = null;
+  private scriptPanelLoading: Promise<ScriptPanel> | null = null;
+  private readonly scriptsBtn = h('button', { class: 'tb-btn', title: 'Script editor (Alt+S)' }, h('span', { class: 'tb-icon', html: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14"/></svg>' }), h('span', { class: 'tb-label' }, 'Scripts'));
+
+  /** Sets up user scripts: restores saved ones, adds the toolbar button and the automation API. */
+  private initScripts(): void {
+    const manager = new ScriptManager({
+      chart: () => this.chart,
+      candlePaneId: CANDLE_PANE,
+      symbol: () => symbolContext(this.layout.symbol, getTimeframe(this.layout.timeframe)?.ms ?? 3_600_000, this.meta?.pricePrecision ?? 2),
+      persist: (records) => {
+        this.layout = { ...this.layout, scripts: records };
+        this.persistLayout();
+      },
+      toast: (message, kind) => this.toast(message, kind),
+    });
+    this.scripts = manager;
+    manager.restore(this.layout.scripts ?? []);
+    manager.onChange(() => this.indicatorPanel.refresh());
+
+    this.scriptsBtn.addEventListener('click', () => void this.toggleScriptEditor());
+    const indicatorsBtn = this.root.querySelector('.topbar .tb-btn');
+    if (indicatorsBtn) indicatorsBtn.after(this.scriptsBtn);
+    document.addEventListener('keydown', (e) => {
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyS' && !topModal()) {
+        e.preventDefault();
+        void this.toggleScriptEditor();
+      }
+    });
+
+    const handle = (window as unknown as Record<string, unknown>)[APP.id];
+    if (handle && typeof handle === 'object') Object.assign(handle, scriptApi(manager));
+  }
+
+  private loadScriptPanel(): Promise<ScriptPanel> {
+    if (this.scriptPanel) return Promise.resolve(this.scriptPanel);
+    this.scriptPanelLoading ??= import('./ui/scriptPanel').then(({ createScriptPanel }) => {
+      const panel = createScriptPanel({ manager: this.scripts!, storage: this.storage, toast: (m, k) => this.toast(m, k),
+        onVisibilityChange: (open) => this.scriptsBtn.classList.toggle('active', open),
+      });
+      this.root.querySelector('.workspace')?.after(panel.root);
+      this.scriptPanel = panel;
+      return panel;
+    });
+    return this.scriptPanelLoading;
+  }
+
+  async openScriptEditor(scriptId?: string): Promise<void> {
+    const panel = await this.loadScriptPanel();
+    panel.open(scriptId);
+  }
+
+  async toggleScriptEditor(): Promise<void> {
+    const panel = await this.loadScriptPanel();
+    panel.toggle();
   }
 }

@@ -2,7 +2,7 @@ import { Compiler, SOURCE_SERIES, type CompiledScript, type InputDef, type Input
 import { ScriptError } from './errors';
 import type { Outputs } from './outputs';
 import { parse } from './parser';
-import { Frame, type Candle, type SymbolContext } from './runtime';
+import { Frame, type Candle, type Runtime, type SymbolContext } from './runtime';
 import { Color } from './values';
 
 export type { Candle, SymbolContext } from './runtime';
@@ -68,6 +68,11 @@ export class ScriptEngine {
 
   get outputs(): Outputs {
     return this.compiled.outputs;
+  }
+
+  /** Bar data of the last run (open, high, low, close arrays by bar index). */
+  get bars(): Pick<Runtime, 'open' | 'high' | 'low' | 'close' | 'time'> {
+    return this.compiled.rt;
   }
 
   get barCount(): number {

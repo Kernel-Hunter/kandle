@@ -1,5 +1,6 @@
 import { APP } from '../config';
 import { isTimeframeId, type TimeframeId } from '../data/timeframes';
+import { sanitizeScripts, type ScriptRecord } from '../script/persist';
 
 export type Theme = 'dark' | 'light';
 export type PaneKind = 'main' | 'sub';
@@ -28,6 +29,8 @@ export interface Layout {
   timeframe: TimeframeId;
   theme: Theme;
   indicators: IndicatorConfig[];
+  /** User scripts on the chart (source and input values). */
+  scripts?: ScriptRecord[];
 }
 
 /** The subset of the Web Storage API the store needs. `localStorage` satisfies it. */
@@ -78,6 +81,7 @@ export function sanitizeLayout(raw: unknown): Layout {
   if (Array.isArray(r.indicators)) {
     layout.indicators = r.indicators.map(sanitizeIndicator).filter((i): i is IndicatorConfig => i !== null);
   }
+  if (Array.isArray(r.scripts)) layout.scripts = sanitizeScripts(r.scripts);
   return layout;
 }
 

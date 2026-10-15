@@ -1,0 +1,34 @@
+/* Script rows in the indicator dialog. */
+
+.script-error {
+  margin: 4px 0 6px;
+  color: var(--down);
+  font-family: var(--mono);
+  word-break: break-word;
+}
+
+.param-check {
+  width: 16px;
+  height: 16px;
+  margin: 6px 0;
+  accent-color: var(--accent);
+}
+
+.param-color {
+  width: 44px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+select.param-input {
+  width: auto;
+  min-width: 80px;
+}
+
+.tb-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
