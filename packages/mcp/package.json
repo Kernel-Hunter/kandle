@@ -1,0 +1,32 @@
+{
+  "name": "kandle-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that lets AI agents read and draw on a running Kandle chart.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "kandle-mcp": "bin/kandle-mcp.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "tsc -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "ws": "8.22.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
+    "typescript": "7.0.2"
+  }
+}

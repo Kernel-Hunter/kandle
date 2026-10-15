@@ -7,10 +7,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && pnpm --filter kandle-mcp build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "mcp": "pnpm --filter kandle-mcp build && node packages/mcp/bin/kandle-mcp.js"
   },
   "dependencies": {
     "klinecharts": "10.0.3"
@@ -19,7 +20,8 @@
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.4",
+    "kandle-mcp": "workspace:*"
   },
   "packageManager": "pnpm@12.11.2",
   "engines": {
