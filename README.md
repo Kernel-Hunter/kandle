@@ -18,7 +18,7 @@ Claude Code, Codex, Cursor or Gemini CLI can read the chart, draw support and re
 ## Connect your agent in one line
 
 ```sh
-claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/latest/download/kandle-mcp.tgz kandle-mcp
+claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.2.1/kandle-mcp-0.2.1.tgz kandle-mcp
 ```
 
 Then open Kandle, click **Agent**, paste the pairing code your agent gives you and turn on **Agent bridge**. Ask it something like "mark the last swing high and low on BTC and draw a Fibonacci retracement between them". Setup for other agents is [below](#use-it-with-your-ai-agent).
@@ -79,12 +79,12 @@ The code is saved in your browser and in `~/.kandle/bridge-token`, so you only p
 
 This works with the [hosted app](https://kernel-hunter.github.io/kandle/) and with a copy you run yourself. With the hosted app, your browser may ask whether the page can reach devices on your local network; allow it so the page can talk to `kandle-mcp` on `127.0.0.1`.
 
-`npx` runs `kandle-mcp` from the latest GitHub release, so you only need Node.js 22.12 or newer. To run it from a clone instead, use `pnpm install && pnpm build` and point your agent at `node /path/to/kandle/packages/mcp/bin/kandle-mcp.js`.
+`npx` runs `kandle-mcp` from a GitHub release, so you only need Node.js 22.12 or newer. When a new version of Kandle comes out, change the version in the URL; `get_bridge_status` tells your agent when the app is newer than its server. To run it from a clone instead, use `pnpm install && pnpm build` and point your agent at `node /path/to/kandle/packages/mcp/bin/kandle-mcp.js`.
 
 Claude Code:
 
 ```sh
-claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/latest/download/kandle-mcp.tgz kandle-mcp
+claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.2.1/kandle-mcp-0.2.1.tgz kandle-mcp
 ```
 
 Codex (`~/.codex/config.toml`):
@@ -92,7 +92,7 @@ Codex (`~/.codex/config.toml`):
 ```toml
 [mcp_servers.kandle]
 command = "npx"
-args = ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/latest/download/kandle-mcp.tgz", "kandle-mcp"]
+args = ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.2.1/kandle-mcp-0.2.1.tgz", "kandle-mcp"]
 ```
 
 Cursor (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project) and Gemini CLI (`~/.gemini/settings.json`):
@@ -102,7 +102,7 @@ Cursor (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project) and Gemini CLI 
   "mcpServers": {
     "kandle": {
       "command": "npx",
-      "args": ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/latest/download/kandle-mcp.tgz", "kandle-mcp"]
+      "args": ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.2.1/kandle-mcp-0.2.1.tgz", "kandle-mcp"]
     }
   }
 }

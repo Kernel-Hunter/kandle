@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { BRIDGE_METHODS } from '../packages/mcp/src/protocol';
-import { createMcpServer, type BridgeLike } from '../packages/mcp/src/server';
+import { readFileSync } from 'node:fs';
+import { BRIDGE_METHODS, compareVersions, mcpPackageUrl } from '../packages/mcp/src/protocol';
+import { SERVER_VERSION, createMcpServer, updateNotice, type BridgeLike } from '../packages/mcp/src/server';
+import { APP } from '../src/config';
 import { TOOLS, normalizeTimeframe, parseTime, prepareArgs, schemas } from '../packages/mcp/src/tools';
 
 describe('tool schemas', () => {
@@ -150,5 +152,39 @@ describe('MCP server', () => {
     const content = res.content as Array<{ type: string; data?: string; mimeType?: string; text?: string }>;
     expect(content[0]).toEqual({ type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' });
     expect(content[1].text).toBe('Screenshot of BTCUSDT 1h on binance, 10x5 px.');
+  });
+});
+
+describe('versions', () => {
+  it('match across the app, the server and both package.json files', () => {
+    const root = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
+    const mcp = JSON.parse(readFileSync(new URL('../packages/mcp/package.json', import.meta.url), 'utf8')) as { version: string };
+    expect(new Set([root.version, mcp.version, SERVER_VERSION, APP.version]).size).toBe(1);
+  });
+
+  it('point the docs and the Agent dialog at this version\'s release', () => {
+    const url = mcpPackageUrl(APP.version);
+    expect(url).toBe(`https://github.com/Kernel-Hunter/kandle/releases/download/v${APP.version}/kandle-mcp-${APP.version}.tgz`);
+    expect(APP.mcpNpx).toContain(url);
+    for (const file of ['../README.md', '../README.zh-CN.md']) {
+      const text = readFileSync(new URL(file, import.meta.url), 'utf8');
+      expect(text).toContain(url);
+      expect(text).not.toContain('releases/latest/download');
+    }
+  });
+
+  it('compares dotted versions', () => {
+    expect(compareVersions('0.10.0', '0.9.9')).toBeGreaterThan(0);
+    expect(compareVersions('0.2.0', '0.2')).toBe(0);
+    expect(compareVersions('0.1.9', '0.2.0')).toBeLessThan(0);
+  });
+
+  it('asks for an update only when the app is newer than the server', () => {
+    expect(updateNotice(undefined)).toBeNull();
+    expect(updateNotice(SERVER_VERSION)).toBeNull();
+    expect(updateNotice('0.0.1')).toBeNull();
+    const notice = updateNotice('99.0.0');
+    expect(notice).toContain('99.0.0');
+    expect(notice).toContain(mcpPackageUrl('99.0.0'));
   });
 });

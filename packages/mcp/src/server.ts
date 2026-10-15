@@ -1,16 +1,16 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { NotConnectedError } from './bridge.js';
-import type { BridgeMethod } from './protocol.js';
+import { compareVersions, mcpPackageUrl, type BridgeMethod } from './protocol.js';
 import { TOOLS, prepareArgs, schemas, type ToolDef } from './tools.js';
 
 export const SERVER_NAME = 'kandle';
-export const SERVER_VERSION = '0.2.0';
+export const SERVER_VERSION = '0.2.1';
 
 /** The part of BridgeServer the MCP layer needs, so tests can pass a fake. */
 export interface BridgeLike {
   readonly connected: boolean;
-  status(): { state: string; url: string; connected: boolean };
+  status(): { state: string; url: string; connected: boolean; app?: { version?: string } };
   request(method: BridgeMethod, params: Record<string, unknown>, timeoutMs?: number): Promise<unknown>;
 }
 
@@ -29,6 +29,15 @@ export function pairingHelp(bridge: BridgeLike, token: string): string {
     'Kandle is not connected to this agent yet.',
     `Ask the user to open Kandle, click "Agent" in the top bar, turn on "Agent bridge", and enter pairing code ${token} (bridge address ${url}).`,
     'The code only has to be entered once per browser. Then call the tool again.',
+  ].join(' ');
+}
+
+/** Set when the connected app is newer than this server, so the agent can tell the user to update. */
+export function updateNotice(appVersion: string | undefined): string | null {
+  if (!appVersion || compareVersions(appVersion, SERVER_VERSION) <= 0) return null;
+  return [
+    `The Kandle app is version ${appVersion} but this kandle-mcp server is ${SERVER_VERSION}, so some tools may be missing.`,
+    `Tell the user to change the kandle-mcp package URL in their agent's MCP config to ${mcpPackageUrl(appVersion)} and restart the agent.`,
   ].join(' ');
 }
 
@@ -60,12 +69,14 @@ function formatResult(def: ToolDef, result: unknown): CallToolResult {
 export async function callTool(def: ToolDef, args: Record<string, unknown>, bridge: BridgeLike, token: string): Promise<CallToolResult> {
   if (def.name === 'get_bridge_status') {
     const status = bridge.status();
+    const update = updateNotice(status.app?.version);
     return text(
       JSON.stringify(
         {
           ...status,
           pairing_code: token,
           help: status.connected ? 'Kandle is connected.' : pairingHelp(bridge, token),
+          ...(update ? { update } : {}),
         },
         null,
         2,

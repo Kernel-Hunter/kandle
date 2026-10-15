@@ -9,6 +9,25 @@
  */
 
 export const PROTOCOL_VERSION = 1;
+
+/**
+ * Where each release's kandle-mcp tarball lives. npx caches a package by its URL, so docs and
+ * the app point at a versioned URL rather than a "latest" one that would never refresh.
+ */
+export function mcpPackageUrl(version: string): string {
+  return `https://github.com/Kernel-Hunter/kandle/releases/download/v${version}/kandle-mcp-${version}.tgz`;
+}
+
+/** Compares dotted version numbers such as 0.2.0; returns a negative, zero or positive number. */
+export function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const pb = b.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
 export const DEFAULT_PORT = 7457;
 export const BRIDGE_HOST = '127.0.0.1';
 /** Screenshots are the largest messages; 16 MB leaves room for a 4K PNG. */
