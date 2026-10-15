@@ -17,11 +17,15 @@
     "klinecharts": "10.0.3"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
+    "kandle-mcp": "workspace:*",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.4",
-    "kandle-mcp": "workspace:*"
+    "ws": "8.22.0",
+    "zod": "4.6.7"
   },
   "packageManager": "pnpm@12.11.2",
   "engines": {
