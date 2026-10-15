@@ -118,6 +118,23 @@ export class ScriptManager {
     };
   }
 
+  /** Last non-na value of each plot, for automation results. */
+  lastValues(id: string): Array<{ title: string; last: number | null }> {
+    const item = this.items.find((i) => i.id === id);
+    if (!item) return [];
+    return item.engine.outputs.plots.map((p) => {
+      let last: number | null = null;
+      for (let i = p.values.length - 1; i >= 0; i--) {
+        const v = p.values[i];
+        if (v !== undefined && v === v) {
+          last = v;
+          break;
+        }
+      }
+      return { title: p.title, last };
+    });
+  }
+
   /** Compiles and test-runs a script on the loaded candles without touching the chart. */
   private prepare(source: string, inputs?: Record<string, unknown>): { engine: ScriptEngine; ms: number | null } | { error: RunScriptResult } {
     if (typeof source !== 'string' || !source.trim()) return { error: { ok: false, error: '1:1 The script is empty' } };
@@ -235,14 +252,23 @@ export class ScriptManager {
 /** The script methods added to the automation handle (window.kandle). */
 export function scriptApi(manager: ScriptManager) {
   return {
-    /** Compiles a script and adds it to the chart, or updates the script with `options.id`. */
-    runScript: (source: string, options: { id?: string; inputs?: Record<string, unknown> } = {}): RunScriptResult => {
-      if (options.id && manager.get(options.id)) {
-        const res = manager.update(options.id, source);
-        if (res.ok && options.inputs) manager.setInputs(options.id, options.inputs);
-        return res;
+    /**
+     * Compiles a script and adds it to the chart, or updates the script with `options.id`.
+     * A string second argument (a display name from the agent bridge) is accepted and ignored.
+     * On success the result also carries the title and the last value of each plot.
+     */
+    runScript: (source: string, options: { id?: string; inputs?: Record<string, unknown> } | string = {}): RunScriptResult & { title?: string; overlay?: boolean; plots?: Array<{ title: string; last: number | null }> } => {
+      const opts = typeof options === 'object' && options !== null ? options : {};
+      let res: RunScriptResult;
+      if (opts.id && manager.get(opts.id)) {
+        res = manager.update(opts.id, source);
+        if (res.ok && opts.inputs) manager.setInputs(opts.id, opts.inputs);
+      } else {
+        res = manager.add(source, opts.inputs);
       }
-      return manager.add(source, options.inputs);
+      if (!res.ok || !res.id) return res;
+      const info = manager.get(res.id);
+      return { ...res, title: info?.title, overlay: info?.overlay, plots: manager.lastValues(res.id) };
     },
     listScripts: (): ScriptInfo[] => manager.list(),
     removeScript: (id: string): boolean => manager.remove(id),
