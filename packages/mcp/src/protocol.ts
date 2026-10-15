@@ -27,6 +27,7 @@ export const BRIDGE_METHODS = [
   'remove_drawing',
   'clear_drawings',
   'run_script',
+  'get_backtest',
   'screenshot',
   'set_alert',
   'list_alerts',

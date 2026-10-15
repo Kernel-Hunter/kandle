@@ -89,6 +89,10 @@ export const schemas = {
     code: z.string().min(1).max(100_000).describe('Script source code'),
     name: z.string().max(80).optional(),
   }),
+  get_backtest: z.object({
+    id: z.string().min(1).max(80).optional().describe('Script id from run_script. Defaults to the most recently added strategy.'),
+    trades: z.number().int().min(0).max(500).optional().describe('How many of the latest closed trades to include (default 50, max 500)'),
+  }),
   screenshot: z.object({ pane }),
   set_alert: z.object({
     type: z.enum(['price', 'drawing', 'indicator']).describe('price: a price level. drawing: a horizontal or trend line on the chart. indicator: a line of an indicator.'),
@@ -187,9 +191,18 @@ export const TOOLS: readonly ToolDef[] = [
   {
     name: 'run_script',
     title: 'Run script',
-    description: 'Runs a Kandle script on the main chart and returns its output. Returns "not available yet" if this build has no script engine.',
+    description:
+      'Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. Orders fill at the next bar\'s open; limit and stop orders when the bar reaches their price.',
     method: 'run_script',
     timeoutMs: 60_000,
+  },
+  {
+    name: 'get_backtest',
+    title: 'Get backtest',
+    description:
+      'Backtest results of a strategy script on the main chart: settings, summary figures, the latest closed trades with entry and exit time, price, signal and profit, and open trades. Results follow live data.',
+    method: 'get_backtest',
+    readOnly: true,
   },
   { name: 'screenshot', title: 'Screenshot', description: 'PNG image of a chart pane, including indicators and drawings.', method: 'screenshot', readOnly: true, timeoutMs: 30_000 },
   {

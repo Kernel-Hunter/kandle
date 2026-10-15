@@ -271,6 +271,20 @@ describe('bridge handlers', () => {
     expect(runner).toHaveBeenCalledWith('plot(close)', 'test');
   });
 
+  it('reads backtest results of a strategy script', async () => {
+    const { handlers } = setup();
+    expect(await dispatch(handlers, 'get_backtest', {})).toEqual({ ok: true, result: expect.stringMatching(/^not available yet/) });
+    const reader = vi.fn(async (id?: string) => (id === 'nope' ? null : { id: 's1', summary: { netProfit: 12.5 }, trades: [] }));
+    const withReader = setup({ backtestReader: () => reader }).handlers;
+    expect(await call(withReader, 'get_backtest', { trades: 5 })).toEqual({ id: 's1', summary: { netProfit: 12.5 }, trades: [] });
+    expect(reader).toHaveBeenCalledWith(undefined, 5);
+    await call(withReader, 'get_backtest', { id: 's1' });
+    expect(reader).toHaveBeenLastCalledWith('s1', 50);
+    await expect(call(withReader, 'get_backtest', { id: 'nope' })).rejects.toThrow(/No strategy script with id nope/);
+    const none = setup({ backtestReader: () => async () => null }).handlers;
+    await expect(call(none, 'get_backtest', {})).rejects.toThrow(/must call strategy\(\)/);
+  });
+
   it('screenshots a pane and notes a hidden tab', async () => {
     const { handlers } = setup({ paint: async () => false });
     const shot = await call(handlers, 'screenshot');

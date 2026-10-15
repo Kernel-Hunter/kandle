@@ -1,6 +1,6 @@
 ---
 name: kandle
-description: Read, analyze and annotate live crypto charts in Kandle through the kandle MCP server. Use when the user asks about a chart, support and resistance, trend, indicators, levels to watch, alerts, bar replay, or wants their Kandle chart marked up.
+description: Read, analyze and annotate live crypto charts in Kandle through the kandle MCP server. Use when the user asks about a chart, support and resistance, trend, indicators, levels to watch, alerts, bar replay, wants their Kandle chart marked up, or wants a trading rule backtested.
 ---
 
 # Kandle chart analysis
@@ -61,6 +61,14 @@ Use `get_candles` for numbers and `screenshot` to see what the user sees. Prefer
 - A drawn line: draw it first, then `set_alert` type `drawing` with its `drawing_id`. Works for horizontal lines and rays, trend lines, rays and extended lines.
 - An indicator: `set_alert` type `indicator`, `indicator_id` from `list_indicators`, `indicator_line` (for example `rsi1`), `level`.
 - `frequency` `once` (default) or `every_time`. Alerts fire in the browser while the Kandle tab is open; tell the user that.
+
+## Workflow: backtest a rule
+
+1. Write the rule as a Kandle script that starts with `strategy("Name", overlay = true, initial_capital = 10000, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_value = 0.05)` and places orders with `strategy.entry`, `strategy.exit` (stop and target), `strategy.close` or `strategy.close_all`.
+2. `run_script` with the code. The result has `backtest`: settings, summary and the last 20 trades. The user sees the trades on the chart and the results in the Strategy tab under it.
+3. `get_backtest` (with the `id` from `run_script` and `trades` up to 500) when you need more trades.
+4. Report net profit, number of trades, percent profitable, profit factor, max drawdown and buy and hold over the same bars. Say how many bars and which dates the test covered, and that it ignores funding, spread beyond the slippage setting and order book depth. A few dozen trades is a small sample; say so.
+5. Do not present a backtest as a forecast. Past results on one symbol and timeframe say little about the future.
 
 ## Bar replay
 

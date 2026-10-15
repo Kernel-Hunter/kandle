@@ -33,6 +33,7 @@ interface KandleApi {
   listIndicators(): ActiveIndicator[];
   draw(name: string, points: Array<{ timestamp: number; value: number }>, text?: string): string | null | Array<string | null>;
   runScript?: (code: string, name?: string) => unknown;
+  getBacktest?: (id?: string, trades?: number) => unknown;
   [key: string]: unknown;
 }
 
@@ -269,6 +270,10 @@ export function createFeatures(deps: FeatureDeps): Features {
         scriptRunner: () => {
           const run = api().runScript;
           return typeof run === 'function' ? run : undefined;
+        },
+        backtestReader: () => {
+          const read = api().getBacktest;
+          return typeof read === 'function' ? read : undefined;
         },
         background: () => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0f1115',
         paint: () =>

@@ -56,6 +56,8 @@ export interface HostEnv {
   clearDrawings(): number;
   /** The script runner if this build has one (window.kandle.runScript). */
   scriptRunner(): ((code: string, name?: string) => unknown) | undefined;
+  /** Backtest results of a strategy script (window.kandle.getBacktest), if this build has strategies. */
+  backtestReader?(): ((id?: string, trades?: number) => unknown) | undefined;
   /** Page background colour for screenshots. */
   background(): string;
   alerts: AlertEngine;
@@ -452,6 +454,21 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
       } catch {
         return String(result);
       }
+    },
+
+    get_backtest: async (params) => {
+      const reader = env.backtestReader?.();
+      if (!reader) return 'not available yet: this build of Kandle has no strategy backtester.';
+      const id = str(params, 'id');
+      const result = await reader(id, num(params, 'trades') ?? 50);
+      if (!result) {
+        throw new Error(
+          id
+            ? `No strategy script with id ${id}. run_script returns the id; strategies are scripts that call strategy().`
+            : 'No strategy script on the chart. Run one with run_script; it must call strategy() instead of indicator().',
+        );
+      }
+      return JSON.parse(JSON.stringify(result));
     },
 
     screenshot: async (params) => {

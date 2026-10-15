@@ -18,6 +18,8 @@ describe('tool schemas', () => {
     expect(schemas.draw.parse({ type: 'fib', points: [{ time: 1, price: 2 }, { time: '2026-10-01', price: 3 }] }).type).toBe('fib');
     expect(schemas.set_layout.parse({ charts: 4, sync: { crosshair: true } }).charts).toBe(4);
     expect(schemas.get_candles.parse({}).limit).toBeUndefined();
+    expect(schemas.get_backtest.parse({})).toEqual({});
+    expect(schemas.get_backtest.parse({ id: 's1', trades: 0 })).toEqual({ id: 's1', trades: 0 });
   });
 
   it('rejects bad input with field errors', () => {
@@ -32,6 +34,8 @@ describe('tool schemas', () => {
     expect(schemas.set_layout.safeParse({ charts: 3 }).success).toBe(false);
     expect(schemas.start_replay.safeParse({ speed: 11 }).success).toBe(false);
     expect(schemas.get_chart_state.safeParse({ pane: 5 }).success).toBe(false);
+    expect(schemas.get_backtest.safeParse({ trades: 501 }).success).toBe(false);
+    expect(schemas.get_backtest.safeParse({ trades: 2.5 }).success).toBe(false);
   });
 });
 
@@ -101,6 +105,8 @@ describe('MCP server', () => {
     expect(JSON.stringify(draw.inputSchema)).toContain('horizontal_line');
     expect(tools.find((t) => t.name === 'get_candles')!.annotations?.readOnlyHint).toBe(true);
     expect(tools.find((t) => t.name === 'clear_drawings')!.annotations?.destructiveHint).toBe(true);
+    expect(tools.find((t) => t.name === 'get_backtest')!.annotations?.readOnlyHint).toBe(true);
+    expect(tools.find((t) => t.name === 'run_script')!.description).toMatch(/strategy\(\).*backtest/s);
   });
 
   it('explains pairing when the app is not connected', async () => {
