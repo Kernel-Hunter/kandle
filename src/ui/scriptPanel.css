@@ -1,0 +1,127 @@
+/* Script editor docked under the chart. */
+
+.script-panel {
+  --cm-comment: #6f7a88;
+  --cm-keyword: #c678dd;
+  --cm-atom: #d19a66;
+  --cm-number: #d19a66;
+  --cm-string: #98c379;
+  --cm-namespace: #56b6c2;
+  --cm-builtin: #e5c07b;
+  --cm-function: #61afef;
+  --cm-operator: #abb2bf;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 120px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+
+:root[data-theme='light'] .script-panel {
+  --cm-comment: #8a929e;
+  --cm-keyword: #a626a4;
+  --cm-atom: #986801;
+  --cm-number: #986801;
+  --cm-string: #50a14f;
+  --cm-namespace: #0184bc;
+  --cm-builtin: #c18401;
+  --cm-function: #4078f2;
+  --cm-operator: #383a42;
+}
+
+.script-panel[hidden] {
+  display: none;
+}
+
+.sp-resize {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+  z-index: 2;
+}
+
+.sp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.sp-title {
+  font-weight: 650;
+}
+
+.sp-select {
+  height: 28px;
+  max-width: 200px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.sp-head .btn {
+  height: 28px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.sp-status {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.sp-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sp-editor .cm-editor {
+  height: 100%;
+}
+
+.sp-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+.sp-message {
+  min-height: 26px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--border);
+  font: 12px/18px var(--mono);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.sp-message.sp-error {
+  color: var(--down);
+}
+
+.sp-message.sp-ok {
+  color: var(--up);
+}
+
+@media (max-width: 640px) {
+  .sp-title,
+  .sp-status {
+    display: none;
+  }
+  .sp-select {
+    max-width: 110px;
+  }
+}
