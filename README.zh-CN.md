@@ -10,7 +10,7 @@ Claude Code、Codex、Cursor 或 Gemini CLI 可以读取图表、画出支撑位
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-![Kandle 显示 ETH/USDT，带有指标和画线](docs/screenshot-week1.png)
+![Kandle 在 BTC/USDT 4 小时图上显示阻力位、支撑区、EMA 交叉脚本和 RSI](docs/hero.png)
 
 ## 连接 AI 助手
 

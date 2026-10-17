@@ -13,7 +13,7 @@ Claude Code, Codex, Cursor or Gemini CLI can read the chart, draw support and re
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-![Kandle showing ETH/USDT with indicators and drawings](docs/screenshot-week1.png)
+![Kandle with support and resistance levels, a support zone, an EMA cross script and RSI on BTC/USDT 4H](docs/hero.png)
 
 ## Connect your agent in one line
 
@@ -22,6 +22,8 @@ claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandl
 ```
 
 Then open Kandle, click **Agent**, paste the pairing code your agent gives you and turn on **Agent bridge**. Ask it something like "mark the last swing high and low on BTC and draw a Fibonacci retracement between them". Setup for other agents is [below](#use-it-with-your-ai-agent).
+
+![An agent reads BTC/USDT, marks resistance and a support zone, adds RSI and runs an EMA cross script](docs/demo.gif)
 
 ## Features
 
