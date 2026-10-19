@@ -58,12 +58,15 @@ Claude Desktop：下载 [kandle-mcp-0.3.0.mcpb](https://github.com/Kernel-Hunter
 - 来自 Binance、Coinbase、Bybit、OKX 和 Kraken 公开行情接口的实时加密货币 K 线，无需 API key。
 - 使用你自己的免费 key，通过 Twelve Data、Alpaca 或 Polygon 查看美股及全球股票、ETF 和外汇。key 只保存在你的浏览器中，只会发送给对应的数据提供商。
 - 周期：1m、5m、15m、1H、4H、1D、1W。向左滚动可加载更早的历史数据。
-- 34 个内置指标，数量不限，所有参数都可以修改：MA、EMA、布林带、VWAP、Supertrend、MACD、RSI、KDJ、ATR、OBV、DMI/ADX 等。
+- 36 个内置指标，数量不限，所有参数都可以修改：MA、EMA、布林带、VWAP、Supertrend、一目均衡表、成交量分布、MACD、RSI、KDJ、ATR、OBV、DMI/ADX 等。
+- 一目均衡表（Ichimoku）的云带会画到最新一根 K 线之后；成交量分布（Volume Profile）统计当前屏幕上的 K 线，标出成交量最大的价位（POC）和价值区域，滚动或缩放时自动更新。
 - 画线工具：趋势线、射线、水平线、平行通道、矩形、斐波那契回撤、价格区间、文字标注，支持磁吸到 K 线价格。
 - 价格提醒：价格穿越某个价位、你画的线或指标数值时，通过浏览器通知提醒。
 - K 线回放：从历史上任意一根 K 线开始逐根播放。
 - 1、2 或 4 个图表同屏，每个图表有自己的品种、周期和指标。
 - 深色和浅色主题，键盘快捷键（在应用中按 `?` 查看），图表可导出为 PNG。
+
+![BTC/USDT 4 小时图上的一目均衡表和可见区间成交量分布](docs/screenshot-ichimoku.png)
 
 ## 脚本
 

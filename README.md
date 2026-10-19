@@ -32,7 +32,8 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 - Your own OHLCV data from a CSV file, kept in your browser. See [CSV import](#csv-import).
 - Symbol search for the chosen source, with Crypto, Stock, ETF, Forex, Index and CSV badges.
 - Timeframes: 1m, 5m, 15m, 1H, 4H, 1D, 1W. Scroll left to load older history.
-- 34 indicators, with as many on the chart as you like: MA, EMA, SMA, WMA, HMA, Bollinger Bands, Donchian Channel, VWAP, Supertrend, Parabolic SAR, Volume, MACD, RSI, Stochastic RSI, KDJ, ATR, OBV, CCI, DMI/ADX, Williams %R, ROC, Momentum, TRIX, Awesome Oscillator and more. Every parameter can be edited.
+- 36 indicators, with as many on the chart as you like: MA, EMA, SMA, WMA, HMA, Bollinger Bands, Donchian Channel, VWAP, Supertrend, Parabolic SAR, Ichimoku Cloud, Volume Profile, Volume, MACD, RSI, Stochastic RSI, KDJ, ATR, OBV, CCI, DMI/ADX, Williams %R, ROC, Momentum, TRIX, Awesome Oscillator and more. Every parameter can be edited.
+- Ichimoku Cloud with the cloud drawn ahead of the last candle, and a volume profile of the bars on screen that marks the point of control and the value area. The profile updates as you scroll and zoom.
 - Drawing tools: trend line, ray, extended line, horizontal line and ray, vertical line, parallel channel, rectangle, Fibonacci retracement, price range, text notes and price labels. Select a drawing to move it or delete it. An optional magnet snaps points to candle prices.
 - Your symbol, timeframe, theme, indicators, and drawings (saved per symbol) come back when you reload.
 - Dark and light themes.
@@ -45,6 +46,8 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 - 1, 2 or 4 charts on screen, each with its own symbol, timeframe and indicators.
 - An MCP server so AI agents can read the chart, draw on it, set alerts and take screenshots.
 - Works on desktop and tablet screens.
+
+![BTC/USDT 4H with the Ichimoku Cloud and a volume profile of the visible bars](docs/screenshot-ichimoku.png)
 
 ### Keyboard shortcuts
 
@@ -123,7 +126,7 @@ Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotoco
 | `get_chart_state` | Symbol, timeframe, last bar, visible range, indicators with latest values, drawings with ids, alerts, replay and layout |
 | `set_symbol`, `set_timeframe` | Change the market or bar size. Exchange `csv` opens a dataset you imported |
 | `get_candles` | OHLCV bars by count or time range, optionally with indicator values per bar |
-| `add_indicator`, `remove_indicator`, `list_indicators` | Manage indicators and list the 34 available |
+| `add_indicator`, `remove_indicator`, `list_indicators` | Manage indicators and list the 36 available |
 | `draw` | Trend line, horizontal line or ray, vertical line, ray, extended line, rectangle, Fibonacci retracement, text note, price range, all by price and time |
 | `remove_drawing`, `clear_drawings` | Remove drawings |
 | `screenshot` | PNG of a chart, returned as an image |
