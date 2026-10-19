@@ -1,6 +1,6 @@
 import { mcpPackageUrl } from '../packages/mcp/src/protocol';
 
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 
 /**
  * Product identity lives here so the project can be renamed in one place.

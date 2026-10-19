@@ -18,6 +18,11 @@ export function mcpPackageUrl(version: string): string {
   return `https://github.com/Kernel-Hunter/kandle/releases/download/v${version}/kandle-mcp-${version}.tgz`;
 }
 
+/** The same release's MCP Bundle, for one-click installs and the MCP Registry. */
+export function mcpbPackageUrl(version: string): string {
+  return `https://github.com/Kernel-Hunter/kandle/releases/download/v${version}/kandle-mcp-${version}.mcpb`;
+}
+
 /** Compares dotted version numbers such as 0.2.0; returns a negative, zero or positive number. */
 export function compareVersions(a: string, b: string): number {
   const pa = a.split('.').map((n) => Number.parseInt(n, 10) || 0);

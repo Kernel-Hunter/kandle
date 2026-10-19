@@ -1,0 +1,136 @@
+{
+  "manifest_version": "0.3",
+  "name": "kandle-mcp",
+  "display_name": "Kandle",
+  "version": "0.2.2",
+  "description": "Lets an agent read and draw on a live Kandle chart for crypto, stocks and forex, run indicator and strategy scripts, and set alerts.",
+  "long_description": "Kandle is an open-source charting app that runs in the browser. This server connects to an open Kandle tab over a WebSocket on 127.0.0.1, after you pair it with a code and turn on the Agent bridge in the app. Open the app at https://kernel-hunter.github.io/kandle/ or run it locally.",
+  "author": {
+    "name": "Karim Masmoudi",
+    "url": "https://github.com/Kernel-Hunter"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kernel-Hunter/kandle"
+  },
+  "homepage": "https://kernel-hunter.github.io/kandle/",
+  "documentation": "https://github.com/Kernel-Hunter/kandle#use-it-with-your-ai-agent",
+  "support": "https://github.com/Kernel-Hunter/kandle/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "bin/kandle-mcp.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/bin/kandle-mcp.js"
+      ]
+    }
+  },
+  "tools": [
+    {
+      "name": "get_bridge_status",
+      "description": "Shows whether the Kandle app is connected and, if not, the pairing code the user must enter in Kandle (Agent button, then Agent bridge)."
+    },
+    {
+      "name": "get_chart_state",
+      "description": "Symbol, exchange, timeframe, last price, visible range, indicators with their latest values, drawings with ids, alerts, replay and layout state."
+    },
+    {
+      "name": "set_symbol",
+      "description": "Switches the chart to another market, e.g. ETHUSDT on Binance or BTC-USD on Coinbase."
+    },
+    {
+      "name": "set_timeframe",
+      "description": "Changes the bar size of the chart."
+    },
+    {
+      "name": "get_candles",
+      "description": "OHLCV bars from the chart, newest last. Times are ISO 8601 UTC. Use include_indicators to get indicator values aligned with the bars."
+    },
+    {
+      "name": "add_indicator",
+      "description": "Adds an indicator such as RSI, MACD, EMA or BOLL. Returns its id."
+    },
+    {
+      "name": "remove_indicator",
+      "description": "Removes an indicator by id, or every indicator with a name."
+    },
+    {
+      "name": "list_indicators",
+      "description": "Indicators on the chart (with ids, parameters and latest values) and every indicator that can be added."
+    },
+    {
+      "name": "draw",
+      "description": "Draws on the main chart by price and time: trend_line, horizontal_line, horizontal_ray, vertical_line, ray, extended_line, rectangle, fib (retracement from the first point to the second), text (a note at a point) or price_range. Returns the drawing id."
+    },
+    {
+      "name": "remove_drawing",
+      "description": "Removes one drawing by id."
+    },
+    {
+      "name": "clear_drawings",
+      "description": "Removes every drawing on the current symbol of the main chart."
+    },
+    {
+      "name": "run_script",
+      "description": "Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. Orders fill at the next bar's open; limit and stop orders when the bar reaches their price."
+    },
+    {
+      "name": "get_backtest",
+      "description": "Backtest results of a strategy script on the main chart: settings, summary figures, the latest closed trades with entry and exit time, price, signal and profit, and open trades. Results follow live data."
+    },
+    {
+      "name": "screenshot",
+      "description": "PNG image of a chart pane, including indicators and drawings."
+    },
+    {
+      "name": "set_alert",
+      "description": "Creates an alert on the main chart's symbol: price crossing or touching a level, price crossing a drawn horizontal or trend line, or an indicator line crossing a level. The app shows a notification, a toast and plays a sound when it fires."
+    },
+    {
+      "name": "list_alerts",
+      "description": "Every alert with its status."
+    },
+    {
+      "name": "remove_alert",
+      "description": "Deletes an alert by id, or all alerts with \"all\"."
+    },
+    {
+      "name": "start_replay",
+      "description": "Hides bars after a start point so the chart can be replayed bar by bar. Indicators only see visible bars."
+    },
+    {
+      "name": "step_replay",
+      "description": "Reveals the next bars in replay and returns them."
+    },
+    {
+      "name": "stop_replay",
+      "description": "Leaves replay and returns the chart to live data."
+    },
+    {
+      "name": "set_layout",
+      "description": "Shows 1, 2 (side by side) or 4 (grid) charts. Each pane has its own symbol, timeframe and indicators; crosshair, timeframe and symbol can be synced."
+    }
+  ],
+  "keywords": [
+    "charts",
+    "trading",
+    "crypto",
+    "stocks",
+    "forex",
+    "indicators",
+    "backtesting"
+  ],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=22.12"
+    }
+  }
+}

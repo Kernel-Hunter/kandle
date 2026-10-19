@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { readFileSync } from 'node:fs';
-import { BRIDGE_METHODS, compareVersions, mcpPackageUrl } from '../packages/mcp/src/protocol';
+import { BRIDGE_METHODS, compareVersions, mcpbPackageUrl, mcpPackageUrl } from '../packages/mcp/src/protocol';
+import { REGISTRY_NAME, serverJson } from '../packages/mcp/src/registry';
 import { SERVER_VERSION, createMcpServer, updateNotice, type BridgeLike } from '../packages/mcp/src/server';
 import { APP } from '../src/config';
 import { TOOLS, normalizeTimeframe, parseTime, prepareArgs, schemas } from '../packages/mcp/src/tools';
@@ -169,8 +170,35 @@ describe('versions', () => {
     for (const file of ['../README.md', '../README.zh-CN.md']) {
       const text = readFileSync(new URL(file, import.meta.url), 'utf8');
       expect(text).toContain(url);
+      expect(text).toContain(mcpbPackageUrl(APP.version));
       expect(text).not.toContain('releases/latest/download');
     }
+  });
+
+  it('keep the MCP Bundle manifest in step with the server', () => {
+    const manifest = JSON.parse(readFileSync(new URL('../packages/mcp/manifest.json', import.meta.url), 'utf8')) as {
+      version: string;
+      tools: { name: string; description: string }[];
+    };
+    expect(manifest.version).toBe(SERVER_VERSION);
+    expect(manifest.tools).toEqual(TOOLS.map((t) => ({ name: t.name, description: t.description })));
+  });
+
+  it('describe the release bundle for the MCP Registry', () => {
+    const sha = 'a'.repeat(64);
+    const entry = serverJson(SERVER_VERSION, sha);
+    expect(entry.name).toBe(REGISTRY_NAME);
+    expect(entry.version).toBe(SERVER_VERSION);
+    expect(entry.description.length).toBeLessThanOrEqual(100);
+    expect(entry.packages).toEqual([
+      {
+        registryType: 'mcpb',
+        identifier: `https://github.com/Kernel-Hunter/kandle/releases/download/v${SERVER_VERSION}/kandle-mcp-${SERVER_VERSION}.mcpb`,
+        fileSha256: sha,
+        transport: { type: 'stdio' },
+      },
+    ]);
+    expect(() => serverJson(SERVER_VERSION, 'not-a-hash')).toThrow();
   });
 
   it('compares dotted versions', () => {
