@@ -87,7 +87,8 @@ export function scriptIndicator(opts: ScriptIndicatorOptions): Omit<IndicatorCre
     id: opts.id,
     shortName: engine.meta.shortTitle,
     series: overlay ? 'price' : 'normal',
-    precision: overlay ? undefined : autoPrecision(engine),
+    // Price-chart scripts show values like prices: the declared precision or the symbol's.
+    precision: overlay ? (engine.meta.precision ?? Math.max(0, Math.round(-Math.log10(opts.symbol().mintick)))) : autoPrecision(engine),
     shouldOhlc: overlay,
     figures,
     calc,

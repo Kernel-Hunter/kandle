@@ -7,6 +7,8 @@ import { keyStore } from '../data/keys';
 import type { DataSource, SymbolMeta } from '../data/types';
 import type { KeyValueStorage } from '../store/layout';
 import { marketBadge, openDataSources } from './dataSources';
+import { CSV_SOURCE_ID, csvStore } from '../data/csv';
+import { csvBadge, openCsvImport } from './csvImport';
 
 export interface SymbolSearchOptions {
   storage: KeyValueStorage;
@@ -46,6 +48,7 @@ export function createSymbolSearch(options: SymbolSearchOptions) {
       h('span', { class: 'muted' }, 'Source'),
       tabs,
       h('button', { class: 'btn small btn-ghost', type: 'button', onclick: () => openDataSources(sourceId) }, 'Data sources'),
+      h('button', { class: 'btn small btn-ghost', type: 'button', title: 'Load your own OHLCV data from a CSV file', onclick: () => (modal.close(), openCsvImport()) }, 'Import CSV'),
     ),
     list,
     status,
@@ -111,7 +114,7 @@ export function createSymbolSearch(options: SymbolSearchOptions) {
             'span',
             { class: 'result-side' },
             s.exchange ? h('span', { class: 'result-exchange muted' }, s.exchange) : null,
-            market ? marketBadge(market) : null,
+            sourceId === CSV_SOURCE_ID ? csvBadge() : market ? marketBadge(market) : null,
           ),
         );
       }),
@@ -121,6 +124,16 @@ export function createSymbolSearch(options: SymbolSearchOptions) {
   const renderLocal = () => {
     showResults(searchSymbols(symbols, input.value));
     if (symbols.length > 0) status.textContent = results.length === 0 ? 'No matching symbols' : '';
+    else if (sourceId === CSV_SOURCE_ID) {
+      status.replaceChildren(
+        h(
+          'span',
+          { class: 'search-need-key' },
+          'No imported data yet.',
+          h('button', { class: 'btn small btn-primary', type: 'button', onclick: () => (modal.close(), openCsvImport()) }, 'Import CSV'),
+        ),
+      );
+    }
   };
 
   const needKeyMessage = (s: DataSource) => {
@@ -207,6 +220,10 @@ export function createSymbolSearch(options: SymbolSearchOptions) {
     options.onPick(sourceId, meta);
   };
 
+  csvStore().onChange(() => {
+    if (modal.isOpen() && sourceId === CSV_SOURCE_ID) void loadList();
+  });
+
   // A key saved in the Data sources dialog takes effect right away.
   keyStore().onChange(() => {
     if (!modal.isOpen()) return;
@@ -236,7 +253,7 @@ export function createSymbolSearch(options: SymbolSearchOptions) {
   return {
     open(initialQuery = '') {
       const current = options.currentSource();
-      const sourceChanged = current !== sourceId || symbols.length === 0;
+      const sourceChanged = current !== sourceId || symbols.length === 0 || current === CSV_SOURCE_ID;
       sourceId = current;
       input.value = initialQuery;
       active = 0;

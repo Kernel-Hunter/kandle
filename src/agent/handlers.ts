@@ -26,6 +26,8 @@ export interface PaneLike {
   removeIndicator(id: string): void;
   indicators(): ActiveIndicator[];
   loader(): { nextLoad(timeoutMs?: number): Promise<number> };
+  /** Timeframes the current symbol can be shown in; imported CSV data only goes up from its own. */
+  timeframes?(): readonly TimeframeId[];
 }
 
 export interface ReplayLike {
@@ -243,6 +245,14 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
     }
   };
 
+  /** Imported CSV data can be shown in its own timeframe and longer ones only. */
+  const checkTimeframe = (pane: PaneLike, tf: TimeframeId): void => {
+    const allowed = pane.timeframes?.();
+    if (allowed && !allowed.includes(tf)) {
+      throw new Error(`${pane.info().symbol} on ${pane.info().source} can be shown in ${allowed.join(', ')} only`);
+    }
+  };
+
   /** Applies a change and waits for the chart to finish loading the new data. */
   const applyAndWait = async (pane: PaneLike, apply: () => boolean): Promise<void> => {
     const loaded = pane.loader().nextLoad(20_000);
@@ -308,6 +318,7 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
       const pane = paneOf(params);
       const tf = required(str(params, 'timeframe'), 'timeframe');
       if (!isTimeframeId(tf)) throw new Error(`Unknown timeframe ${tf}`);
+      checkTimeframe(pane, tf);
       await applyAndWait(pane, () => {
         if (pane.info().timeframe === tf) return false;
         pane.setTimeframe(tf);
@@ -598,6 +609,7 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
         const tf = str(spec, 'timeframe');
         if (tf) {
           if (!isTimeframeId(tf)) throw new Error(`Unknown timeframe ${tf}`);
+          checkTimeframe(pane, tf);
           await applyAndWait(pane, () => {
             if (pane.info().timeframe === tf) return false;
             pane.setTimeframe(tf);

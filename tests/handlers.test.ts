@@ -166,6 +166,18 @@ describe('bridge handlers', () => {
     expect(main.pane.setSymbol).toHaveBeenCalledWith('twelvedata', ibm);
   });
 
+  it('opens imported CSV datasets and keeps them to their timeframes', async () => {
+    const data = { symbol: 'MY-BTC', base: 'My BTC', quote: '', name: 'My BTC', pricePrecision: 2, volumePrecision: 0 };
+    const symbols = vi.fn(async (source: string) => (source === 'csv' ? [data] : SYMBOLS));
+    const { handlers, main } = setup({ sources: () => ['binance', 'csv'], symbols });
+    await call(handlers, 'set_symbol', { symbol: 'my-btc', exchange: 'csv' });
+    expect(main.pane.setSymbol).toHaveBeenCalledWith('csv', data);
+    main.pane.timeframes = () => ['1D', '1W'];
+    await expect(call(handlers, 'set_timeframe', { timeframe: '1h' })).rejects.toThrow('MY-BTC on csv can be shown in 1D, 1W only');
+    await call(handlers, 'set_timeframe', { timeframe: '1W' });
+    expect(main.pane.setTimeframe).toHaveBeenCalledWith('1W');
+  });
+
   it('does not wait when nothing changes', async () => {
     const { handlers, main } = setup();
     await call(handlers, 'set_timeframe', { timeframe: '1h' });

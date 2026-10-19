@@ -2,6 +2,7 @@ import { AlpacaSource } from './alpaca';
 import { BinanceSource } from './binance';
 import { BybitSource } from './bybit';
 import { CoinbaseSource } from './coinbase';
+import { CsvSource } from './csv';
 import { keyStore } from './keys';
 import { KrakenSource } from './kraken';
 import { OkxSource } from './okx';
@@ -11,7 +12,7 @@ import type { DataSource, MarketType, SymbolMeta } from './types';
 import type { KeyValueStorage } from '../store/layout';
 import { APP } from '../config';
 
-/** Keyless crypto exchanges first, then providers that need the user's own free key. */
+/** Keyless crypto exchanges first, then providers that need the user's own free key, then imported files. */
 export const SOURCES: readonly DataSource[] = [
   new BinanceSource(),
   new CoinbaseSource(),
@@ -21,6 +22,7 @@ export const SOURCES: readonly DataSource[] = [
   new TwelveDataSource(),
   new AlpacaSource(),
   new PolygonSource(),
+  new CsvSource(),
 ];
 
 /** Markets a source covers; sources that do not say are crypto exchanges. */
@@ -45,6 +47,7 @@ const cacheKey = (source: DataSource) => `${APP.id}:symbols:${source.id}`;
 
 /** The stored symbol list if it is fresh, without touching the network. */
 export function cachedSymbols(source: DataSource, storage: KeyValueStorage, now = Date.now()): SymbolMeta[] | null {
+  if (source.local) return null;
   try {
     const raw = storage.getItem(cacheKey(source));
     if (!raw) return null;
@@ -63,6 +66,8 @@ export function cachedSymbols(source: DataSource, storage: KeyValueStorage, now 
  * storage for a day and share one in-flight request per source.
  */
 export function loadSymbols(source: DataSource, storage: KeyValueStorage, now = Date.now()): Promise<SymbolMeta[]> {
+  // Imported data changes with every import, and reading it is cheap.
+  if (source.local) return source.listSymbols();
   const existing = memoryCache.get(source.id);
   if (existing) return existing;
   const key = cacheKey(source);

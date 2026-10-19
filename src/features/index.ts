@@ -8,7 +8,7 @@ import { ensureNotificationPermission, playAlertSound, showSystemNotification, u
 import { createAlertsPanel } from '../alerts/panel';
 import { APP } from '../config';
 import { SOURCES, getSource, loadSymbols } from '../data/sources';
-import type { TimeframeId } from '../data/timeframes';
+import { TIMEFRAMES, type TimeframeId } from '../data/timeframes';
 import type { Candle, SymbolMeta } from '../data/types';
 import { LayoutManager } from '../layout/manager';
 import type { PaneHandle } from '../layout/pane';
@@ -225,6 +225,10 @@ export function createFeatures(deps: FeatureDeps): Features {
         addIndicator: (name, params) => app.addIndicator(name, params),
         removeIndicator: (id) => app.removeIndicator(id),
         indicators: () => api().listIndicators(),
+        timeframes: () => {
+          const { source, symbol } = main.info();
+          return getSource(source).timeframesFor?.(symbol) ?? TIMEFRAMES.map((tf) => tf.id);
+        },
       };
       mainPane = main;
 

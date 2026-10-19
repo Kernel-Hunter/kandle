@@ -38,8 +38,9 @@ export interface FetchCandlesOptions {
 /**
  * `polling`: updates come from repeated REST requests instead of a stream.
  * `delayed`: the provider's plan has no live updates (for example end-of-day data).
+ * `static`: imported data that never updates.
  */
-export type StreamStatus = 'connecting' | 'live' | 'reconnecting' | 'closed' | 'polling' | 'delayed';
+export type StreamStatus = 'connecting' | 'live' | 'reconnecting' | 'closed' | 'polling' | 'delayed' | 'static';
 
 export interface SubscribeOptions {
   /** The most recent bar already on the chart. Trade-based feeds use it to keep volume continuous. */

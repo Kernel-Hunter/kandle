@@ -6,6 +6,9 @@ import { SOURCES, hasKey, sourceMarkets } from '../data/sources';
 import { keyStore } from '../data/keys';
 import { errorMessage } from '../data/http';
 import type { DataSource, MarketType } from '../data/types';
+import { CSV_SOURCE_ID, csvStore, datasetMeta } from '../data/csv';
+import { getTimeframe } from '../data/timeframes';
+import { csvBadge, openCsvImport, openImportedDataset } from './csvImport';
 
 export const MARKET_LABELS: Record<MarketType, string> = {
   crypto: 'Crypto',
@@ -27,7 +30,64 @@ export const DATA_ICON =
 let modal: Modal | null = null;
 let renderList: ((focus?: string) => void) | null = null;
 
+/** Imported datasets: open, delete, or import another file. */
+function csvCard(source: DataSource, rerender: () => void): HTMLElement {
+  const datasets = csvStore().list();
+  const day = (t: number) => new Date(t).toISOString().slice(0, 10);
+  return h(
+    'section',
+    { class: 'ds-card', dataset: { source: source.id } },
+    h(
+      'div',
+      { class: 'ds-head' },
+      h('span', { class: 'ds-name' }, source.name),
+      csvBadge(),
+      h('span', { class: 'ds-fresh' }, 'Static'),
+      h('span', { class: 'spacer' }),
+      h('span', { class: 'ds-keystate ok' }, 'No key needed'),
+    ),
+    h('p', { class: 'muted small ds-note' }, 'Your own OHLCV data from a CSV file. It is kept in this browser, never uploaded, and does not update, so alerts on it never fire.'),
+    datasets.length
+      ? h(
+          'ul',
+          { class: 'ds-datasets' },
+          ...datasets.map((d) =>
+            h(
+              'li',
+              { class: 'ds-dataset small' },
+              h('span', { class: 'ds-name' }, d.name),
+              h('span', { class: 'muted' }, `${getTimeframe(d.timeframe)!.label}, ${d.bars.toLocaleString('en-US')} bars, ${day(d.first)} to ${day(d.last)}`),
+              h('span', { class: 'spacer' }),
+              h('button', { class: 'btn small', type: 'button', onclick: () => (modal?.close(), openImportedDataset(datasetMeta(d))) }, 'Open'),
+              h(
+                'button',
+                {
+                  class: 'btn small btn-ghost',
+                  type: 'button',
+                  'aria-label': `Delete ${d.name}`,
+                  onclick: () => {
+                    if (!window.confirm(`Delete the imported dataset ${d.name}? Its drawings stay saved but the data is removed from this browser.`)) return;
+                    csvStore().remove(d.symbol);
+                    rerender();
+                  },
+                },
+                'Delete',
+              ),
+            ),
+          ),
+        )
+      : null,
+    h(
+      'div',
+      { class: 'ds-actions' },
+      h('span', { class: 'spacer' }),
+      h('button', { class: 'btn small btn-primary', type: 'button', onclick: () => (modal?.close(), openCsvImport()) }, 'Import CSV'),
+    ),
+  );
+}
+
 function sourceCard(source: DataSource, rerender: () => void): HTMLElement {
+  if (source.id === CSV_SOURCE_ID) return csvCard(source, rerender);
   const freshness = source.freshness ?? 'live';
   const head = h(
     'div',

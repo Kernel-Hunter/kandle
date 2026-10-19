@@ -209,3 +209,92 @@
 .status-delayed .dot {
   background: var(--warn);
 }
+
+/* CSV import */
+
+.mk-csv {
+  color: #14b8a6;
+}
+
+.modal-csv .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.csv-help {
+  margin: 0;
+}
+
+.csv-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.csv-pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.csv-name {
+  padding: 7px 9px;
+}
+
+.csv-file {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  cursor: pointer;
+}
+
+.csv-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv-drop {
+  position: absolute;
+  inset: 12px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.csv-drop[hidden] {
+  display: none;
+}
+
+.ds-datasets {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ds-dataset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ds-dataset .spacer {
+  flex: 1;
+}

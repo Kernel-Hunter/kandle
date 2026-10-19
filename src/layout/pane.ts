@@ -25,6 +25,8 @@ export interface PaneHandle {
   addIndicator(name: string, params?: number[]): string | null;
   removeIndicator(id: string): void;
   indicators(): ActiveIndicator[];
+  /** Timeframes the current symbol can be shown in (imported data only goes up from its own). */
+  timeframes(): readonly TimeframeId[];
 }
 
 export interface SecondaryPaneDeps {
@@ -118,6 +120,10 @@ export class SecondaryPane implements PaneHandle {
     return this.active.map((i) => ({ ...i, params: [...i.params] }));
   }
 
+  timeframes(): readonly TimeframeId[] {
+    return getSource(this.config.source).timeframesFor?.(this.config.symbol) ?? TIMEFRAMES.map((tf) => tf.id);
+  }
+
   /** Creates the chart once the element is in the document. */
   async mount(): Promise<void> {
     const chart = init(this.chartEl, { locale: 'en-US', styles: this.deps.theme() });
@@ -164,8 +170,12 @@ export class SecondaryPane implements PaneHandle {
 
   setSymbol(source: string, meta: SymbolMeta): void {
     if (source === this.config.source && meta.symbol === this.config.symbol) return;
-    this.config = { ...this.config, source, symbol: meta.symbol };
+    const allowed = getSource(source).timeframesFor?.(meta.symbol);
+    const timeframe = !allowed || allowed.includes(this.config.timeframe) ? this.config.timeframe : allowed[0];
+    const periodChanged = timeframe !== this.config.timeframe;
+    this.config = { ...this.config, source, symbol: meta.symbol, timeframe };
     this.meta = meta;
+    if (periodChanged) this.chartRef?.setPeriod(getTimeframe(timeframe)!.period);
     this.chartRef?.setSymbol(this.symbolInfo());
     this.renderHead();
     this.deps.onConfigChange();
@@ -174,7 +184,7 @@ export class SecondaryPane implements PaneHandle {
 
   setTimeframe(tf: TimeframeId): void {
     const timeframe = getTimeframe(tf);
-    if (!timeframe || tf === this.config.timeframe) {
+    if (!timeframe || tf === this.config.timeframe || !this.timeframes().includes(tf)) {
       this.renderHead();
       return;
     }
@@ -222,6 +232,8 @@ export class SecondaryPane implements PaneHandle {
       h('span', { class: 'muted mc-source' }, getSource(this.config.source).name),
     );
     this.tfSelect.value = this.config.timeframe;
+    const allowed = this.timeframes();
+    for (const option of Array.from(this.tfSelect.options)) option.disabled = !allowed.includes(option.value as TimeframeId);
     this.chips.replaceChildren(
       ...this.active.map((ind) =>
         h(

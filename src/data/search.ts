@@ -16,7 +16,8 @@ export function searchSymbols(symbols: SymbolMeta[], query: string, limit = 80):
   };
   if (!q) {
     return symbols
-      .filter((s) => quoteRank(s) < 3)
+      // Imported datasets have no quote currency and are always listed.
+      .filter((s) => quoteRank(s) < 3 || !s.quote)
       .sort((a, b) => quoteRank(a) - quoteRank(b) || a.symbol.localeCompare(b.symbol))
       .slice(0, limit);
   }
@@ -37,8 +38,8 @@ export function searchSymbols(symbols: SymbolMeta[], query: string, limit = 80):
   return scored.slice(0, limit).map((x) => x.s);
 }
 
-/** Label for a symbol: "BTC/USDT" for pairs, the ticker alone for stocks, ETFs and indices. */
+/** Label for a symbol: "BTC/USDT" for pairs, the ticker alone for stocks, ETFs, indices and imported data. */
 export function displayName(meta: SymbolMeta): string {
-  if (meta.market === 'stock' || meta.market === 'etf' || meta.market === 'index') return meta.base;
+  if (meta.market === 'stock' || meta.market === 'etf' || meta.market === 'index' || !meta.quote) return meta.base;
   return `${meta.base}/${meta.quote}`;
 }

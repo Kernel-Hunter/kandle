@@ -5,9 +5,11 @@ import { getIndicatorDef, registerCustomIndicators } from './chart/indicators';
 import { DRAWING_TOOLS, registerCustomOverlays } from './chart/overlays';
 import { SOURCES, cachedSymbols, getSource, loadSymbols } from './data/sources';
 import { SeriesFeeds } from './data/feeds';
+import { CSV_SOURCE_ID, csvStore } from './data/csv';
+import { bindCsvDrop, setCsvImportHandler } from './ui/csvImport';
 import { TIMEFRAMES, getTimeframe, type TimeframeId } from './data/timeframes';
 import type { Candle, StreamStatus, SymbolMeta } from './data/types';
-import { LayoutStore, type DrawingRecord, type KeyValueStorage, type Layout, type Theme } from './store/layout';
+import { DEFAULT_LAYOUT, LayoutStore, type DrawingRecord, type KeyValueStorage, type Layout, type Theme } from './store/layout';
 import { h, ICONS, isTypingTarget } from './ui/dom';
 import { createModal, promptText, topModal } from './ui/modal';
 import { createSymbolSearch } from './ui/symbolSearch';
@@ -151,6 +153,7 @@ export class App {
     this.initScripts();
     this.features.start();
     this.initDataSources();
+    this.initCsvImport();
     // Warm the symbol list so search opens instantly.
     loadSymbols(getSource(this.layout.source), this.storage).catch(() => undefined);
   }
@@ -244,10 +247,12 @@ export class App {
       h('span', { class: 'symbol-name' }, this.meta ? displayName(this.meta) : this.layout.symbol),
       h('span', { class: 'symbol-source muted' }, source.name),
     );
+    const allowed = this.allowedTimeframes();
     this.el.timeframes.querySelectorAll<HTMLButtonElement>('[data-tf]').forEach((b) => {
       const on = b.dataset.tf === this.layout.timeframe;
       b.classList.toggle('active', on);
       b.setAttribute('aria-pressed', String(on));
+      b.disabled = !allowed.includes(b.dataset.tf as TimeframeId);
     });
     document.title = `${this.layout.symbol} ${getTimeframe(this.layout.timeframe)?.label ?? ''} - ${APP.name}`;
   }
@@ -277,11 +282,21 @@ export class App {
     };
   }
 
+  /** Timeframes the current symbol can be shown in. Imported data only goes up from its own. */
+  private allowedTimeframes(sourceId = this.layout.source, symbol = this.layout.symbol): readonly TimeframeId[] {
+    return getSource(sourceId).timeframesFor?.(symbol) ?? TIMEFRAMES.map((tf) => tf.id);
+  }
+
   setSymbol(sourceId: string, meta: SymbolMeta): void {
     if (sourceId === this.layout.source && meta.symbol === this.layout.symbol) return;
     this.cancelTool();
     this.removeAllDrawingsFromChart();
-    this.layout = { ...this.layout, source: sourceId, symbol: meta.symbol };
+    // Imported data only goes up from its own timeframe; switch to one it has.
+    const allowed = this.allowedTimeframes(sourceId, meta.symbol);
+    const timeframe = allowed.includes(this.layout.timeframe) || allowed.length === 0 ? this.layout.timeframe : allowed[0];
+    const periodChanged = timeframe !== this.layout.timeframe;
+    this.layout = { ...this.layout, source: sourceId, symbol: meta.symbol, timeframe };
+    if (periodChanged) this.chart.setPeriod(getTimeframe(timeframe)!.period);
     this.meta = meta;
     this.lastPrice = null;
     this.el.price.textContent = '';
@@ -295,6 +310,10 @@ export class App {
     if (id === this.layout.timeframe) return;
     const tf = getTimeframe(id);
     if (!tf) return;
+    if (!this.allowedTimeframes().includes(id)) {
+      this.toast(`${this.meta ? displayName(this.meta) : this.layout.symbol} can be shown in ${this.allowedTimeframes().map((t) => getTimeframe(t)!.label).join(', ')}`, 'error');
+      return;
+    }
     this.cancelTool();
     this.layout = { ...this.layout, timeframe: id };
     this.persistLayout();
@@ -534,7 +553,7 @@ export class App {
   }
 
   private setStreamStatus(status: StreamStatus): void {
-    const labels: Record<StreamStatus, string> = { connecting: 'Connecting', live: 'Live', reconnecting: 'Reconnecting', closed: 'Offline', polling: 'Polling', delayed: 'Delayed' };
+    const labels: Record<StreamStatus, string> = { connecting: 'Connecting', live: 'Live', reconnecting: 'Reconnecting', closed: 'Offline', polling: 'Polling', delayed: 'Delayed', static: 'Static' };
     this.el.status.className = `status status-${status}`;
     this.el.status.replaceChildren(h('span', { class: 'dot' }), h('span', { class: 'status-label' }, labels[status]));
   }
@@ -765,6 +784,25 @@ export class App {
   async toggleScriptEditor(): Promise<void> {
     const panel = await this.loadScriptPanel();
     panel.toggle();
+  }
+
+  // ---------------------------------------------------------------- CSV import
+
+  /** Imported files open on the main chart; deleting the one on the chart switches back to the default market. */
+  private initCsvImport(): void {
+    setCsvImportHandler((sourceId, meta) => {
+      const d = csvStore().get(meta.symbol);
+      this.setSymbol(sourceId, meta);
+      if (d) this.toast(`${d.name}: ${d.bars.toLocaleString('en-US')} bars of ${getTimeframe(d.timeframe)!.label}`);
+    });
+    const wrap = this.root.querySelector<HTMLElement>('.chart-wrap');
+    if (wrap) bindCsvDrop(wrap);
+    csvStore().onChange(() => {
+      if (this.layout.source !== CSV_SOURCE_ID || csvStore().get(this.layout.symbol)) return;
+      void this.lookupMeta(DEFAULT_LAYOUT.source, DEFAULT_LAYOUT.symbol).then((meta) =>
+        this.setSymbol(DEFAULT_LAYOUT.source, meta ?? { symbol: DEFAULT_LAYOUT.symbol, base: 'BTC', quote: 'USDT', pricePrecision: 2, volumePrecision: 5 }),
+      );
+    });
   }
 
   // ---------------------------------------------------------------- data sources

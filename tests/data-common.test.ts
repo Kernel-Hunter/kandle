@@ -252,7 +252,7 @@ describe('openManagedSocket heartbeat', () => {
 
 describe('source registry', () => {
   it('lists the keyless exchanges and the keyed providers with sign-up links', () => {
-    expect(SOURCES.map((s) => s.id)).toEqual(['binance', 'coinbase', 'bybit', 'okx', 'kraken', 'twelvedata', 'alpaca', 'polygon']);
+    expect(SOURCES.map((s) => s.id)).toEqual(['binance', 'coinbase', 'bybit', 'okx', 'kraken', 'twelvedata', 'alpaca', 'polygon', 'csv']);
     for (const s of SOURCES.filter((x) => x.auth)) expect(s.auth!.signupUrl).toMatch(/^https:\/\//);
     expect(sourceMarkets(getSource('binance'))).toEqual(['crypto']);
     expect(sourceMarkets(getSource('twelvedata'))).toContain('forex');
@@ -266,5 +266,6 @@ describe('source registry', () => {
     expect(displayName({ symbol: 'AAPL', base: 'AAPL', quote: 'USD', pricePrecision: 2, volumePrecision: 0, market: 'stock' })).toBe('AAPL');
     expect(displayName({ symbol: 'EUR/USD', base: 'EUR', quote: 'USD', pricePrecision: 5, volumePrecision: 0, market: 'forex' })).toBe('EUR/USD');
     expect(displayName({ symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT', pricePrecision: 2, volumePrecision: 4 })).toBe('BTC/USDT');
+    expect(displayName({ symbol: 'MY-DATA', base: 'My data', quote: '', pricePrecision: 2, volumePrecision: 0 })).toBe('My data');
   });
 });

@@ -38,7 +38,7 @@
     },
     {
       "name": "set_symbol",
-      "description": "Switches the chart to another market, e.g. ETHUSDT on Binance or BTC-USD on Coinbase."
+      "description": "Switches the chart to another market, e.g. ETHUSDT on Binance or BTC-USD on Coinbase, or to a dataset the user imported from a CSV file (exchange csv)."
     },
     {
       "name": "set_timeframe",
@@ -74,7 +74,7 @@
     },
     {
       "name": "run_script",
-      "description": "Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. Orders fill at the next bar's open; limit and stop orders when the bar reaches their price."
+      "description": "Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. request.security can read other symbols on the same source and other timeframes. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. Orders fill at the next bar's open; limit and stop orders when the bar reaches their price."
     },
     {
       "name": "get_backtest",

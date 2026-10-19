@@ -1,4 +1,5 @@
 import type { Chart } from 'klinecharts';
+import { CSV_SOURCE_ID } from '../data/csv';
 import type { ActiveIndicator } from '../ui/indicatorPanel';
 import { h } from '../ui/dom';
 import { createModal } from '../ui/modal';
@@ -50,6 +51,10 @@ export function createAlertsPanel(options: AlertsPanelOptions) {
   const permissionNote = h('p', { class: 'muted small al-note' });
   const renderPermission = () => {
     const state = notificationPermission();
+    if (options.symbol().source === CSV_SOURCE_ID) {
+      permissionNote.textContent = 'This chart shows imported CSV data, which does not update, so alerts on it never fire.';
+      return;
+    }
     permissionNote.textContent =
       state === 'denied'
         ? 'Browser notifications are blocked for this site, so alerts show here in the app and play a sound.'

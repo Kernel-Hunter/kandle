@@ -24,7 +24,7 @@ export const DRAWING_TYPES = [
 ] as const;
 
 /** Data source ids, matching SOURCES in src/data/sources.ts. */
-export const EXCHANGES = ['binance', 'coinbase', 'bybit', 'okx', 'kraken', 'twelvedata', 'alpaca', 'polygon'] as const;
+export const EXCHANGES = ['binance', 'coinbase', 'bybit', 'okx', 'kraken', 'twelvedata', 'alpaca', 'polygon', 'csv'] as const;
 
 export const ALERT_CONDITIONS = ['crosses', 'crosses_up', 'crosses_down', 'touches'] as const;
 
@@ -49,7 +49,7 @@ export const schemas = {
       .max(40)
       .regex(/^[A-Za-z0-9._:/-]+$/, 'Symbols use letters, digits and . _ : / -')
       .describe('Market symbol such as BTCUSDT, ETH/USDT or BTC-USD'),
-    exchange: z.enum(EXCHANGES).optional().describe('Data source. Defaults to the chart\'s current exchange. twelvedata, alpaca and polygon need a key saved in Kandle.'),
+    exchange: z.enum(EXCHANGES).optional().describe('Data source. Defaults to the chart\'s current exchange. twelvedata, alpaca and polygon need a key saved in Kandle. csv is data the user imported from a CSV file; its symbols are the dataset names shown in symbol search.'),
     pane,
   }),
   set_timeframe: z.object({
@@ -160,7 +160,7 @@ export const TOOLS: readonly ToolDef[] = [
     method: 'get_chart_state',
     readOnly: true,
   },
-  { name: 'set_symbol', title: 'Set symbol', description: 'Switches the chart to another market, e.g. ETHUSDT on Binance or BTC-USD on Coinbase.', method: 'set_symbol', timeoutMs: 30_000 },
+  { name: 'set_symbol', title: 'Set symbol', description: 'Switches the chart to another market, e.g. ETHUSDT on Binance or BTC-USD on Coinbase, or to a dataset the user imported from a CSV file (exchange csv).', method: 'set_symbol', timeoutMs: 30_000 },
   { name: 'set_timeframe', title: 'Set timeframe', description: 'Changes the bar size of the chart.', method: 'set_timeframe' },
   {
     name: 'get_candles',
@@ -192,7 +192,7 @@ export const TOOLS: readonly ToolDef[] = [
     name: 'run_script',
     title: 'Run script',
     description:
-      'Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. Orders fill at the next bar\'s open; limit and stop orders when the bar reaches their price.',
+      'Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. request.security can read other symbols on the same source and other timeframes. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. Orders fill at the next bar\'s open; limit and stop orders when the bar reaches their price.',
     method: 'run_script',
     timeoutMs: 60_000,
   },

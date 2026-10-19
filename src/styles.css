@@ -169,6 +169,13 @@ button:disabled {
   background: var(--accent-soft);
 }
 
+.seg-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--muted);
+}
+
 .spacer {
   flex: 1;
 }
