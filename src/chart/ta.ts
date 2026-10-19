@@ -205,3 +205,47 @@ export function supertrend(bars: Bar[], length: number, multiplier: number): Arr
   }
   return out;
 }
+
+export interface IchimokuRow {
+  conversion?: number;
+  base?: number;
+  /** Leading span A at this bar, computed `displacement` bars earlier. */
+  spanA?: number;
+  spanB?: number;
+  /** Close from `displacement` bars later, so it is empty for the newest bars. */
+  lagging?: number;
+  /** Span A and B as computed on this bar, before the forward shift. The draw callback reads these to extend the cloud past the last bar. */
+  leadA?: number;
+  leadB?: number;
+}
+
+/** Midpoint of the highest high and lowest low over `length` bars ending at each bar. */
+function midpoints(bars: Bar[], length: number): Series {
+  return donchian(bars, length).map((d) => d.middle);
+}
+
+/**
+ * Ichimoku Kinko Hyo. Conversion and base lines are the midpoints of the high-low range over
+ * their lengths. Leading span A is the average of the two, leading span B the midpoint over
+ * `spanBLength`; both are plotted `displacement` bars ahead of the bar they were computed on.
+ * The lagging span is the close plotted `displacement` bars back.
+ */
+export function ichimoku(bars: Bar[], conversionLength: number, baseLength: number, spanBLength: number, displacement: number): IchimokuRow[] {
+  const conv = midpoints(bars, conversionLength);
+  const base = midpoints(bars, baseLength);
+  const leadB = midpoints(bars, spanBLength);
+  const leadA: Series = conv.map((c, i) => {
+    const b = base[i];
+    return c === undefined || b === undefined ? undefined : (c + b) / 2;
+  });
+  const d = Math.max(0, displacement);
+  return bars.map((_, i) => ({
+    conversion: conv[i],
+    base: base[i],
+    spanA: i >= d ? leadA[i - d] : undefined,
+    spanB: i >= d ? leadB[i - d] : undefined,
+    lagging: i + d < bars.length ? bars[i + d].close : undefined,
+    leadA: leadA[i],
+    leadB: leadB[i],
+  }));
+}

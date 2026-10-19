@@ -50,7 +50,7 @@
     },
     {
       "name": "add_indicator",
-      "description": "Adds an indicator such as RSI, MACD, EMA or BOLL. Returns its id."
+      "description": "Adds an indicator such as RSI, MACD, EMA, BOLL, ICHIMOKU or VP (volume profile). Returns its id."
     },
     {
       "name": "remove_indicator",

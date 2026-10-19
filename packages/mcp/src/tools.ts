@@ -64,7 +64,7 @@ export const schemas = {
     pane,
   }),
   add_indicator: z.object({
-    name: z.string().min(1).max(40).describe('Indicator name from list_indicators, e.g. RSI, MACD, EMA, BOLL'),
+    name: z.string().min(1).max(40).describe('Indicator name from list_indicators, e.g. RSI, MACD, EMA, BOLL, ICHIMOKU, VP'),
     params: z.array(z.number().finite()).max(10).optional().describe('Calculation parameters, e.g. [14] for RSI or [20, 50, 200] for EMA'),
     pane,
   }),
@@ -170,7 +170,7 @@ export const TOOLS: readonly ToolDef[] = [
     readOnly: true,
     timeoutMs: 30_000,
   },
-  { name: 'add_indicator', title: 'Add indicator', description: 'Adds an indicator such as RSI, MACD, EMA or BOLL. Returns its id.', method: 'add_indicator' },
+  { name: 'add_indicator', title: 'Add indicator', description: 'Adds an indicator such as RSI, MACD, EMA, BOLL, ICHIMOKU or VP (volume profile). Returns its id.', method: 'add_indicator' },
   { name: 'remove_indicator', title: 'Remove indicator', description: 'Removes an indicator by id, or every indicator with a name.', method: 'remove_indicator', destructive: true },
   {
     name: 'list_indicators',
