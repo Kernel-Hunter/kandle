@@ -28,7 +28,37 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           test "$(node -p "require('./packages/mcp/package.json').version")" = "$version"
           cd packages/mcp && npm pack --pack-destination ../..
+      # The same server as an MCP Bundle, for one-click installs in Claude Desktop and for
+      # the MCP Registry entry below.
+      - name: Pack MCP Bundle
+        run: |
+          packages/mcp/scripts/pack-mcpb.sh .
+          node packages/mcp/scripts/server-json.mjs kandle-mcp-*.mcpb > server.json
+          cat server.json
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" kandle-mcp-*.tgz --title "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" kandle-mcp-*.tgz kandle-mcp-*.mcpb --title "$GITHUB_REF_NAME" --generate-notes
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-json
+          path: server.json
+
+  # Lists the release in the MCP Registry. GitHub's OIDC token proves the workflow runs in
+  # Kernel-Hunter's repo, which grants the io.github.Kernel-Hunter namespace.
+  registry:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: server-json
+      - name: Install mcp-publisher
+        run: curl -fsSL https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz | tar xz mcp-publisher
+      - name: Publish
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
