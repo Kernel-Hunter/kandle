@@ -1,3 +1,5 @@
+import type { Candle } from './types';
+
 export type TimeframeId = '1m' | '5m' | '15m' | '1h' | '4h' | '1D' | '1W';
 
 export interface Timeframe {
@@ -52,4 +54,42 @@ export function precisionFromIncrement(increment: string | number): number {
   if (dot === -1) return 0;
   const decimals = text.slice(dot + 1).replace(/0+$/, '');
   return decimals.length;
+}
+
+/** The timeframe with exactly this bar length, if Kandle has one. */
+export function timeframeForMs(ms: number): TimeframeId | undefined {
+  return TIMEFRAMES.find((tf) => tf.ms === ms)?.id;
+}
+
+/**
+ * True when bars of `from` can be combined into bars of `to`: `to` is at least as long and
+ * every `to` bar starts on a `from` bar boundary. Weekly bars start on Monday, which daily
+ * and intraday bars line up with.
+ */
+export function canResample(from: TimeframeId, to: TimeframeId): boolean {
+  const a = getTimeframe(from)!.ms;
+  const b = getTimeframe(to)!.ms;
+  return b >= a && b % a === 0;
+}
+
+/**
+ * Combines bars into longer ones: first open, highest high, lowest low, last close, summed
+ * volume. Input must be sorted by time. Each output bar is stamped with its bucket start.
+ */
+export function resampleCandles(candles: readonly Candle[], timeframe: TimeframeId): Candle[] {
+  const out: Candle[] = [];
+  let cur: Candle | null = null;
+  for (const c of candles) {
+    const start = bucketStart(timeframe, c.time);
+    if (!cur || cur.time !== start) {
+      cur = { time: start, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume };
+      out.push(cur);
+    } else {
+      if (c.high > cur.high) cur.high = c.high;
+      if (c.low < cur.low) cur.low = c.low;
+      cur.close = c.close;
+      cur.volume += c.volume;
+    }
+  }
+  return out;
 }

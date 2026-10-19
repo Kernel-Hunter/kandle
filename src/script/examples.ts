@@ -187,6 +187,24 @@ bgcolor(spike ? color.new(color.orange, 88) : na)
 `,
   },
   {
+    name: 'Daily EMA trend filter',
+    source: `//@version=5
+indicator("Daily EMA Trend", overlay = true)
+dailyLen = input.int(20, "Daily EMA length", minval = 1)
+chartLen = input.int(21, "Chart EMA length", minval = 1)
+
+// The daily EMA only changes once a day has closed, so history shows what was known then.
+dailyEma = request.security(syminfo.tickerid, "D", ta.ema(close, dailyLen))
+chartEma = ta.ema(close, chartLen)
+trendUp = close > dailyEma and chartEma > dailyEma
+trendDown = close < dailyEma and chartEma < dailyEma
+
+plot(dailyEma, "Daily EMA", color.orange, 2, plot.style_stepline)
+plot(chartEma, "Chart EMA", color.blue, 1)
+bgcolor(trendUp ? color.new(color.green, 92) : trendDown ? color.new(color.red, 92) : na)
+`,
+  },
+  {
     name: 'EMA cross strategy',
     source: `//@version=5
 strategy("EMA Cross Strategy", shorttitle = "EMA Cross", overlay = true, initial_capital = 10000, default_qty_type = strategy.percent_of_equity, default_qty_value = 100, commission_type = strategy.commission.percent, commission_value = 0.05)

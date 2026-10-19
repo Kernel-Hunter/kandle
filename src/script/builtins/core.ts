@@ -66,6 +66,13 @@ function reduceNums(args: unknown[], f: (a: number, b: number) => number): numbe
   return acc;
 }
 
+// request.security merge settings: gaps on returns na between new values, lookahead on reads
+// the higher-timeframe bar that is still forming.
+CONSTANTS.set('barmerge.gaps_on', true);
+CONSTANTS.set('barmerge.gaps_off', false);
+CONSTANTS.set('barmerge.lookahead_on', true);
+CONSTANTS.set('barmerge.lookahead_off', false);
+
 CONSTANTS.set('math.pi', Math.PI);
 CONSTANTS.set('math.e', Math.E);
 CONSTANTS.set('math.phi', (1 + Math.sqrt(5)) / 2);

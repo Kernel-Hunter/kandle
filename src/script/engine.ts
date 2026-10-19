@@ -3,12 +3,15 @@ import { ScriptError } from './errors';
 import type { Outputs } from './outputs';
 import { parse } from './parser';
 import { Frame, type Candle, type Runtime, type SymbolContext } from './runtime';
+import { chartTimeframe, periodOf, requestKey, resampleBars, type RequestFeeds, type ResolvedRequest, type SecuritySite } from './security';
+import { getTimeframe } from '../data/timeframes';
 import type { StrategyReport } from './strategy';
 import { Color } from './values';
 
 export type { Candle, SymbolContext } from './runtime';
 export type { InputDef, InputValue, ScriptMeta } from './compiler';
 export type { StrategyReport } from './strategy';
+export type { RequestFeeds, ResolvedRequest } from './security';
 
 export interface RunResult {
   error: ScriptError | null;
@@ -51,6 +54,9 @@ export class ScriptEngine {
   private needsFull = true;
   private values: InputValue[];
   private report: StrategyReport | null = null;
+  private feeds: RequestFeeds | null = null;
+  /** Counts runs, so request.security on the chart's own bars always reruns its tail. */
+  private runCount = 0;
   lastError: ScriptError | null = null;
 
   constructor(
@@ -82,6 +88,47 @@ export class ScriptEngine {
     return this.compiled.rt.count;
   }
 
+  /** True when the script calls request.security. */
+  get hasRequests(): boolean {
+    return this.compiled.securities.length > 0;
+  }
+
+  /** Where request.security reads other symbols and timeframes. Without feeds, only higher timeframes of the chart's own bars work. */
+  setFeeds(feeds: RequestFeeds | null): void {
+    this.feeds = feeds;
+    this.needsFull = true;
+  }
+
+  /** Makes the next run start from the first bar, for example after requested data arrived. */
+  invalidate(): void {
+    this.needsFull = true;
+  }
+
+  /** The series the script requests for the current symbol, without the chart's own series. */
+  requests(): ResolvedRequest[] {
+    const out = new Map<string, ResolvedRequest>();
+    for (const site of this.compiled.securities) {
+      const req = this.resolve(site);
+      if (req && !this.isChartSeries(req)) out.set(requestKey(req), req);
+    }
+    return [...out.values()];
+  }
+
+  private resolve(site: SecuritySite): ResolvedRequest | null {
+    const ctx = this.compiled.rt.symbol;
+    const chartTf = chartTimeframe(ctx);
+    const timeframe = site.request.timeframe ?? chartTf;
+    if (!timeframe) return null;
+    const prefix = site.request.source;
+    const source = prefix && this.feeds?.hasSource(prefix) ? prefix : (ctx.source ?? '');
+    return { source, symbol: site.request.symbol ?? ctx.ticker, timeframe };
+  }
+
+  private isChartSeries(req: ResolvedRequest): boolean {
+    const ctx = this.compiled.rt.symbol;
+    return req.source === (ctx.source ?? '') && req.symbol === ctx.ticker && req.timeframe === chartTimeframe(ctx);
+  }
+
   get isStrategy(): boolean {
     return this.compiled.rt.strategy !== null;
   }
@@ -111,7 +158,7 @@ export class ScriptEngine {
 
   setSymbol(ctx: SymbolContext): void {
     const rt = this.compiled.rt;
-    if (rt.symbol.ticker === ctx.ticker && rt.symbol.period === ctx.period && rt.symbol.mintick === ctx.mintick) return;
+    if (rt.symbol.ticker === ctx.ticker && rt.symbol.period === ctx.period && rt.symbol.mintick === ctx.mintick && rt.symbol.source === ctx.source) return;
     rt.symbol = ctx;
     this.needsFull = true;
   }
@@ -151,6 +198,16 @@ export class ScriptEngine {
     const broker = rt.strategy;
     this.lastError = null;
     this.report = null;
+    if (this.compiled.securities.length > 0 && n > 0) {
+      try {
+        this.updateRequests(candles, start, !canIncrement);
+      } catch (e) {
+        const err = e instanceof ScriptError ? e : new ScriptError(e instanceof Error ? e.message : String(e), null);
+        this.lastError = err;
+        this.needsFull = true;
+        return { error: err, barsRun: 0, incremental: canIncrement, ms: performance.now() - started };
+      }
+    }
     let b = start;
     try {
       for (; b < n; b++) {
@@ -172,6 +229,42 @@ export class ScriptEngine {
       this.needsFull = true;
     }
     return { error: this.lastError, barsRun: n - start, incremental: canIncrement, ms: performance.now() - started };
+  }
+
+  /** Brings every request.security value up to date for chart bars from `start` on. */
+  private updateRequests(candles: readonly Candle[], start: number, full: boolean): void {
+    const rt = this.compiled.rt;
+    const ctx = rt.symbol;
+    this.runCount++;
+    for (const site of this.compiled.securities) {
+      if (full) site.reset();
+      site.rt.inputValues = this.values;
+      const req = this.resolve(site);
+      if (!req) {
+        site.update(rt, start, null, '', -1, ctx, 0);
+        continue;
+      }
+      const tf = getTimeframe(req.timeframe)!;
+      const subCtx: SymbolContext = { ...ctx, source: req.source, ticker: req.symbol, period: periodOf(req.timeframe), periodSeconds: tf.ms / 1000 };
+      const key = requestKey(req);
+      let bars: readonly Candle[] | null = null;
+      let version = this.runCount;
+      if (this.isChartSeries(req)) {
+        bars = candles;
+      } else if (this.feeds) {
+        this.feeds.need(req, candles[0].timestamp);
+        const series = this.feeds.series(req);
+        if (series?.error) throw new ScriptError(`Could not load ${req.symbol} ${tf.label}: ${series.error}`, site.span);
+        if (series) {
+          bars = series.bars;
+          version = series.version;
+        }
+      } else if (req.source === (ctx.source ?? '') && req.symbol === ctx.ticker && tf.ms > ctx.periodSeconds * 1000) {
+        // No data feed (tests, plain engine use): build higher-timeframe bars from the chart.
+        bars = resampleBars(candles, req.timeframe);
+      }
+      site.update(rt, start, bars, key, version, subCtx, tf.ms);
+    }
   }
 
   private reset(): void {

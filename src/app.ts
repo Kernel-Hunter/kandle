@@ -3,7 +3,8 @@ import { APP } from './config';
 import { createDataLoader } from './chart/loader';
 import { getIndicatorDef, registerCustomIndicators } from './chart/indicators';
 import { DRAWING_TOOLS, registerCustomOverlays } from './chart/overlays';
-import { cachedSymbols, getSource, loadSymbols } from './data/sources';
+import { SOURCES, cachedSymbols, getSource, loadSymbols } from './data/sources';
+import { SeriesFeeds } from './data/feeds';
 import { TIMEFRAMES, getTimeframe, type TimeframeId } from './data/timeframes';
 import type { Candle, StreamStatus, SymbolMeta } from './data/types';
 import { LayoutStore, type DrawingRecord, type KeyValueStorage, type Layout, type Theme } from './store/layout';
@@ -703,7 +704,8 @@ export class App {
     const manager = new ScriptManager({
       chart: () => this.chart,
       candlePaneId: CANDLE_PANE,
-      symbol: () => symbolContext(this.layout.symbol, getTimeframe(this.layout.timeframe)?.ms ?? 3_600_000, this.meta?.pricePrecision ?? 2),
+      symbol: () => symbolContext(this.layout.symbol, getTimeframe(this.layout.timeframe)?.ms ?? 3_600_000, this.meta?.pricePrecision ?? 2, this.layout.source),
+      feeds: new SeriesFeeds({ source: (id) => SOURCES.find((s) => s.id === id) }),
       persist: (records) => {
         this.layout = { ...this.layout, scripts: records };
         this.persistLayout();
@@ -727,8 +729,8 @@ export class App {
     const api = scriptApi(manager);
     const runScript = api.runScript;
     // A strategy run from automation opens its results, so the user sees what the agent did.
-    api.runScript = (source, options) => {
-      const res = runScript(source, options);
+    api.runScript = async (source, options) => {
+      const res = await runScript(source, options);
       if (res.ok && res.id && 'backtest' in res) void this.showStrategyResults(res.id);
       return res;
     };

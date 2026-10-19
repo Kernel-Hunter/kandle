@@ -85,6 +85,10 @@ export interface DataSource {
   readonly freshness?: DataFreshness;
   /** Short note shown next to the source, e.g. history limits. */
   readonly note?: string;
+  /** Data stored in this browser (imported files): symbol lists are not cached and nothing streams. */
+  readonly local?: boolean;
+  /** Timeframes one symbol can be shown in, when that depends on the symbol. */
+  timeframesFor?(symbol: string): readonly TimeframeId[];
   /** Full symbol list for local search. Sources with `search` may return a short popular list. */
   listSymbols(): Promise<SymbolMeta[]>;
   /** Provider-side search, for sources whose full list is too large or needs a key. */

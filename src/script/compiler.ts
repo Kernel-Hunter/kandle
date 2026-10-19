@@ -11,6 +11,7 @@ import './builtins/strategy';
 import { ScriptError, type Span } from './errors';
 import { PLOT_PALETTE, SHAPE_SIZES, emptyOutputs, type BarColorOutput, type FillOutput, type HlineOutput, type Outputs, type PlotOutput, type ShapeOutput } from './outputs';
 import { Frame, Runtime, SLOT_PLAIN, SLOT_VAR, SLOT_VARIP, type FrameLayout } from './runtime';
+import { MAX_REQUESTS, SecuritySite, requestTimeframe, type SecurityRequest } from './security';
 import { Broker, DEFAULT_STRATEGY, type CommissionType, type QtyType, type StrategyConfig } from './strategy';
 import { Color, PlotHandle, ScriptArray, Tuple, isNa, truthy, valuesEqual, typeName } from './values';
 
@@ -75,6 +76,17 @@ interface VarInfo {
   ctx: FnCtx;
   type: TypeRef | null;
   name: string;
+  kind: number;
+  /** Function parameters and loop variables have no expression to recompute. */
+  role?: 'param' | 'loop';
+  /**
+   * The expression a plain declaration assigned, so request.security can compute the
+   * variable again on the requested bars. `count` is how many names the scope had before
+   * this one; `index` picks one value of a tuple declaration (-1 for a plain one).
+   */
+  inline?: { expr: Expr; scope: Scope; count: number; index: number };
+  /** Changed with := or += somewhere in the script. */
+  reassigned?: boolean;
 }
 
 class Scope {
@@ -95,6 +107,19 @@ interface UserFunction {
   layout: FrameLayout;
   body: Fn;
   isMethod: boolean;
+  /** Kept so request.security can compile the function again for its own runtime. */
+  stmt: Extract<Stmt, { kind: 'func' }>;
+}
+
+/** State while compiling the expression of a request.security call. */
+interface SecurityCompile {
+  /** Frames created for the expression; variables in them are read directly. */
+  ctxs: Set<FnCtx>;
+  /** User functions compiled again against the request's runtime. */
+  functions: Map<UserFunction, UserFunction>;
+  /** Variables being recomputed, to catch a declaration that refers to itself. */
+  inlining: Set<VarInfo>;
+  span: Span;
 }
 
 const NOT_CONST = Symbol('not-const');
@@ -270,10 +295,14 @@ export interface CompiledScript {
   mutatesState: boolean;
   newRootFrame(): Frame;
   body: Fn;
+  /** request.security call sites, in source order. */
+  securities: SecuritySite[];
 }
 
 export class Compiler {
-  readonly rt = new Runtime();
+  /** The runtime closures compile against: the script's, or a request.security one. */
+  private rt: Runtime;
+  private readonly mainRt = new Runtime();
   readonly outputs: Outputs = emptyOutputs();
   readonly inputs: InputDef[] = [];
   private meta: ScriptMeta = { title: 'Script', shortTitle: 'Script', overlay: false, precision: null, format: null, version: null, strategy: null };
@@ -289,6 +318,17 @@ export class Compiler {
   private loopDepth = 0;
   private compilingFunction: string | null = null;
   private paletteIndex = 0;
+  private security: SecurityCompile | null = null;
+  private readonly securities: SecuritySite[] = [];
+  private readonly requestKeys = new Set<string>();
+  /** Variables recomputed by request.security, checked for later := once the script is compiled. */
+  private readonly inlined: Array<{ info: VarInfo; span: Span }> = [];
+  /** Input index by the position of its input() call, so recompiling a declaration adds no new input. */
+  private readonly inputAt = new Map<number, number>();
+
+  constructor() {
+    this.rt = this.mainRt;
+  }
 
   compile(program: Program): CompiledScript {
     this.meta.version = program.version;
@@ -296,24 +336,28 @@ export class Compiler {
     if (this.strategyUse && !this.meta.strategy) {
       throw new ScriptError(`'${this.strategyUse.name}' can only be used in a script declared with strategy()`, this.strategyUse.span);
     }
+    for (const { info, span } of this.inlined) {
+      if (info.reassigned) throw new ScriptError(securityVarMessage(info.name, 'it is changed with :='), span);
+    }
     const layout: FrameLayout = { kinds: this.globalCtx.kinds, history: this.globalCtx.history };
     return {
       meta: this.meta,
       inputs: this.inputs,
       outputs: this.outputs,
-      rt: this.rt,
+      rt: this.mainRt,
       mutatesState: this.mutatesState,
       newRootFrame: () => new Frame(layout, null),
       body,
+      securities: this.securities,
     };
   }
 
   // ------------------------------------------------------------------ scopes and slots
 
   private declare(name: string, kind: number, type: TypeRef | null, span: Span): VarInfo {
-    if (name === '_') return { slot: this.newSlot(kind), ctx: this.fc, type, name };
+    if (name === '_') return { slot: this.newSlot(kind), ctx: this.fc, type, name, kind };
     if (this.scope.vars.has(name)) throw new ScriptError(`'${name}' is already declared in this scope; use := to change it`, span);
-    const info: VarInfo = { slot: this.newSlot(kind), ctx: this.fc, type, name };
+    const info: VarInfo = { slot: this.newSlot(kind), ctx: this.fc, type, name, kind };
     this.scope.vars.set(name, info);
     return info;
   }
@@ -416,7 +460,9 @@ export class Compiler {
     const value = this.expr(s.value);
     const kind = s.mode === 'var' ? SLOT_VAR : s.mode === 'varip' ? SLOT_VARIP : SLOT_PLAIN;
     if (kind === SLOT_VARIP) this.mutatesState = true;
+    const count = this.scope.vars.size;
     const info = this.declare(s.name, kind, s.type, s.nameSpan);
+    if (kind === SLOT_PLAIN) info.inline = { expr: s.value, scope: this.scope, count, index: -1 };
     const write = this.writer(info, s.nameSpan);
     const slot = info.slot;
     const rt = this.rt;
@@ -440,12 +486,19 @@ export class Compiler {
 
   private tupleDeclaration(s: Extract<Stmt, { kind: 'tupledecl' }>): Fn {
     const value = this.expr(s.value);
-    const writers = s.names.map((n) => {
+    const count = this.scope.vars.size;
+    const writers = s.names.map((n, index) => {
       const info = this.declare(n.name, SLOT_PLAIN, null, n.span);
+      info.inline = { expr: s.value, scope: this.scope, count, index };
       return n.name === '_' ? null : this.writer(info, n.span);
     });
+    const fromRequest = s.value.kind === 'call' && this.dottedName(s.value.callee) === 'request.security';
     return (f) => {
       const v = value(f);
+      if (fromRequest && !(v instanceof Tuple) && isNa(v)) {
+        for (const w of writers) w?.(f, NaN);
+        return NaN;
+      }
       if (!(v instanceof Tuple)) throw new ScriptError(`Expected ${writers.length} values on the right side but got one ${typeName(v)}`, s.span);
       if (v.items.length < writers.length) throw new ScriptError(`Expected ${writers.length} values but got ${v.items.length}`, s.span);
       for (let i = 0; i < writers.length; i++) writers[i]?.(f, v.items[i]);
@@ -456,6 +509,8 @@ export class Compiler {
   private assignment(s: Extract<Stmt, { kind: 'assign' }>): Fn {
     const info = this.lookup(s.name);
     if (!info) throw new ScriptError(`'${s.name}' is not declared yet; use = to declare it`, s.nameSpan);
+    if (this.security && !this.security.ctxs.has(info.ctx)) throw new ScriptError(`A request.security expression cannot change '${s.name}'`, s.nameSpan);
+    info.reassigned = true;
     const write = this.writer(info, s.nameSpan);
     const read = this.reader(info);
     const value = this.expr(s.value);
@@ -476,16 +531,23 @@ export class Compiler {
 
   private defineFunction(s: Extract<Stmt, { kind: 'func' }>): void {
     if (this.functions.has(s.name)) throw new ScriptError(`Function '${s.name}' is already declared`, s.span);
+    this.functions.set(s.name, this.compileFunction(s));
+  }
+
+  private compileFunction(s: Extract<Stmt, { kind: 'func' }>): UserFunction {
     const savedFc = this.fc;
     const savedScope = this.scope;
     const savedLoop = this.loopDepth;
+    const savedName = this.compilingFunction;
     this.fc = { kinds: [], history: [], stateCount: 0, global: false };
+    this.security?.ctxs.add(this.fc);
     this.scope = new Scope(this.globalScope);
     this.loopDepth = 0;
     this.compilingFunction = s.name;
     try {
       const params = s.params.map((p) => {
         const info = this.declare(p.name, SLOT_PLAIN, p.type, p.span);
+        info.role = 'param';
         let defaultValue: Fn | null = null;
         if (p.defaultValue) {
           // Defaults must be constants, so they can be evaluated in any caller.
@@ -497,18 +559,12 @@ export class Compiler {
       });
       const body = this.block(s.body, false);
       const layout: FrameLayout = { kinds: this.fc.kinds, history: this.fc.history };
-      this.functions.set(s.name, {
-        name: s.name,
-        params,
-        layout,
-        body,
-        isMethod: s.isMethod,
-      });
+      return { name: s.name, params, layout, body, isMethod: s.isMethod, stmt: s };
     } finally {
       this.fc = savedFc;
       this.scope = savedScope;
       this.loopDepth = savedLoop;
-      this.compilingFunction = null;
+      this.compilingFunction = savedName;
     }
   }
 
@@ -609,7 +665,7 @@ export class Compiler {
 
   private identifier(name: string, span: Span): Fn {
     const info = this.lookup(name);
-    if (info) return this.reader(info);
+    if (info) return this.security ? this.securityRead(info, span) : this.reader(info);
     const getter = VARIABLES.get(name);
     if (getter) {
       this.noteStrategyUse(name, span);
@@ -656,6 +712,7 @@ export class Compiler {
   }
 
   private noteStrategyUse(name: string, span: Span): void {
+    if (this.security && name.startsWith('strategy.')) throw new ScriptError(`'${name}' cannot be used inside request.security`, span);
     if (!this.strategyUse && name.startsWith('strategy.')) this.strategyUse = { name, span };
   }
 
@@ -679,13 +736,14 @@ export class Compiler {
     const obj = e.object;
     if (obj.kind === 'ident') {
       const info = this.lookup(obj.name);
-      if (info) {
+      // Variables computed again for request.security keep their history like any expression below.
+      if (info && !(this.security && !this.security.ctxs.has(info.ctx))) {
         info.ctx.history[info.slot] = true;
         const slot = info.slot;
         if (info.ctx === this.fc) return (f) => histAt(f.hist[slot], rt.bar - getOffset(f));
         return (f) => histAt(f.root.hist[slot], rt.bar - getOffset(f));
       }
-      const series = HISTORY_SERIES[obj.name];
+      const series = info ? undefined : HISTORY_SERIES[obj.name];
       if (series) {
         return (f) => {
           const i = rt.bar - getOffset(f);
@@ -743,6 +801,7 @@ export class Compiler {
     const guard = this.loopGuard(e.span);
     return this.withScope(() => {
       const info = this.declare(e.varName, SLOT_PLAIN, null, e.varSpan);
+      info.role = 'loop';
       const write = this.writer(info, e.varSpan);
       this.loopDepth++;
       const body = this.block(e.body);
@@ -775,8 +834,13 @@ export class Compiler {
     const rt = this.rt;
     const guard = this.loopGuard(e.span);
     return this.withScope(() => {
-      const indexWrite = e.indexName ? this.writer(this.declare(e.indexName, SLOT_PLAIN, null, e.span), e.span) : null;
-      const write = this.writer(this.declare(e.varName, SLOT_PLAIN, null, e.varSpan), e.varSpan);
+      const loopVar = (name: string, span: Span) => {
+        const info = this.declare(name, SLOT_PLAIN, null, span);
+        info.role = 'loop';
+        return this.writer(info, span);
+      };
+      const indexWrite = e.indexName ? loopVar(e.indexName, e.span) : null;
+      const write = loopVar(e.varName, e.varSpan);
       this.loopDepth++;
       const body = this.block(e.body);
       this.loopDepth--;
@@ -841,6 +905,7 @@ export class Compiler {
     if (name === this.compilingFunction) throw new ScriptError(`'${name}' cannot call itself; recursion is not supported`, callee.span);
 
     if (name === 'indicator' || name === 'strategy') return this.declarationCall(name, e.args, e.span);
+    if (name === 'request.security') return this.securityCall(e.args, e.span);
     if (name === 'input' || name.startsWith('input.')) return this.inputCall(name, e.args, e.span);
     if (name in OUTPUT_PARAMS) return this.outputCall(name, e.args, e.span);
 
@@ -937,7 +1002,8 @@ export class Compiler {
     };
   }
 
-  private userCall(fnInfo: UserFunction, rawArgs: Arg[], span: Span, receiver: Expr | null): Fn {
+  private userCall(original: UserFunction, rawArgs: Arg[], span: Span, receiver: Expr | null): Fn {
+    const fnInfo = this.security ? this.securityFunction(original) : original;
     const params = fnInfo.params.map((p) => p.name);
     const args = receiver ? [{ name: null, value: receiver, span: receiver.span }, ...rawArgs] : rawArgs;
     const bound = this.bindArgs(fnInfo.name, params, 0, false, args, span);
@@ -987,6 +1053,162 @@ export class Compiler {
     if (viaStr && !viaArray) return viaStr;
     const recv = this.expr(object);
     return (f) => (recv(f) instanceof ScriptArray ? viaArray!(f) : viaStr!(f));
+  }
+
+  // ------------------------------------------------------------------ request.security
+
+  /**
+   * request.security(symbol, timeframe, expression, gaps, lookahead). The expression is
+   * compiled against a runtime of its own; the call returns its value aligned to the
+   * current chart bar, which the engine fills in before each run.
+   */
+  private securityCall(args: Arg[], span: Span): Fn {
+    if (this.security) throw new ScriptError('request.security cannot be used inside another request.security expression', span);
+    const params = ['symbol', 'timeframe', 'expression', 'gaps', 'lookahead', 'ignore_invalid_symbol', 'currency', 'calc_bars_count'];
+    const b = this.bindArgs('request.security', params, 3, false, args, span);
+    const request: SecurityRequest = { ...this.requestSymbol(b[0]!), timeframe: this.requestTimeframe(b[1]!) };
+    const flag = (e: Expr | undefined, what: string): boolean => {
+      if (!e) return false;
+      const v = this.requireConst(e, what);
+      return v === true;
+    };
+    const gaps = flag(b[3], 'gaps');
+    const lookahead = flag(b[4], 'lookahead');
+    this.requestKeys.add(`${request.source ?? ''}:${request.symbol ?? ''}|${request.timeframe ?? ''}`);
+    if (this.requestKeys.size > MAX_REQUESTS) {
+      throw new ScriptError(`A script can request at most ${MAX_REQUESTS} different symbol and timeframe pairs`, span);
+    }
+
+    const expression = b[2]!;
+    const sub = new Runtime();
+    const ctx: FnCtx = { kinds: [], history: [], stateCount: 0, global: false };
+    const saved = { rt: this.rt, fc: this.fc, loop: this.loopDepth, mutates: this.mutatesState };
+    this.rt = sub;
+    this.fc = ctx;
+    this.loopDepth = 0;
+    this.mutatesState = false;
+    this.security = { ctxs: new Set([ctx]), functions: new Map(), inlining: new Set(), span };
+    let body: Fn;
+    let mutates: boolean;
+    try {
+      body = this.withScope(() => this.expr(expression));
+      mutates = this.mutatesState;
+    } finally {
+      this.rt = saved.rt;
+      this.fc = saved.fc;
+      this.loopDepth = saved.loop;
+      this.mutatesState = saved.mutates;
+      this.security = null;
+    }
+    const tupleSize = expression.kind === 'tuple' ? expression.items.length : 0;
+    const site = new SecuritySite(request, { gaps, lookahead }, sub, { kinds: ctx.kinds, history: ctx.history }, body, span, tupleSize, mutates);
+    this.securities.push(site);
+    const rt = this.rt;
+    return () => {
+      const v = site.aligned[rt.bar];
+      return v === undefined ? site.na() : v;
+    };
+  }
+
+  private requestSymbol(e: Expr): Pick<SecurityRequest, 'symbol' | 'source'> {
+    const name = this.dottedName(e);
+    if (name === 'syminfo.tickerid' || name === 'syminfo.ticker') return { symbol: null, source: null };
+    const v = this.requestConst(e);
+    if (typeof v !== 'string') throw new ScriptError('request.security needs constant symbol and timeframe', e.span);
+    const text = v.trim();
+    if (!text) return { symbol: null, source: null };
+    const colon = text.lastIndexOf(':');
+    if (colon > 0) return { source: text.slice(0, colon).toLowerCase(), symbol: text.slice(colon + 1) };
+    return { source: null, symbol: text };
+  }
+
+  private requestTimeframe(e: Expr): SecurityRequest['timeframe'] {
+    if (this.dottedName(e) === 'timeframe.period') return null;
+    const v = this.requestConst(e);
+    if (typeof v !== 'string') throw new ScriptError('request.security needs constant symbol and timeframe', e.span);
+    if (!v.trim()) return null;
+    const tf = requestTimeframe(v);
+    if (!tf) throw new ScriptError(`Timeframe "${v}" is not available; use 1, 5, 15, 60, 240, D or W`, e.span);
+    return tf;
+  }
+
+  /** A constant, or a plain variable that holds one (sym = "ETHUSDT"). */
+  private requestConst(e: Expr): unknown {
+    if (e.kind === 'ident') {
+      const info = this.lookup(e.name);
+      if (info?.inline && info.inline.index < 0 && info.kind === SLOT_PLAIN && !info.role) {
+        const v = this.constEval(info.inline.expr);
+        if (v !== NOT_CONST) {
+          this.inlined.push({ info, span: e.span });
+          return v;
+        }
+      }
+    }
+    const v = this.constEval(e);
+    return v === NOT_CONST ? undefined : v;
+  }
+
+  /**
+   * A variable read inside a request.security expression. Variables of the main script
+   * hold chart-bar values, so their declaration is compiled again to run on the requested
+   * bars. Only plain declarations can be recomputed this way.
+   */
+  private securityRead(info: VarInfo, span: Span): Fn {
+    const sec = this.security!;
+    if (sec.ctxs.has(info.ctx)) return this.reader(info);
+    const why =
+      info.role === 'param'
+        ? 'it is a function parameter'
+        : info.role === 'loop'
+          ? 'it is a loop variable'
+          : info.kind === SLOT_VAR
+            ? 'it is declared with var'
+            : info.kind === SLOT_VARIP
+              ? 'it is declared with varip'
+              : info.reassigned
+                ? 'it is changed with :='
+                : !info.inline || sec.inlining.has(info)
+                  ? 'its value cannot be computed on the requested bars'
+                  : null;
+    if (why) throw new ScriptError(securityVarMessage(info.name, why), span);
+    const { expr, scope, count, index } = info.inline!;
+    this.inlined.push({ info, span: sec.span });
+    // Resolve names as they were when the variable was declared.
+    const saved = this.scope;
+    const view = new Scope(scope.parent);
+    let i = 0;
+    for (const [k, v] of scope.vars) {
+      if (i++ >= count) break;
+      view.vars.set(k, v);
+    }
+    this.scope = view;
+    sec.inlining.add(info);
+    let value: Fn;
+    try {
+      value = this.expr(expr);
+    } finally {
+      this.scope = saved;
+      sec.inlining.delete(info);
+    }
+    if (index >= 0) {
+      return (f) => {
+        const v = value(f);
+        return v instanceof Tuple ? v.items[index] : NaN;
+      };
+    }
+    const c = coerce(info.type);
+    return c ? (f) => c(value(f)) : value;
+  }
+
+  /** A user function compiled again so it reads the requested bars. */
+  private securityFunction(fn: UserFunction): UserFunction {
+    const sec = this.security!;
+    let compiled = sec.functions.get(fn);
+    if (!compiled) {
+      compiled = this.compileFunction(fn.stmt);
+      sec.functions.set(fn, compiled);
+    }
+    return compiled;
   }
 
   // ------------------------------------------------------------------ constants
@@ -1125,6 +1347,9 @@ export class Compiler {
       fixedArgs = args.map((a, i) => (i === 2 ? { ...a, name: 'options' } : a));
     }
     const b = this.bindArgs(name, params, 1, false, fixedArgs, span);
+    // request.security compiles a declaration again; it reads the input that already exists.
+    const existing = this.inputAt.get(span.from);
+    if (existing !== undefined) return this.inputReader(existing);
     const get = (p: string) => b[params.indexOf(p)];
     const defval = this.requireConst(get('defval'), 'An input default');
     const title = this.requireConst(get('title'), 'An input title');
@@ -1197,7 +1422,13 @@ export class Compiler {
     const taken = new Set(this.inputs.map((i) => i.key));
     input.key = typeof title === 'string' && title && !taken.has(title) ? title : `input ${index + 1}`;
     this.inputs.push(input);
+    this.inputAt.set(span.from, index);
+    return this.inputReader(index);
+  }
 
+  /** Reads the current value of input `index` (request.security runtimes share the values). */
+  private inputReader(index: number): Fn {
+    const type = this.inputs[index].type;
     const rt = this.rt;
     if (type === 'source') {
       return () => {
@@ -1410,4 +1641,8 @@ function normalizeStyle(v: unknown): PlotOutput['style'] {
     default:
       return 'line';
   }
+}
+
+function securityVarMessage(name: string, why: string): string {
+  return `request.security cannot use '${name}' because ${why}; calculate it inside the expression or in a function`;
 }

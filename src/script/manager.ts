@@ -3,7 +3,7 @@
  * values, and reports changes so the layout can be saved.
  */
 import type { Chart } from 'klinecharts';
-import { compileScript, type InputDef, type InputValue, type RunResult, type ScriptEngine, type StrategyReport, type SymbolContext } from './engine';
+import { compileScript, type InputDef, type InputValue, type RequestFeeds, type ResolvedRequest, type RunResult, type ScriptEngine, type StrategyReport, type SymbolContext } from './engine';
 import type { ScriptError } from './errors';
 import { registerScriptIndicator, scriptIndicator, tradesIndicator, SCRIPT_INDICATOR } from './render';
 import { backtestSummary, type BacktestJson } from './backtestJson';
@@ -44,8 +44,21 @@ export interface ScriptInfo {
   lastRunMs: number | null;
 }
 
+/** request.security data as the app provides it: readable now, loadable ahead of a run. */
+export interface ScriptFeeds extends RequestFeeds {
+  /** Resolves when the series covers `from` (ms) or failed to load. Never rejects. */
+  load(req: ResolvedRequest, from: number): Promise<void>;
+  /** Called after a series got new history, so scripts that use it run again. */
+  onChange(fn: (key: string) => void): () => void;
+}
+
+/** How long runScript waits for requested series before returning what it has. */
+const READY_TIMEOUT_MS = 20_000;
+
 export interface ScriptHost {
   chart(): Chart;
+  /** Other symbols and timeframes for request.security. */
+  feeds?: ScriptFeeds;
   candlePaneId: string;
   symbol(): SymbolContext;
   /** Called with the current records whenever scripts change. */
@@ -81,8 +94,40 @@ export class ScriptManager {
   private readonly listeners = new Set<() => void>();
   private readonly runListeners = new Set<(id: string) => void>();
 
+  private refreshCount = 0;
+
   constructor(private readonly host: ScriptHost) {
     registerScriptIndicator();
+    host.feeds?.onChange(() => {
+      for (const item of this.items) if (item.engine.hasRequests) this.recalc(item);
+    });
+  }
+
+  /** Makes the chart run a script again from its first bar. */
+  private recalc(item: Item): void {
+    item.engine.invalidate();
+    // A changed calcParams list is what makes the chart call calc() again.
+    const params = [...Object.values(item.engine.inputValues()).map(String), `r${this.refreshCount++}`];
+    this.host.chart().overrideIndicator({ id: item.indicatorId, name: SCRIPT_INDICATOR, calcParams: params });
+  }
+
+  /**
+   * Waits until the series a script requests have loaded, then runs it on the chart's bars
+   * so its results are current. Resolves at once for scripts without request.security.
+   */
+  async whenReady(id: string): Promise<void> {
+    const item = this.items.find((i) => i.id === id);
+    const feeds = this.host.feeds;
+    if (!item || !feeds || !item.engine.hasRequests) return;
+    const data = this.host.chart().getDataList();
+    const from = data[0]?.timestamp ?? Date.now();
+    const loads = Promise.all(item.engine.requests().map((r) => feeds.load(r, from)));
+    await Promise.race([loads, new Promise((r) => setTimeout(r, READY_TIMEOUT_MS))]);
+    if (!this.items.includes(item)) return;
+    item.engine.setSymbol(this.host.symbol());
+    item.engine.invalidate();
+    if (data.length > 0) item.engine.run(data);
+    this.recalc(item);
   }
 
   onChange(fn: () => void): () => void {
@@ -162,6 +207,7 @@ export class ScriptManager {
     const engine = compiled.engine;
     if (inputs) engine.setInputValues(inputs);
     engine.setSymbol(this.host.symbol());
+    engine.setFeeds(this.host.feeds ?? null);
     const data = this.host.chart().getDataList();
     let ms: number | null = null;
     if (data.length > 0) {
@@ -270,6 +316,7 @@ export class ScriptManager {
       }
       compiled.engine.setInputValues(r.inputs);
       compiled.engine.setSymbol(this.host.symbol());
+      compiled.engine.setFeeds(this.host.feeds ?? null);
       const id = this.items.some((i) => i.id === r.id) ? newId() : r.id;
       this.items.push(this.attach(id, compiled.engine, `${SCRIPT_INDICATOR}_${id}`));
     }
@@ -283,9 +330,10 @@ export function scriptApi(manager: ScriptManager) {
     /**
      * Compiles a script and adds it to the chart, or updates the script with `options.id`.
      * A string second argument (a display name from the agent bridge) is accepted and ignored.
-     * On success the result also carries the title and the last value of each plot.
+     * On success the result also carries the title and the last value of each plot. A script
+     * that uses request.security is returned once the series it requests have loaded.
      */
-    runScript: (source: string, options: { id?: string; inputs?: Record<string, unknown> } | string = {}): RunScriptResult & { title?: string; overlay?: boolean; plots?: Array<{ title: string; last: number | null }> } => {
+    runScript: async (source: string, options: { id?: string; inputs?: Record<string, unknown> } | string = {}): Promise<RunScriptResult & { title?: string; overlay?: boolean; plots?: Array<{ title: string; last: number | null }> }> => {
       const opts = typeof options === 'object' && options !== null ? options : {};
       let res: RunScriptResult;
       if (opts.id && manager.get(opts.id)) {
@@ -295,7 +343,9 @@ export function scriptApi(manager: ScriptManager) {
         res = manager.add(source, opts.inputs);
       }
       if (!res.ok || !res.id) return res;
+      await manager.whenReady(res.id);
       const info = manager.get(res.id);
+      if (info?.error) return { ok: false, id: res.id, error: info.error };
       const report = manager.report(res.id);
       return {
         ...res,

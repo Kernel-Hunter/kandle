@@ -24,6 +24,8 @@ export interface SymbolContext {
   /** Period length in seconds. */
   periodSeconds: number;
   mintick: number;
+  /** Data source id of the chart, used to resolve request.security symbols. */
+  source?: string;
 }
 
 export const DEFAULT_SYMBOL: SymbolContext = { ticker: 'SYMBOL', period: '60', periodSeconds: 3600, mintick: 0.01 };

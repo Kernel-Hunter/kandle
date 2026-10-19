@@ -697,13 +697,13 @@ function drawBarColors(v: View, engine: ScriptEngine, colors: Array<string | nul
 }
 
 /** Builds the symbol context scripts see (syminfo.*, timeframe.*). */
-export function symbolContext(ticker: string, periodMs: number, pricePrecision: number): SymbolContext {
+export function symbolContext(ticker: string, periodMs: number, pricePrecision: number, source?: string): SymbolContext {
   const seconds = Math.round(periodMs / 1000);
   let period: string;
   if (seconds >= 604800 && seconds % 604800 === 0) period = seconds === 604800 ? 'W' : `${seconds / 604800}W`;
   else if (seconds >= 86400 && seconds % 86400 === 0) period = seconds === 86400 ? 'D' : `${seconds / 86400}D`;
   else period = String(Math.max(1, Math.round(seconds / 60)));
-  return { ticker, period, periodSeconds: seconds, mintick: 10 ** -pricePrecision };
+  return { ticker, period, periodSeconds: seconds, mintick: 10 ** -pricePrecision, source };
 }
 
 export type { Chart };

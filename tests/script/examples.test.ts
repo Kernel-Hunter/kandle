@@ -5,8 +5,8 @@ import { sanitizeLayout } from '../../src/store/layout';
 import { CANDLES, compile } from './fixtures';
 
 describe('example scripts', () => {
-  it('ships ten indicators and three strategies', () => {
-    expect(EXAMPLES).toHaveLength(13);
+  it('ships eleven indicators and three strategies', () => {
+    expect(EXAMPLES).toHaveLength(14);
     expect(EXAMPLES.filter((ex) => compile(ex.source).isStrategy)).toHaveLength(3);
   });
 
