@@ -83,7 +83,15 @@ plotshape(ta.crossover(fast, slow), "Up", shape.triangleup, location.belowbar, c
 
 把 `indicator()` 换成 `strategy()`，脚本就会在图表已加载的 K 线上回测：用 `strategy.entry`、`strategy.exit`（止损、止盈、移动止损）、`strategy.close` 下单，成交以箭头标在 K 线图上，图表下方的 **Strategy** 标签页显示净利润、胜率、盈亏比、最大回撤、夏普比率、资金曲线和逐笔交易列表。订单在下一根 K 线成交：市价单按开盘价，限价单和止损单在价格触及时成交；同一根 K 线同时触及止损和止盈时，假设价格先走向离开盘价较近的高点或低点。AI 助手通过 `run_script` 和 `get_backtest` 也能拿到同样的结果。完整说明见 [English README](README.md#strategies-and-backtesting)。
 
-支持的语法和函数列表见 [English README](README.md#what-is-supported)。暂不支持 `request.*`。
+### 其他品种和周期
+
+`request.security(symbol, timeframe, expression)` 可以在更高或更低的周期上计算表达式，也可以读取同一数据源的其他品种，例如在 Binance 的 BTCUSDT 图上用 `request.security("ETHUSDT", "D", close)` 读取 ETH 的日线收盘价，或用 `request.security(syminfo.tickerid, "D", ta.ema(close, 20))` 得到日线 EMA。品种和周期必须是常量，每个脚本最多 5 组不同的品种和周期。默认不使用未来数据：每根 K 线只看到在它收盘时已经收盘的那根高周期 K 线，只有最新一根 K 线会显示当天正在形成的值；`lookahead = barmerge.lookahead_on` 会在历史上看到未来数据，`gaps = barmerge.gaps_on` 只在高周期 K 线收盘的那根 K 线上返回值。详见 [English README](README.md#other-symbols-and-timeframes)。
+
+支持的语法和函数列表见 [English README](README.md#what-is-supported)。除 `request.security` 外，其他 `request.*` 函数暂不支持。
+
+## 导入 CSV
+
+在品种搜索或 **Data** 对话框中点击 **Import CSV** 选择文件，或直接把文件拖到图表上，即可导入你自己的 OHLCV 数据。文件需要有表头，包含时间（time、date、datetime 或 timestamp）、open、high、low、close 和可选的 volume 列，顺序和大小写不限；支持逗号、分号或制表符分隔；时间可以是 ISO 8601、`YYYY-MM-DD`、`YYYY-MM-DD HH:mm`（按 UTC）或 Unix 秒、毫秒。周期由 K 线的中位间隔自动识别，图表可以切换到该周期及更高周期。数据只保存在浏览器本地，刷新后仍在，可以在 Data 对话框中删除。脚本、回测、画线、回放和多图布局都可以使用；数据不会更新，所以提醒不会触发。详见 [English README](README.md#csv-import)。
 
 ## 本地运行
 

@@ -29,7 +29,8 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 
 - Live crypto candles from Binance, Coinbase, Bybit, OKX and Kraken public market data, with no key. History loads over REST and updates stream over websockets.
 - US and global stocks, ETFs and forex from Twelve Data, Alpaca or Polygon with your own free API key. See [Data sources](#data-sources).
-- Symbol search for the chosen source, with Crypto, Stock, ETF, Forex and Index badges.
+- Your own OHLCV data from a CSV file, kept in your browser. See [CSV import](#csv-import).
+- Symbol search for the chosen source, with Crypto, Stock, ETF, Forex, Index and CSV badges.
 - Timeframes: 1m, 5m, 15m, 1H, 4H, 1D, 1W. Scroll left to load older history.
 - 34 indicators, with as many on the chart as you like: MA, EMA, SMA, WMA, HMA, Bollinger Bands, Donchian Channel, VWAP, Supertrend, Parabolic SAR, Volume, MACD, RSI, Stochastic RSI, KDJ, ATR, OBV, CCI, DMI/ADX, Williams %R, ROC, Momentum, TRIX, Awesome Oscillator and more. Every parameter can be edited.
 - Drawing tools: trend line, ray, extended line, horizontal line and ray, vertical line, parallel channel, rectangle, Fibonacci retracement, price range, text notes and price labels. Select a drawing to move it or delete it. An optional magnet snaps points to candle prices.
@@ -37,7 +38,7 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 - Dark and light themes.
 - Keyboard shortcuts for most actions. Press `?` in the app to see them all.
 - Export the chart as a PNG image.
-- Scripts: write your own indicators in Kandle Script, with an editor under the chart and ten example scripts.
+- Scripts: write your own indicators in Kandle Script, with an editor under the chart and 14 example scripts. Scripts can read other timeframes and other symbols with `request.security`.
 - Strategy backtests: write a strategy script, see its trades on the chart, and get net profit, drawdown, win rate, an equity curve and the list of trades.
 - Alerts on price levels, drawn lines and indicator values, with browser notifications.
 - Bar replay to step through history one candle at a time.
@@ -120,7 +121,7 @@ Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotoco
 | --- | --- |
 | `get_bridge_status` | Connection state and the pairing code |
 | `get_chart_state` | Symbol, timeframe, last bar, visible range, indicators with latest values, drawings with ids, alerts, replay and layout |
-| `set_symbol`, `set_timeframe` | Change the market or bar size |
+| `set_symbol`, `set_timeframe` | Change the market or bar size. Exchange `csv` opens a dataset you imported |
 | `get_candles` | OHLCV bars by count or time range, optionally with indicator values per bar |
 | `add_indicator`, `remove_indicator`, `list_indicators` | Manage indicators and list the 34 available |
 | `draw` | Trend line, horizontal line or ray, vertical line, ray, extended line, rectangle, Fibonacci retracement, text note, price range, all by price and time |
@@ -173,7 +174,7 @@ plotshape(ta.crossover(fast, slow), "Up", shape.triangleup, location.belowbar, c
 
 Scripts with `overlay = true` draw on the price chart; the others get their own pane. Inputs show up in the **Indicators** dialog, where you can change them without touching the code. Scripts and their input values are saved with your layout. When a new candle arrives or the last one changes, only the last bar is calculated again; a full run over 1,500 bars takes a few milliseconds for typical scripts.
 
-The indicator examples are a moving average cross, RSI with bands, MACD, Bollinger Bands, Supertrend, VWAP bands, Stochastic, an ATR trailing stop, a Donchian breakout and volume spikes. The strategy examples are an EMA cross that is always in the market, RSI mean reversion with a stop and a target, and a Donchian channel breakout.
+The indicator examples are a moving average cross, RSI with bands, MACD, Bollinger Bands, Supertrend, VWAP bands, Stochastic, an ATR trailing stop, a Donchian breakout, volume spikes and a daily EMA trend filter that uses `request.security`. The strategy examples are an EMA cross that is always in the market, RSI mean reversion with a stop and a target, and a Donchian channel breakout.
 
 ![The script editor with an RSI script, and Supertrend and Bollinger Bands scripts on the chart](docs/screenshot-scripts.png)
 
@@ -222,6 +223,31 @@ Agents get the same results: `run_script` returns the backtest summary and the l
 
 ![A Donchian breakout strategy on BTC/USDT with its trades on the chart and the Strategy tab open](docs/screenshot-strategy.png)
 
+### Other symbols and timeframes
+
+`request.security(symbol, timeframe, expression, gaps, lookahead)` returns the value of `expression` calculated on another timeframe, or on another symbol from the chart's data source.
+
+```
+//@version=5
+indicator("Daily EMA trend", overlay = true)
+dailyEma = request.security(syminfo.tickerid, "D", ta.ema(close, 20))
+ethClose = request.security("ETHUSDT", "60", close)
+plot(dailyEma, "Daily EMA", color.orange, 2, plot.style_stepline)
+```
+
+- `symbol` is `syminfo.tickerid` (or `syminfo.ticker`) for the chart's symbol, or a symbol on the same data source such as `"ETHUSDT"` while you chart BTCUSDT on Binance. A prefix such as `"BINANCE:ETHUSDT"` picks that data source when Kandle has it and is ignored otherwise.
+- `timeframe` is `"1"`, `"5"`, `"15"`, `"60"`, `"240"`, `"D"` or `"W"` (`"1D"`, `"1W"`, `"1h"` and `"4h"` also work), or `timeframe.period` or `""` for the chart's own.
+- Symbol and timeframe must be constants: strings, or variables set once to a string. Kandle loads the data before the script runs, so anything else, inputs included, gives the error "request.security needs constant symbol and timeframe". A script can request up to 5 different symbol and timeframe pairs.
+- The expression runs on the requested bars with its own history, so `ta.ema(close, 20)` in a `"D"` request is a 20-day EMA. Variables, inputs and functions it uses are calculated again on the requested bars. Variables declared with `var`, variables changed with `:=`, function parameters and loop variables cannot be used in it. Tuples work: `[o, c] = request.security(syminfo.tickerid, "D", [open, close])`.
+
+No lookahead by default. With `lookahead = barmerge.lookahead_off`, a chart bar gets the value of the last requested bar that had closed when the chart bar closed. On a 1H chart a daily value changes on the last hourly bar of each day, and the bars before it show the previous day. History never sees later data. Only the newest chart bar, while the current day is still forming, shows that day's value as it develops.
+
+- `lookahead = barmerge.lookahead_on` uses the requested bar that contains the chart bar, even before it has closed. On history this looks ahead: the 09:00 bar sees that day's close. `request.security(syminfo.tickerid, "D", close[1], lookahead = barmerge.lookahead_on)` is the usual way to get the previous day's close on every bar of today without looking ahead.
+- `gaps = barmerge.gaps_on` returns na except on the chart bar where a new requested bar closes (with lookahead on, the first chart bar inside each requested bar).
+- Lower or equal timeframes: each chart bar gets the value of the last requested bar that closed inside it, and lookahead has no effect. Up to 5,000 requested bars are loaded, so on a daily chart a 1-minute request covers only the last few days.
+
+Requested series load through the chart's data source with the same caching and rate limits, from 500 bars before the first bar on the chart, and load more when you scroll back. On sources without a key they update live; on sources that need a key they refresh every few minutes to stay within the free plan. While a series loads its values are na, and if it cannot load the script shows the error. `run_script` waits for the data before it returns.
+
 ### What is supported
 
 - Syntax: `//@version=5` and `//@version=6` headers, comments, indented blocks, line wrapping inside brackets or after an operator, `var` and `varip`, type names on declarations (`float x = na`), `=`, `:=` and `+= -= *= /= %=`, `?:`, `and`, `or`, `not`, `if` / `else if` / `else`, `switch` with or without a value, `for i = a to b by step`, `for x in array`, `for [i, x] in array`, `while`, `break`, `continue`, functions on one line or several, default and named arguments, tuples (`[a, b] = f()`), user methods (`method f(float x) =>`) and method calls such as `values.push(x)`.
@@ -232,10 +258,11 @@ Agents get the same results: `run_script` returns the backtest summary and the l
 - `input`, `input.int`, `input.float`, `input.bool`, `input.string` (with `options`), `input.source`, `input.color`, `input.price`.
 - `color.*` constants, `color.new`, `color.rgb`, `color.from_gradient`, and `#RRGGBB` or `#RRGGBBAA` literals.
 - `str.tostring`, `str.format`, `str.length`, `str.contains`, `str.upper`, `str.lower` and a few more. `array.*` for float, int, bool, string and color arrays.
+- Other symbols and timeframes: `request.security` with `barmerge.gaps_on`, `gaps_off`, `lookahead_on` and `lookahead_off`. See [Other symbols and timeframes](#other-symbols-and-timeframes).
 - Strategies: see [Strategies and backtesting](#strategies-and-backtesting).
 - Output: `indicator()` with `title`, `shorttitle`, `overlay`, `format` and `precision`; `plot` with the line, step line, histogram, columns, circles, cross and area styles, per-bar colors, `linewidth` and `offset`; `plotshape`; `plotchar`; `hline`; `fill` between two plots or two hlines; `bgcolor`; `barcolor` (on price-chart scripts).
 
-Not supported yet: `request.*` (other symbols or timeframes), `strategy.risk.*`, drawing objects (`label`, `line`, `box`, `table`), user-defined types and enums, `import`, `matrix` and `map`, and gradient fills. Using one of these gives a clear "not supported yet" error that points at the line.
+Not supported yet: `request.*` functions other than `request.security` (such as `request.security_lower_tf` and `request.financial`), `strategy.risk.*`, drawing objects (`label`, `line`, `box`, `table`), user-defined types and enums, `import`, `matrix` and `map`, and gradient fills. Using one of these gives a clear "not supported yet" error that points at the line.
 
 ## Alerts
 
@@ -257,10 +284,10 @@ Click **Layout** to show 1 chart, 2 side by side or 4 in a grid. The first chart
 
 ## Roadmap
 
-- `request.*` for other symbols and timeframes in scripts.
+- Inputs (`input.timeframe`, `input.symbol`) as `request.security` arguments.
 - Strategy settings in the Indicators dialog, `strategy.risk.*` and order groups (OCA).
 - Desktop app for macOS, Windows, and Linux.
-- CSV import.
+- Larger CSV imports stored in IndexedDB.
 
 ## Run it locally
 
@@ -324,6 +351,7 @@ Click **Data** in the top bar to see every source, add keys and test them. In sy
 | Twelve Data | Stocks, ETFs, forex, crypto | Free key | Live for the symbols your plan streams, otherwise refreshed once a minute |
 | Alpaca | US stocks and ETFs | Free key ID and secret | Live from the IEX feed (volume covers IEX trades only) |
 | Polygon | Stocks, ETFs, forex, crypto, indices | Free key | End of day on the free plan, marked Delayed |
+| CSV | Your own data | No | Never. See [CSV import](#csv-import) |
 
 Free keys:
 
@@ -346,6 +374,23 @@ Stock charts only have bars for trading hours. Nights, weekends and holidays get
 Market data comes straight from each provider's official public API in your browser. Kandle does not store or redistribute it, and each provider's terms apply. Exchange availability depends on your region; for Binance the app uses the public market data hosts first.
 
 ![The Data sources dialog over an OKX chart](docs/screenshot-sources.png)
+
+### CSV import
+
+Load your own OHLCV data: click **Import CSV** in symbol search or in the CSV card of the **Data** dialog and pick a file, or drop a file on the chart. Kandle reads it in your browser and shows what it found, you give the dataset a name, and it opens on the chart. Nothing is uploaded.
+
+Accepted files:
+
+- A header row with a time column (`time`, `date`, `datetime`, `timestamp` or `open time`), `open`, `high`, `low`, `close` and an optional `volume`, in any order and any case. Separate `date` and `time` columns are joined. A file with no header is read as time, open, high, low, close and volume.
+- Comma, semicolon or tab separated. In semicolon files a decimal comma (`1234,5`) works.
+- Times as ISO 8601 (`2024-03-05T14:30:00Z`, with a zone), `YYYY-MM-DD`, `YYYY-MM-DD HH:mm` or `YYYY-MM-DD HH:mm:ss` (read as UTC), or Unix time in seconds or milliseconds.
+- Rows are sorted by time. When two rows have the same time the later one is kept. Rows with an unreadable time or price, or a high below the low, are skipped and counted.
+
+The timeframe comes from the median gap between bars, so daily stock data without weekends is still 1D. Bars that fit no timeframe but divide one, such as 30-minute bars, are combined into the next one (1H). The chart can show a dataset in its own timeframe and longer ones, which are built from its bars; shorter timeframe buttons are disabled.
+
+Datasets are saved in this browser's local storage (up to 2.5 MB each and 4 MB in total, about 40,000 bars per dataset), appear in symbol search under **CSV** with a CSV badge, come back when you reload, and can be deleted in the Data dialog. Scripts, strategy backtests, `request.security` on higher timeframes, drawings, bar replay and multi-chart layouts work on them. The data never updates, so alerts on a CSV chart never fire. Agents can open a dataset with `set_symbol` and exchange `csv`.
+
+![An imported BTC daily CSV file with a weekly EMA script, and the Import CSV dialog](docs/screenshot-csv.png)
 
 ## License
 
