@@ -77,7 +77,10 @@ export class SeriesFeeds implements RequestFeeds {
     const entry = this.entry(req);
     entry.lastNeeded = this.now();
     if (!this.covers(entry, from)) void this.load(req, from);
-    else this.refresh(entry);
+    else {
+      this.refresh(entry);
+      this.resume(entry);
+    }
   }
 
   /** Loads a series back to `from` (ms). Resolves when it is covered or failed; never rejects. */
@@ -171,6 +174,40 @@ export class SeriesFeeds implements RequestFeeds {
       seed: { time: last.timestamp, open: last.open, high: last.high, low: last.low, close: last.close, volume: last.volume ?? 0 },
     });
     this.sweeper ??= setInterval(() => this.sweep(), 30_000);
+  }
+
+  /**
+   * A keyless series whose stream was dropped while no script used it, for example after
+   * an input switched to another symbol and back: fetch the bars it missed and stream again.
+   */
+  private resume(entry: Entry): void {
+    const source = this.options.source(entry.req.source);
+    if (!source || source.auth || source.local || entry.unsubscribe || entry.loading || entry.bars.length === 0) return;
+    const now = this.now();
+    if (now < entry.retryAt) return;
+    entry.lastFetch = now;
+    entry.loading = source
+      .fetchCandles(entry.req.symbol, entry.req.timeframe, { limit: PAGE })
+      .then((latest) => {
+        if (latest.length === 0) return;
+        const last = entry.bars[entry.bars.length - 1];
+        if (latest[0].time > last.timestamp) {
+          // More bars were missed than one page holds: start over from this page.
+          entry.bars = latest.map(toScript);
+          entry.exhausted = false;
+          entry.version++;
+        } else {
+          this.merge(entry, latest);
+        }
+        this.subscribe(entry, source);
+        this.notify(entry);
+      })
+      .catch((error: unknown) => {
+        entry.retryAt = this.now() + (error instanceof RateLimitError ? error.retryAfter * 1000 : 30_000);
+      })
+      .finally(() => {
+        entry.loading = null;
+      });
   }
 
   /** Keyed sources: fetch the latest page now and then, and soon after a requested bar closes. */

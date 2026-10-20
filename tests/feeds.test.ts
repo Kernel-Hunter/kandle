@@ -130,6 +130,32 @@ describe('request series feeds', () => {
     expect(fake.subscriptions()).toBe(0);
   });
 
+  it('catches up and streams again when an idle series is needed again', async () => {
+    const fake = fakeSource(50);
+    let now = NOW;
+    const feeds = feedsFor(fake.source, () => now);
+    const changed: string[] = [];
+    feeds.onChange((k) => changed.push(k));
+    await feeds.load(REQ, NOW - 10 * DAY);
+    now += 3 * 60_000;
+    feeds.sweep();
+    expect(fake.subscriptions()).toBe(0);
+    // Two days passed while nothing used the series.
+    fake.all.push({ time: NOW + DAY, open: 50, high: 51, low: 49, close: 50.5, volume: 10 }, { time: NOW + 2 * DAY, open: 51, high: 52, low: 50, close: 51.5, volume: 10 });
+    const calls = fake.calls.length;
+    feeds.need(REQ, NOW - 10 * DAY);
+    await feeds.load(REQ, NOW - 10 * DAY);
+    expect(fake.calls.slice(calls)).toEqual([{ limit: 1000 }]);
+    const s = feeds.series(REQ)!;
+    expect(s.bars.slice(-3).map((b) => b.timestamp)).toEqual([NOW, NOW + DAY, NOW + 2 * DAY]);
+    expect(s.bars).toHaveLength(52);
+    expect(fake.subscriptions()).toBe(1);
+    expect(changed).toEqual(['fake|ETHUSDT|1D', 'fake|ETHUSDT|1D']);
+    // Streaming again: nothing more to fetch.
+    feeds.need(REQ, NOW - 10 * DAY);
+    expect(fake.calls.length).toBe(calls + 1);
+  });
+
   it('refreshes keyed series slowly instead of streaming', async () => {
     const auth: SourceAuth = { fields: [{ id: 'key', label: 'Key' }], signupUrl: 'https://example.com', plan: 'Free' };
     const fake = fakeSource(50, { auth });
