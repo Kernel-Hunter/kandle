@@ -1,0 +1,255 @@
+/* The watchlist column (src/watchlist). */
+
+.workspace {
+  position: relative;
+}
+
+.wl-panel {
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  flex-shrink: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.wl-panel[hidden] {
+  display: none;
+}
+
+.wl-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  padding: 0 6px 0 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.wl-title {
+  flex: 1;
+  font-weight: 650;
+}
+
+.wl-cols,
+.wl-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto 70px 20px;
+  align-items: center;
+  column-gap: 6px;
+}
+
+.wl-cols {
+  padding: 6px 8px 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.wl-cols span:first-child {
+  grid-column: 2;
+}
+
+.wl-cols span:nth-child(2),
+.wl-cols span:nth-child(3) {
+  text-align: right;
+}
+
+.wl-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0 0 6px;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.wl-row {
+  min-height: 40px;
+  padding: 3px 8px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  user-select: none;
+}
+
+.wl-row:hover,
+.wl-row:focus-within {
+  background: var(--hover);
+}
+
+.wl-row.wl-active {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.wl-row.wl-dragging {
+  opacity: 0.6;
+  background: var(--panel-2);
+}
+
+.wl-grip {
+  display: flex;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+  opacity: 0.5;
+}
+
+.wl-row:hover .wl-grip {
+  opacity: 1;
+}
+
+.wl-name {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.wl-name > span {
+  max-width: 100%;
+}
+
+.wl-name:focus-visible {
+  outline-offset: 2px;
+}
+
+.wl-sym {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wl-src {
+  font-size: 11px;
+}
+
+.wl-last,
+.wl-chg {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.wl-last {
+  transition: color 0.4s;
+}
+
+.wl-last.tick-up {
+  color: var(--up);
+}
+
+.wl-last.tick-down {
+  color: var(--down);
+}
+
+.wl-chg {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.wl-abs {
+  font-size: 11px;
+}
+
+.wl-pct.up,
+.wl-abs.up {
+  color: var(--up);
+}
+
+.wl-pct.down,
+.wl-abs.down {
+  color: var(--down);
+}
+
+.wl-pct.flat,
+.wl-abs.flat {
+  color: var(--muted);
+}
+
+.wl-x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0;
+}
+
+.wl-row:hover .wl-x,
+.wl-row:focus-within .wl-x {
+  opacity: 1;
+}
+
+.wl-x:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+.wl-empty {
+  margin: 12px;
+}
+
+.wl-empty[hidden] {
+  display: none;
+}
+
+.wl-notes {
+  padding: 6px 12px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.wl-notes p {
+  margin: 4px 0 0;
+}
+
+.wl-notes:empty {
+  display: none;
+}
+
+.wl-drawbar-btn {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .tool-btn.wl-drawbar-btn {
+    display: flex;
+  }
+}
+
+/* Touch screens have no hover: keep the remove button visible. */
+@media (hover: none) {
+  .wl-x,
+  .wl-grip {
+    opacity: 1;
+  }
+}
+
+/* Narrow screens: the panel floats over the charts. */
+@media (max-width: 900px) {
+  .wl-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    width: min(300px, 100%);
+    box-shadow: var(--shadow);
+  }
+}

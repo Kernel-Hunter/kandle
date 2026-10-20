@@ -18,6 +18,7 @@ import { SwitchingLoader } from '../replay/loader';
 import type { DrawingRecord, KeyValueStorage, Theme } from '../store/layout';
 import { h } from '../ui/dom';
 import type { ActiveIndicator } from '../ui/indicatorPanel';
+import { createWatchlist } from '../watchlist';
 
 /** The public parts of App these features use. */
 export interface FeatureApp {
@@ -127,8 +128,8 @@ function keepPaintingWhenHidden(): void {
 if (typeof window !== 'undefined') keepPaintingWhenHidden();
 
 /**
- * Agent bridge, alerts, bar replay and multi-chart layouts. Kept out of app.ts so the
- * core chart stays small; App calls wrapLoader, onLiveCandle and start, nothing else.
+ * Agent bridge, alerts, bar replay, multi-chart layouts and the watchlist. Kept out of app.ts
+ * so the core chart stays small; App calls wrapLoader, onLiveCandle and start, nothing else.
  */
 export function createFeatures(deps: FeatureDeps): Features {
   let loader: SwitchingLoader | null = null;
@@ -181,7 +182,9 @@ export function createFeatures(deps: FeatureDeps): Features {
 
   /** Price and line alerts run on every update; indicator alerts wait for the engine to recompute. */
   const pendingIndicatorChecks = new Map<number, { candle: Candle; timer: ReturnType<typeof setTimeout> }>();
+  let onWatchPrice: (pane: PaneHandle, candle: Candle) => void = () => undefined;
   const onPaneCandle = (pane: PaneHandle, candle: Candle) => {
+    onWatchPrice(pane, candle);
     evaluate(pane, candle, ['price', 'drawing']);
     const queued = pendingIndicatorChecks.get(pane.index);
     if (queued) {
@@ -255,6 +258,21 @@ export function createFeatures(deps: FeatureDeps): Features {
         toast: (m, k) => app.toast(m, k),
         onLiveCandle: (pane, candle) => onPaneCandle(pane, candle),
       });
+
+      const watchlist = createWatchlist({
+        storage: deps.storage,
+        focusedPane: () => layout.focused(),
+        metaFor: (source, symbol) => layout.metaFor(source, symbol),
+        toast: (m, k) => app.toast(m, k),
+      });
+      onWatchPrice = (pane, candle) => {
+        const info = pane.info();
+        watchlist.controller.onChartPrice(info.source, info.symbol, candle.close, Date.now());
+      };
+      layout.onChange(() => watchlist.panel.refresh());
+      switching.onContext(() => watchlist.panel.refresh());
+      deps.root.querySelector('.workspace')?.append(watchlist.panel.root);
+      deps.root.querySelector('.drawbar')?.append(watchlist.panel.drawbarButton);
 
       const env: HostEnv = {
         pane: (index) => layout.pane(index) as PaneLike | null,
@@ -332,7 +350,7 @@ export function createFeatures(deps: FeatureDeps): Features {
       const topbar = deps.root.querySelector('.topbar');
       const spacer = topbar?.querySelector('.spacer');
       if (topbar && spacer) {
-        spacer.before(h('div', { class: 'feature-group' }, alertsPanel.button, replayBtn, layout.createControl()));
+        spacer.before(h('div', { class: 'feature-group' }, alertsPanel.button, replayBtn, layout.createControl(), watchlist.panel.button));
         (topbar.querySelector('.status') ?? spacer).after(agentPanel.button);
       }
 

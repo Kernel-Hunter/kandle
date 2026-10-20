@@ -711,6 +711,7 @@ export class App {
       ['Double click a note', 'Edit note text'],
       ['Esc', 'Cancel drawing or close dialog'],
       ['Alt+L', 'Light or dark theme'],
+      ['Alt+W', 'Show or hide the watchlist'],
       ['?', 'This list'],
     ];
     modal.body.append(
