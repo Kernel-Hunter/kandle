@@ -51,6 +51,16 @@ describe('tool schemas', () => {
     expect(schemas.set_chart_style.safeParse({ scale: 'logarithmic' }).success).toBe(false);
     expect(schemas.set_chart_style.safeParse({ type: 'line', pane: 0 }).success).toBe(false);
   });
+
+  it('validate the watchlist tools', () => {
+    expect(schemas.get_watchlist.parse({})).toEqual({});
+    expect(schemas.add_to_watchlist.parse({ symbol: 'EUR/USD', exchange: 'twelvedata' })).toEqual({ symbol: 'EUR/USD', exchange: 'twelvedata' });
+    expect(schemas.add_to_watchlist.safeParse({ symbol: 'BTC USDT' }).success).toBe(false);
+    expect(schemas.add_to_watchlist.safeParse({ symbol: 'BTCUSDT', exchange: 'ftx' }).success).toBe(false);
+    expect(schemas.add_to_watchlist.safeParse({}).success).toBe(false);
+    expect(schemas.remove_from_watchlist.parse({ symbol: 'all' })).toEqual({ symbol: 'all' });
+    expect(schemas.remove_from_watchlist.safeParse({ symbol: '' }).success).toBe(false);
+  });
 });
 
 describe('run_script strategy settings', () => {
@@ -165,6 +175,9 @@ describe('MCP server', () => {
     expect(tools.find((t) => t.name === 'get_candles')!.annotations?.readOnlyHint).toBe(true);
     expect(tools.find((t) => t.name === 'clear_drawings')!.annotations?.destructiveHint).toBe(true);
     expect(tools.find((t) => t.name === 'get_backtest')!.annotations?.readOnlyHint).toBe(true);
+    expect(tools.find((t) => t.name === 'get_watchlist')!.annotations?.readOnlyHint).toBe(true);
+    expect(tools.find((t) => t.name === 'remove_from_watchlist')!.annotations?.destructiveHint).toBe(true);
+    expect(tools.find((t) => t.name === 'add_to_watchlist')!.inputSchema.required).toEqual(['symbol']);
     const runScript = tools.find((t) => t.name === 'run_script')!;
     expect(runScript.description).toMatch(/strategy\(\).*backtest/s);
     const strategy = (runScript.inputSchema.properties as Record<string, { properties?: Record<string, unknown> }>).strategy;
@@ -235,6 +248,18 @@ describe('MCP server', () => {
     expect(empty.isError).toBe(true);
     expect(JSON.stringify(empty.content)).toContain('Give a type, a scale or both');
     expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards watchlist calls to the app', async () => {
+    const { bridge, request } = fakeBridge(true, () => ({ count: 1, items: [] }));
+    const client = await connect(bridge);
+    await client.callTool({ name: 'add_to_watchlist', arguments: { symbol: 'SOLUSDT', exchange: 'bybit' } });
+    expect(request).toHaveBeenCalledWith('add_to_watchlist', { symbol: 'SOLUSDT', exchange: 'bybit' }, 30_000);
+    await client.callTool({ name: 'get_watchlist', arguments: {} });
+    expect(request).toHaveBeenLastCalledWith('get_watchlist', {}, undefined);
+    const bad = await client.callTool({ name: 'remove_from_watchlist', arguments: {} });
+    expect(bad.isError).toBe(true);
+    expect(request).toHaveBeenCalledTimes(2);
   });
 
   it('returns screenshots as image content', async () => {

@@ -74,6 +74,10 @@ Use `get_candles` for numbers and `screenshot` to see what the user sees. Prefer
 
 Use replay to walk through history without seeing the future, for example to check how a level held. `start_replay` with `bars_back` or `start_time`, then `step_replay` and read the revealed bars. `stop_replay` returns to live data. While replay is on, `get_candles` only returns visible bars.
 
+## Watchlist
+
+`get_watchlist` returns the user's watchlist with last price, change and change percent per symbol. `basis` says what the change is measured against: `24h` (crypto, rolling 24 hours), `prev_close` (stocks and forex, previous daily close) or `prev_bar` (CSV data). Use it for a quick overview of several markets before opening one with `set_symbol`. `add_to_watchlist` and `remove_from_watchlist` take a `symbol` and an optional `exchange`.
+
 ## Several charts
 
 `set_layout` with `charts` 2 or 4 shows more charts; give `panes` a symbol and timeframe each, for example the same symbol on 1D, 4H, 1H and 15m. Pass `pane` to `get_chart_state`, `get_candles`, `add_indicator`, `screenshot` and the other pane tools. Drawings, alerts and replay apply to pane 1.

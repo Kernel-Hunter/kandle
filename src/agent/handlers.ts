@@ -11,6 +11,8 @@ import type { ReplayStartOptions, ReplayState } from '../replay/controller';
 import { indexAtTime } from '../replay/session';
 import type { DrawingPoint } from '../store/layout';
 import type { ActiveIndicator } from '../ui/indicatorPanel';
+import { BASIS_LABELS, type WatchlistRow } from '../watchlist/controller';
+import { MAX_ITEMS } from '../watchlist/store';
 import { resolveSymbol } from './symbols';
 
 /** The chart methods the handlers use. Tests pass a plain object. */
@@ -42,6 +44,16 @@ export interface ReplayLike {
   stop(): void;
 }
 
+export interface WatchlistLike {
+  readonly open: boolean;
+  items(): Array<{ source: string; symbol: string }>;
+  add(item: { source: string; symbol: string }): boolean;
+  remove(item: { source: string; symbol: string }): boolean;
+  report(): WatchlistRow[];
+  /** Makes sure prices are fresh, starting the feeds for a moment if the panel is hidden. */
+  refresh(timeoutMs?: number): Promise<void>;
+}
+
 export interface LayoutLike {
   state(): LayoutState;
   setCount(count: ChartCount): Promise<void>;
@@ -70,6 +82,7 @@ export interface HostEnv {
   requestNotifications(): void;
   replay: ReplayLike;
   layout: LayoutLike | null;
+  watchlist?: WatchlistLike | null;
   /** Wait between adding an indicator and reading its values (the engine computes them asynchronously). */
   settle?(): Promise<void>;
   /** Waits for the chart to repaint. Resolves false if the page is hidden and did not paint. */
@@ -305,6 +318,22 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
     }
     if (env.layout) state.layout = env.layout.state();
     return state;
+  };
+
+  const watchlistOf = (): WatchlistLike => {
+    if (!env.watchlist) throw new Error('The watchlist is not available');
+    return env.watchlist;
+  };
+
+  const watchlistState = (list: WatchlistLike) => {
+    const items = list.report();
+    const bases = [...new Set(items.map((i) => i.basis))];
+    return {
+      panel_open: list.open,
+      count: items.length,
+      items,
+      basis: Object.fromEntries(bases.map((b) => [b, BASIS_LABELS[b]])),
+    };
   };
 
   const handlers: Record<BridgeMethod, Handler> = {
@@ -600,6 +629,45 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
     stop_replay: async () => {
       env.replay.stop();
       return env.replay.state();
+    },
+
+    get_watchlist: async () => {
+      const list = watchlistOf();
+      await list.refresh();
+      return watchlistState(list);
+    },
+
+    add_to_watchlist: async (params) => {
+      const list = watchlistOf();
+      const symbol = required(str(params, 'symbol'), 'symbol');
+      const source = str(params, 'exchange') ?? mainPane().info().source;
+      const meta = await resolveIn(source, symbol);
+      const item = { source, symbol: meta.symbol };
+      const listed = list.items().some((i) => i.source === source && i.symbol === meta.symbol);
+      if (!listed && list.items().length >= MAX_ITEMS) throw new Error(`The watchlist holds up to ${MAX_ITEMS} symbols. Remove one first.`);
+      const added = !listed && list.add(item);
+      return { added, exchange: source, symbol: meta.symbol, ...(listed ? { note: `${meta.symbol} on ${source} was already in the watchlist` } : {}), ...watchlistState(list) };
+    },
+
+    remove_from_watchlist: async (params) => {
+      const list = watchlistOf();
+      const symbol = required(str(params, 'symbol'), 'symbol');
+      const source = str(params, 'exchange');
+      if (symbol === 'all') {
+        const all = list.items().filter((i) => !source || i.source === source);
+        for (const i of all) list.remove(i);
+        return { removed: all.map((i) => ({ exchange: i.source, symbol: i.symbol })), ...watchlistState(list) };
+      }
+      // Accept BTC/USDT for BTCUSDT and any letter case.
+      const norm = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const matches = list.items().filter((i) => norm(i.symbol) === norm(symbol) && (!source || i.source === source));
+      if (matches.length === 0) {
+        const listed = list.items().map((i) => `${i.symbol} (${i.source})`).join(', ');
+        throw new Error(`${symbol}${source ? ` on ${source}` : ''} is not in the watchlist.${listed ? ` It has ${listed}.` : ' It is empty.'}`);
+      }
+      if (matches.length > 1) throw new Error(`${symbol} is listed on ${matches.map((i) => i.source).join(' and ')}. Give exchange to pick one.`);
+      list.remove(matches[0]);
+      return { removed: [{ exchange: matches[0].source, symbol: matches[0].symbol }], ...watchlistState(list) };
     },
 
     set_layout: async (params) => {

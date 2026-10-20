@@ -318,6 +318,7 @@ export function createFeatures(deps: FeatureDeps): Features {
         requestNotifications: () => void ensureNotificationPermission(),
         replay,
         layout,
+        watchlist: watchlist.controller,
       };
       const handlers = createHandlers(env);
 
@@ -401,6 +402,13 @@ export function createFeatures(deps: FeatureDeps): Features {
           step: (bars = 1) => dispatch(handlers, 'step_replay', { bars }),
           stop: () => dispatch(handlers, 'stop_replay', {}),
           state: () => replay!.state(),
+        },
+        watchlist: {
+          list: () => watchlist.controller.report(),
+          add: (params: Record<string, unknown>) => dispatch(handlers, 'add_to_watchlist', params),
+          remove: (params: Record<string, unknown>) => dispatch(handlers, 'remove_from_watchlist', params),
+          /** Shows or hides the panel; no argument toggles it. */
+          toggle: (open?: boolean) => watchlist.controller.setOpen(open ?? !watchlist.controller.open),
         },
         layout: {
           set: (params: Record<string, unknown>) => dispatch(handlers, 'set_layout', params),

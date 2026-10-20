@@ -97,6 +97,18 @@
       "description": "Deletes an alert by id, or all alerts with \"all\"."
     },
     {
+      "name": "get_watchlist",
+      "description": "Symbols in the watchlist panel with their exchange, last price, change and change percent. Crypto exchanges give the change over the last 24 hours; Twelve Data, Alpaca and Polygon the change since the previous daily close; CSV data the last close against the bar before. Each row says which (basis) and when it was updated."
+    },
+    {
+      "name": "add_to_watchlist",
+      "description": "Adds a symbol to the watchlist, on the main chart's exchange unless exchange is given. Returns the updated watchlist."
+    },
+    {
+      "name": "remove_from_watchlist",
+      "description": "Removes a symbol from the watchlist, or every symbol with \"all\"."
+    },
+    {
       "name": "start_replay",
       "description": "Hides bars after a start point so the chart can be replayed bar by bar. Indicators only see visible bars."
     },

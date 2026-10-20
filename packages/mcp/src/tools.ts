@@ -136,6 +136,25 @@ export const schemas = {
   }),
   list_alerts: z.object({}),
   remove_alert: z.object({ id: z.string().min(1).max(80).describe('Alert id, or "all"') }),
+  get_watchlist: z.object({}),
+  add_to_watchlist: z.object({
+    symbol: z
+      .string()
+      .min(1)
+      .max(40)
+      .regex(/^[A-Za-z0-9._:/-]+$/, 'Symbols use letters, digits and . _ : / -')
+      .describe('Market symbol such as SOLUSDT, ETH-USD or AAPL'),
+    exchange: z.enum(EXCHANGES).optional().describe('Data source of the row. Defaults to the main chart\'s exchange.'),
+  }),
+  remove_from_watchlist: z.object({
+    symbol: z
+      .string()
+      .min(1)
+      .max(40)
+      .regex(/^[A-Za-z0-9._:/-]+$/, 'Symbols use letters, digits and . _ : / -')
+      .describe('Symbol to remove, or "all" to empty the watchlist'),
+    exchange: z.enum(EXCHANGES).optional().describe('Only needed when the symbol is listed on more than one exchange'),
+  }),
   start_replay: z.object({
     start_time: time.optional().describe('Replay starts with this bar as the last visible one'),
     bars_back: z.number().int().min(1).max(5000).optional().describe('Or start this many bars before the latest bar (default 100)'),
@@ -252,6 +271,16 @@ export const TOOLS: readonly ToolDef[] = [
   },
   { name: 'list_alerts', title: 'List alerts', description: 'Every alert with its status.', method: 'list_alerts', readOnly: true },
   { name: 'remove_alert', title: 'Remove alert', description: 'Deletes an alert by id, or all alerts with "all".', method: 'remove_alert', destructive: true },
+  {
+    name: 'get_watchlist',
+    title: 'Get watchlist',
+    description:
+      'Symbols in the watchlist panel with their exchange, last price, change and change percent. Crypto exchanges give the change over the last 24 hours; Twelve Data, Alpaca and Polygon the change since the previous daily close; CSV data the last close against the bar before. Each row says which (basis) and when it was updated.',
+    method: 'get_watchlist',
+    readOnly: true,
+  },
+  { name: 'add_to_watchlist', title: 'Add to watchlist', description: 'Adds a symbol to the watchlist, on the main chart\'s exchange unless exchange is given. Returns the updated watchlist.', method: 'add_to_watchlist', timeoutMs: 30_000 },
+  { name: 'remove_from_watchlist', title: 'Remove from watchlist', description: 'Removes a symbol from the watchlist, or every symbol with "all".', method: 'remove_from_watchlist', destructive: true },
   {
     name: 'start_replay',
     title: 'Start bar replay',

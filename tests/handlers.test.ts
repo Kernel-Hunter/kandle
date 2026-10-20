@@ -7,6 +7,7 @@ import type { ChartStyle } from '../src/chart/chartStyle';
 import type { TimeframeId } from '../src/data/timeframes';
 import type { SymbolMeta } from '../src/data/types';
 import { MemoryStorage } from '../src/store/layout';
+import { WatchlistController } from '../src/watchlist/controller';
 
 // The chart engine touches `window` on import; the handlers only need the indicator catalog.
 vi.mock('klinecharts', () => ({ registerIndicator: vi.fn() }));
@@ -377,5 +378,79 @@ describe('bridge handlers', () => {
     expect(await dispatch(handlers, 'nope' as never, {})).toEqual({ ok: false, error: 'Unknown method nope' });
     expect(await dispatch(handlers, 'set_symbol', {})).toEqual({ ok: false, error: 'symbol is required' });
     expect(await dispatch(handlers, 'get_candles', { limit: 'ten' })).toEqual({ ok: false, error: 'limit must be a number' });
+  });
+});
+
+describe('watchlist handlers', () => {
+  /** A real controller with no feeds; refresh() is replaced so tests do not wait on timers. */
+  function withWatchlist(items?: Array<{ source: string; symbol: string }>) {
+    const storage = new MemoryStorage();
+    if (items) storage.setItem('kandle:watchlist', JSON.stringify({ open: false, items }));
+    const watchlist = new WatchlistController({
+      storage,
+      source: (id) => (['binance', 'coinbase'].includes(id) ? ({ id, name: id } as never) : undefined),
+      hasKey: () => true,
+      feeds: {},
+    });
+    const refresh = vi.spyOn(watchlist, 'refresh').mockResolvedValue();
+    return { ...setup({ watchlist }), watchlist, refresh };
+  }
+
+  it('lists rows with price, change and the basis of the change', async () => {
+    const { handlers, refresh } = withWatchlist();
+    const res = await call(handlers, 'get_watchlist');
+    expect(refresh).toHaveBeenCalled();
+    expect(res.panel_open).toBe(false);
+    expect(res.count).toBe(3);
+    expect(res.items.map((i: { symbol: string }) => i.symbol)).toEqual(['BTCUSDT', 'ETHUSDT', 'SOLUSDT']);
+    expect(res.items[0]).toMatchObject({ exchange: 'binance', price: null, change_percent: null, basis: 'prev_close' });
+    expect(Object.keys(res.basis)).toEqual(['prev_close']);
+  });
+
+  it('adds a symbol on the main chart\'s exchange by default and resolves its name', async () => {
+    const { handlers, watchlist } = withWatchlist([]);
+    const res = await call(handlers, 'add_to_watchlist', { symbol: 'eth/usdt' });
+    expect(res).toMatchObject({ added: true, exchange: 'binance', symbol: 'ETHUSDT', count: 1 });
+    expect(watchlist.items()).toEqual([{ source: 'binance', symbol: 'ETHUSDT' }]);
+    const again = await call(handlers, 'add_to_watchlist', { symbol: 'ETHUSDT', exchange: 'binance' });
+    expect(again).toMatchObject({ added: false, note: 'ETHUSDT on binance was already in the watchlist', count: 1 });
+  });
+
+  it('validates add requests', async () => {
+    const { handlers } = withWatchlist();
+    expect(await dispatch(handlers, 'add_to_watchlist', {})).toEqual({ ok: false, error: 'symbol is required' });
+    expect(await dispatch(handlers, 'add_to_watchlist', { symbol: 5 })).toEqual({ ok: false, error: 'symbol must be a string' });
+    const bad = await dispatch(handlers, 'add_to_watchlist', { symbol: 'BTCUSDT', exchange: 'ftx' });
+    expect(bad.ok).toBe(false);
+    expect((bad as { error: string }).error).toMatch(/Unknown exchange ftx/);
+    expect((await dispatch(handlers, 'add_to_watchlist', { symbol: 'NOPE' })).ok).toBe(false);
+  });
+
+  it('refuses to add past the limit', async () => {
+    const { handlers } = withWatchlist(Array.from({ length: 50 }, (_, i) => ({ source: 'binance', symbol: `C${i}USDT` })));
+    const res = await dispatch(handlers, 'add_to_watchlist', { symbol: 'BTCUSDT' });
+    expect(res).toEqual({ ok: false, error: 'The watchlist holds up to 50 symbols. Remove one first.' });
+  });
+
+  it('removes by symbol, asks for the exchange when it is ambiguous, and clears with "all"', async () => {
+    const { handlers, watchlist } = withWatchlist([
+      { source: 'binance', symbol: 'BTCUSDT' },
+      { source: 'coinbase', symbol: 'BTC-USD' },
+      { source: 'binance', symbol: 'ETHUSDT' },
+      { source: 'coinbase', symbol: 'ETHUSDT' },
+    ]);
+    expect(await call(handlers, 'remove_from_watchlist', { symbol: 'btc-usd' })).toMatchObject({ removed: [{ exchange: 'coinbase', symbol: 'BTC-USD' }], count: 3 });
+    const ambiguous = await dispatch(handlers, 'remove_from_watchlist', { symbol: 'ETHUSDT' });
+    expect(ambiguous).toEqual({ ok: false, error: 'ETHUSDT is listed on binance and coinbase. Give exchange to pick one.' });
+    expect(await call(handlers, 'remove_from_watchlist', { symbol: 'ETHUSDT', exchange: 'coinbase' })).toMatchObject({ count: 2 });
+    const missing = await dispatch(handlers, 'remove_from_watchlist', { symbol: 'SOLUSDT' });
+    expect(missing).toEqual({ ok: false, error: 'SOLUSDT is not in the watchlist. It has BTCUSDT (binance), ETHUSDT (binance).' });
+    expect((await call(handlers, 'remove_from_watchlist', { symbol: 'all' })).removed).toHaveLength(2);
+    expect(watchlist.items()).toEqual([]);
+  });
+
+  it('says so when this build has no watchlist', async () => {
+    const { handlers } = setup();
+    expect(await dispatch(handlers, 'get_watchlist', {})).toEqual({ ok: false, error: 'The watchlist is not available' });
   });
 });
