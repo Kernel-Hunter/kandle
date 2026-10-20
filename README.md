@@ -32,10 +32,11 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 - Your own OHLCV data from a CSV file, kept in your browser. See [CSV import](#csv-import).
 - Symbol search for the chosen source, with Crypto, Stock, ETF, Forex, Index and CSV badges.
 - Timeframes: 1m, 5m, 15m, 1H, 4H, 1D, 1W. Scroll left to load older history.
+- Chart types: candles, hollow candles, bars (OHLC), line, area and Heikin Ashi, with a normal, logarithmic or percent price scale. Each chart in a layout keeps its own. Heikin Ashi only changes how bars are drawn: indicators, scripts, backtests, alerts and the agent tools keep using the real prices, and the legend shows the Heikin Ashi values on their own line.
 - 36 indicators, with as many on the chart as you like: MA, EMA, SMA, WMA, HMA, Bollinger Bands, Donchian Channel, VWAP, Supertrend, Parabolic SAR, Ichimoku Cloud, Volume Profile, Volume, MACD, RSI, Stochastic RSI, KDJ, ATR, OBV, CCI, DMI/ADX, Williams %R, ROC, Momentum, TRIX, Awesome Oscillator and more. Every parameter can be edited.
 - Ichimoku Cloud with the cloud drawn ahead of the last candle, and a volume profile of the bars on screen that marks the point of control and the value area. The profile updates as you scroll and zoom.
 - Drawing tools: trend line, ray, extended line, horizontal line and ray, vertical line, parallel channel, rectangle, Fibonacci retracement, price range, text notes and price labels. Select a drawing to move it or delete it. An optional magnet snaps points to candle prices.
-- Your symbol, timeframe, theme, indicators, and drawings (saved per symbol) come back when you reload.
+- Your symbol, timeframe, chart type, price scale, theme, indicators, and drawings (saved per symbol) come back when you reload.
 - Dark and light themes.
 - Keyboard shortcuts for most actions. Press `?` in the app to see them all.
 - Export the chart as a PNG image.
@@ -58,6 +59,7 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 | `Alt+S` | Script editor |
 | `Ctrl+Enter` or `Cmd+Enter` | Add or update the script on the chart (in the editor) |
 | `Alt+1` to `Alt+7` | Timeframes 1m to 1W |
+| `Alt+C` | Next chart type |
 | `Alt+T` | Trend line |
 | `Alt+R` | Ray |
 | `Alt+H` | Horizontal line |
@@ -133,6 +135,7 @@ Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotoco
 | `set_alert`, `list_alerts`, `remove_alert` | Alerts on price, drawn lines and indicators |
 | `start_replay`, `step_replay`, `stop_replay` | Bar replay |
 | `set_layout` | 1, 2 or 4 charts, sync options, symbol and timeframe per chart |
+| `set_chart_style` | Chart type (candles, hollow candles, bars, line, area, Heikin Ashi) and price scale (normal, log, percent) of a chart |
 | `run_script` | Adds a Kandle script to the main chart and returns its id, input values and latest plot values, or the error with line and column. `inputs` sets input values by title and `id` replaces a script added earlier. For a strategy it also returns the backtest summary and the last 20 trades, and `strategy` changes its backtest settings |
 | `get_backtest` | Settings (and which ones differ from the script), summary and up to 500 trades of a strategy script on the chart |
 
@@ -149,7 +152,7 @@ Most tools take an optional `pane` (1 to 4) when several charts are showing. Tim
 - Every connection must send the pairing code first. The code has about 59 bits of randomness, is compared in constant time, and the server stops accepting codes for a minute after 5 wrong ones.
 - The server rejects WebSocket connections from web pages that are not served from `localhost`, `127.0.0.1` or `[::1]`, so a website you visit cannot connect even if it guesses the port. The hosted app at `https://kernel-hunter.github.io` is also allowed. Add other origins, such as your own hosted copy, with `KANDLE_ALLOWED_ORIGINS`.
 - The server rejects requests whose `Host` header is not a loopback address, which blocks DNS rebinding.
-- The agent can only do what the tools allow: read chart data, change symbols, indicators, drawings, alerts, replay and layout, and take screenshots of the chart. It cannot read other tabs, your files or your browser storage.
+- The agent can only do what the tools allow: read chart data, change symbols, chart types, indicators, drawings, alerts, replay and layout, and take screenshots of the chart. It cannot read other tabs, your files or your browser storage.
 - Only one Kandle tab is connected at a time. A newer tab takes over and the older one shows that it was replaced.
 - Programs running as your user on the same computer can read `~/.kandle/bridge-token`. That is the same trust level as the agent itself.
 
@@ -295,7 +298,7 @@ Click **Replay**, then click a bar on the main chart. Every bar after it is hidd
 
 ## Layouts
 
-Click **Layout** to show 1 chart, 2 side by side or 4 in a grid. The first chart is the main one and uses the top bar and drawing tools. The others each have their own symbol, timeframe and indicators in a small header. Turn on sync to keep the crosshair, the timeframe or the symbol the same across charts. The layout and each chart's settings are saved in your browser.
+Click **Layout** to show 1 chart, 2 side by side or 4 in a grid. The first chart is the main one and uses the top bar and drawing tools. The others each have their own symbol, timeframe, chart type and indicators in a small header. Turn on sync to keep the crosshair, the timeframe or the symbol the same across charts. The layout and each chart's settings are saved in your browser.
 
 ## Roadmap
 

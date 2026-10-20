@@ -47,7 +47,7 @@ Claude Desktop：下载 [kandle-mcp-0.5.0.mcpb](https://github.com/Kernel-Hunter
 
 只需要 Node.js 22.12 或更高版本。使用在线版时，浏览器可能会询问该页面是否可以访问本地网络设备，请允许，这样页面才能连接到 `127.0.0.1` 上的 `kandle-mcp`。
 
-助手可以使用 21 个工具：读取图表状态和 K 线数据、切换品种和周期、添加或删除指标、画线（趋势线、水平线、射线、矩形、斐波那契回撤、文字标注等）、截图、设置提醒、K 线回放、多图布局，运行脚本以及读取策略回测结果。[`skills/kandle/SKILL.md`](skills/kandle/SKILL.md) 提供了支撑阻力、趋势分析、指标共振等分析流程。
+助手可以使用 22 个工具：读取图表状态和 K 线数据、切换品种和周期、添加或删除指标、画线（趋势线、水平线、射线、矩形、斐波那契回撤、文字标注等）、截图、设置提醒、K 线回放、多图布局、图表类型和价格坐标，运行脚本以及读取策略回测结果。[`skills/kandle/SKILL.md`](skills/kandle/SKILL.md) 提供了支撑阻力、趋势分析、指标共振等分析流程。
 
 安全性：桥接服务只监听 `127.0.0.1`；默认关闭，需要你手动打开；每个连接都必须先发送配对码；只接受来自本机页面和官方在线版的连接，并检查 `Host` 头以防止 DNS 重绑定。完整说明见 [English README](README.md#security-model)。
 
@@ -58,6 +58,7 @@ Claude Desktop：下载 [kandle-mcp-0.5.0.mcpb](https://github.com/Kernel-Hunter
 - 来自 Binance、Coinbase、Bybit、OKX 和 Kraken 公开行情接口的实时加密货币 K 线，无需 API key。
 - 使用你自己的免费 key，通过 Twelve Data、Alpaca 或 Polygon 查看美股及全球股票、ETF 和外汇。key 只保存在你的浏览器中，只会发送给对应的数据提供商。
 - 周期：1m、5m、15m、1H、4H、1D、1W。向左滚动可加载更早的历史数据。
+- 图表类型：蜡烛图、空心蜡烛图、美国线（OHLC）、折线图、面积图和平均 K 线（Heikin Ashi），价格坐标可选普通、对数或百分比（`Alt+C` 切换类型）。平均 K 线只改变画法，指标、脚本、回测、提醒和 AI 工具仍使用真实价格。
 - 36 个内置指标，数量不限，所有参数都可以修改：MA、EMA、布林带、VWAP、Supertrend、一目均衡表、成交量分布、MACD、RSI、KDJ、ATR、OBV、DMI/ADX 等。
 - 一目均衡表（Ichimoku）的云带会画到最新一根 K 线之后；成交量分布（Volume Profile）统计当前屏幕上的 K 线，标出成交量最大的价位（POC）和价值区域，滚动或缩放时自动更新。
 - 画线工具：趋势线、射线、水平线、平行通道、矩形、斐波那契回撤、价格区间、文字标注，支持磁吸到 K 线价格。
