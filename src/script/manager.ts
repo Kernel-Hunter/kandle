@@ -333,7 +333,10 @@ export function scriptApi(manager: ScriptManager) {
      * On success the result also carries the title and the last value of each plot. A script
      * that uses request.security is returned once the series it requests have loaded.
      */
-    runScript: async (source: string, options: { id?: string; inputs?: Record<string, unknown> } | string = {}): Promise<RunScriptResult & { title?: string; overlay?: boolean; plots?: Array<{ title: string; last: number | null }> }> => {
+    runScript: async (
+      source: string,
+      options: { id?: string; inputs?: Record<string, unknown> } | string = {},
+    ): Promise<RunScriptResult & { title?: string; overlay?: boolean; inputs?: Record<string, InputValue>; plots?: Array<{ title: string; last: number | null }> }> => {
       const opts = typeof options === 'object' && options !== null ? options : {};
       let res: RunScriptResult;
       if (opts.id && manager.get(opts.id)) {
@@ -351,6 +354,7 @@ export function scriptApi(manager: ScriptManager) {
         ...res,
         title: info?.title,
         overlay: info?.overlay,
+        inputs: info?.values,
         plots: manager.lastValues(res.id),
         ...(report ? { backtest: backtestSummary(report, 20) } : {}),
       };

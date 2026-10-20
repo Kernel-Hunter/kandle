@@ -24,6 +24,35 @@ export interface SecurityRequest {
   timeframe: TimeframeId | null;
 }
 
+/**
+ * A symbol or timeframe argument that comes from inputs. Inputs only change when the user
+ * edits them, which reruns the script, so the value is fixed for a run and read before it.
+ */
+export interface InputArg {
+  /** The argument's text for the current input values, read from the chart's runtime. */
+  value(rt: Runtime): unknown;
+  span: Span;
+}
+
+/** Symbol and timeframe arguments of a call site that depend on inputs. */
+export interface InputArgs {
+  symbol?: InputArg;
+  timeframe?: InputArg;
+}
+
+export const NEEDS_CONSTANT = 'request.security needs constant symbol and timeframe';
+
+/** "BINANCE:ETHUSDT" splits into source and symbol; "" is the chart's symbol. */
+export function parseRequestSymbol(text: string): Pick<SecurityRequest, 'symbol' | 'source'> {
+  const t = text.trim();
+  if (!t) return { symbol: null, source: null };
+  const colon = t.lastIndexOf(':');
+  if (colon > 0) return { source: t.slice(0, colon).toLowerCase(), symbol: t.slice(colon + 1) };
+  return { source: null, symbol: t };
+}
+
+export const timeframeMessage = (text: string): string => `Timeframe "${text}" is not available; use 1, 5, 15, 60, 240, D or W`;
+
 /** A request with the chart's symbol, source and timeframe filled in. */
 export interface ResolvedRequest {
   source: string;
@@ -174,6 +203,8 @@ export class SecuritySite {
 
   constructor(
     readonly request: SecurityRequest,
+    /** Arguments read from inputs; they replace the matching part of `request` on each run. */
+    readonly inputArgs: InputArgs | null,
     readonly options: AlignOptions,
     readonly rt: Runtime,
     private readonly layout: FrameLayout,
@@ -184,6 +215,34 @@ export class SecuritySite {
     /** The expression uses arrays or varip, so it always runs from the first bar. */
     private readonly mutates: boolean,
   ) {}
+
+  /**
+   * What the call asks for with the current input values. `chart` is the chart's runtime;
+   * a timeframe input that holds the chart's own period means the chart's timeframe.
+   */
+  current(chart: Runtime): SecurityRequest {
+    const args = this.inputArgs;
+    if (!args) return this.request;
+    const out = { ...this.request };
+    if (args.symbol) {
+      const v = args.symbol.value(chart);
+      if (typeof v !== 'string') throw new ScriptError(NEEDS_CONSTANT, args.symbol.span);
+      Object.assign(out, parseRequestSymbol(v));
+    }
+    if (args.timeframe) {
+      const v = args.timeframe.value(chart);
+      if (typeof v !== 'string') throw new ScriptError(NEEDS_CONSTANT, args.timeframe.span);
+      const text = v.trim();
+      if (!text || text === chart.symbol.period) {
+        out.timeframe = null;
+      } else {
+        const tf = requestTimeframe(text);
+        if (!tf) throw new ScriptError(timeframeMessage(text), args.timeframe.span);
+        out.timeframe = tf;
+      }
+    }
+    return out;
+  }
 
   /** The na of this call: na, or a tuple of na when the expression returns several values. */
   na(): unknown {

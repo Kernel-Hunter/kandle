@@ -11,11 +11,11 @@ import './builtins/strategy';
 import { ScriptError, type Span } from './errors';
 import { PLOT_PALETTE, SHAPE_SIZES, emptyOutputs, type BarColorOutput, type FillOutput, type HlineOutput, type Outputs, type PlotOutput, type ShapeOutput } from './outputs';
 import { Frame, Runtime, SLOT_PLAIN, SLOT_VAR, SLOT_VARIP, type FrameLayout } from './runtime';
-import { MAX_REQUESTS, SecuritySite, requestTimeframe, type SecurityRequest } from './security';
+import { MAX_REQUESTS, NEEDS_CONSTANT, SecuritySite, parseRequestSymbol, requestTimeframe, timeframeMessage, type InputArg, type InputArgs, type SecurityRequest } from './security';
 import { Broker, DEFAULT_STRATEGY, type CommissionType, type QtyType, type StrategyConfig } from './strategy';
 import { Color, PlotHandle, ScriptArray, Tuple, isNa, truthy, valuesEqual, typeName } from './values';
 
-export type InputType = 'int' | 'float' | 'bool' | 'string' | 'source' | 'color';
+export type InputType = 'int' | 'float' | 'bool' | 'string' | 'source' | 'color' | 'timeframe' | 'symbol';
 export type InputValue = number | boolean | string;
 
 export interface InputDef {
@@ -137,8 +137,23 @@ const INPUT_PARAMS: Record<string, string[]> = {
   price: ['defval', 'title', 'tooltip', 'inline', 'group', 'confirm', 'display', 'active'],
   text_area: ['defval', 'title', 'tooltip', 'group', 'confirm', 'display', 'active'],
   timeframe: ['defval', 'title', 'options', 'tooltip', 'inline', 'group', 'confirm', 'display', 'active'],
+  symbol: ['defval', 'title', 'tooltip', 'inline', 'group', 'confirm', 'display', 'active'],
   generic: ['defval', 'title', 'tooltip', 'inline', 'group'],
 };
+
+/** Inputs whose value is text, so they can name a symbol or timeframe for request.security. */
+const TEXT_INPUTS = new Set<InputType>(['string', 'timeframe', 'symbol']);
+
+/**
+ * The value of a text input as the script sees it. An empty symbol or timeframe input
+ * follows the chart, so it reads as the chart's symbol or timeframe.
+ */
+function inputText(rt: Runtime, index: number, type: InputType): unknown {
+  const v = rt.inputValues[index];
+  if (v === '' && type === 'symbol') return rt.symbol.ticker;
+  if (v === '' && type === 'timeframe') return rt.symbol.period;
+  return v;
+}
 
 const OUTPUT_PARAMS: Record<string, string[]> = {
   plot: ['series', 'title', 'color', 'linewidth', 'style', 'trackprice', 'histbase', 'offset', 'join', 'editable', 'show_last', 'display', 'format', 'precision', 'force_overlay', 'linestyle'],
@@ -1066,7 +1081,10 @@ export class Compiler {
     if (this.security) throw new ScriptError('request.security cannot be used inside another request.security expression', span);
     const params = ['symbol', 'timeframe', 'expression', 'gaps', 'lookahead', 'ignore_invalid_symbol', 'currency', 'calc_bars_count'];
     const b = this.bindArgs('request.security', params, 3, false, args, span);
-    const request: SecurityRequest = { ...this.requestSymbol(b[0]!), timeframe: this.requestTimeframe(b[1]!) };
+    const symbol = this.requestSymbol(b[0]!);
+    const timeframe = this.requestTimeframe(b[1]!);
+    const request: SecurityRequest = { ...symbol.fixed, timeframe: timeframe.fixed };
+    const inputArgs: InputArgs | null = symbol.input || timeframe.input ? { symbol: symbol.input, timeframe: timeframe.input } : null;
     const flag = (e: Expr | undefined, what: string): boolean => {
       if (!e) return false;
       const v = this.requireConst(e, what);
@@ -1074,7 +1092,7 @@ export class Compiler {
     };
     const gaps = flag(b[3], 'gaps');
     const lookahead = flag(b[4], 'lookahead');
-    this.requestKeys.add(`${request.source ?? ''}:${request.symbol ?? ''}|${request.timeframe ?? ''}`);
+    this.requestKeys.add(`${symbol.key}|${timeframe.key}`);
     if (this.requestKeys.size > MAX_REQUESTS) {
       throw new ScriptError(`A script can request at most ${MAX_REQUESTS} different symbol and timeframe pairs`, span);
     }
@@ -1101,7 +1119,7 @@ export class Compiler {
       this.security = null;
     }
     const tupleSize = expression.kind === 'tuple' ? expression.items.length : 0;
-    const site = new SecuritySite(request, { gaps, lookahead }, sub, { kinds: ctx.kinds, history: ctx.history }, body, span, tupleSize, mutates);
+    const site = new SecuritySite(request, inputArgs, { gaps, lookahead }, sub, { kinds: ctx.kinds, history: ctx.history }, body, span, tupleSize, mutates);
     this.securities.push(site);
     const rt = this.rt;
     return () => {
@@ -1110,42 +1128,91 @@ export class Compiler {
     };
   }
 
-  private requestSymbol(e: Expr): Pick<SecurityRequest, 'symbol' | 'source'> {
+  /**
+   * The symbol argument: syminfo.tickerid, a constant, or a value built from inputs. `key`
+   * tells pairs apart for the request limit; an input counts once whatever it holds.
+   */
+  private requestSymbol(e: Expr): { fixed: Pick<SecurityRequest, 'symbol' | 'source'>; input?: InputArg; key: string } {
     const name = this.dottedName(e);
-    if (name === 'syminfo.tickerid' || name === 'syminfo.ticker') return { symbol: null, source: null };
-    const v = this.requestConst(e);
-    if (typeof v !== 'string') throw new ScriptError('request.security needs constant symbol and timeframe', e.span);
-    const text = v.trim();
-    if (!text) return { symbol: null, source: null };
-    const colon = text.lastIndexOf(':');
-    if (colon > 0) return { source: text.slice(0, colon).toLowerCase(), symbol: text.slice(colon + 1) };
-    return { source: null, symbol: text };
+    if (name === 'syminfo.tickerid' || name === 'syminfo.ticker') return { fixed: { symbol: null, source: null }, key: '' };
+    const v = this.requestValue(e);
+    if (!v) throw new ScriptError(NEEDS_CONSTANT, e.span);
+    if (v.input) return { fixed: { symbol: null, source: null }, input: { value: v.read, span: e.span }, key: v.key };
+    const text = v.read(this.mainRt);
+    if (typeof text !== 'string') throw new ScriptError(NEEDS_CONSTANT, e.span);
+    const fixed = parseRequestSymbol(text);
+    return { fixed, key: `${fixed.source ?? ''}:${fixed.symbol ?? ''}` };
   }
 
-  private requestTimeframe(e: Expr): SecurityRequest['timeframe'] {
-    if (this.dottedName(e) === 'timeframe.period') return null;
-    const v = this.requestConst(e);
-    if (typeof v !== 'string') throw new ScriptError('request.security needs constant symbol and timeframe', e.span);
-    if (!v.trim()) return null;
-    const tf = requestTimeframe(v);
-    if (!tf) throw new ScriptError(`Timeframe "${v}" is not available; use 1, 5, 15, 60, 240, D or W`, e.span);
-    return tf;
+  private requestTimeframe(e: Expr): { fixed: SecurityRequest['timeframe']; input?: InputArg; key: string } {
+    if (this.dottedName(e) === 'timeframe.period') return { fixed: null, key: '' };
+    const v = this.requestValue(e);
+    if (!v) throw new ScriptError(NEEDS_CONSTANT, e.span);
+    if (v.input) return { fixed: null, input: { value: v.read, span: e.span }, key: v.key };
+    const text = v.read(this.mainRt);
+    if (typeof text !== 'string') throw new ScriptError(NEEDS_CONSTANT, e.span);
+    if (!text.trim()) return { fixed: null, key: '' };
+    const tf = requestTimeframe(text);
+    if (!tf) throw new ScriptError(timeframeMessage(text), e.span);
+    return { fixed: tf, key: tf };
   }
 
-  /** A constant, or a plain variable that holds one (sym = "ETHUSDT"). */
-  private requestConst(e: Expr): unknown {
-    if (e.kind === 'ident') {
-      const info = this.lookup(e.name);
-      if (info?.inline && info.inline.index < 0 && info.kind === SLOT_PLAIN && !info.role) {
-        const v = this.constEval(info.inline.expr);
-        if (v !== NOT_CONST) {
-          this.inlined.push({ info, span: e.span });
-          return v;
-        }
+  /**
+   * A value that stays the same for a whole run: a constant, an input, a plain variable set
+   * once to one of these (sym = input.symbol("ETHUSDT")), or an operation on them such as
+   * "BINANCE:" + sym. Returns null for anything that can change from bar to bar. `input`
+   * is true when the value depends on inputs; `read` computes it from the chart's runtime.
+   */
+  private requestValue(e: Expr): { read: (rt: Runtime) => unknown; input: boolean; key: string } | null {
+    const c = this.constEval(e);
+    if (c !== NOT_CONST) return { read: () => c, input: false, key: typeof c === 'string' ? JSON.stringify(c) : String(c) };
+    switch (e.kind) {
+      case 'ident': {
+        const info = this.lookup(e.name);
+        if (!info?.inline || info.inline.index >= 0 || info.kind !== SLOT_PLAIN || info.role) return null;
+        const inline = info.inline;
+        const v = this.inDeclarationScope(info, () => this.requestValue(inline.expr));
+        // A later := would make the value change during the run; compile() checks for one.
+        if (v) this.inlined.push({ info, span: e.span });
+        return v;
+      }
+      case 'call': {
+        const name = this.dottedName(e.callee);
+        if (name === null || (name !== 'input' && !name.startsWith('input.')) || this.functions.has(name)) return null;
+        this.inputCall(name, e.args, e.span);
+        const index = this.inputAt.get(e.span.from);
+        if (index === undefined || !TEXT_INPUTS.has(this.inputs[index].type)) return null;
+        const type = this.inputs[index].type;
+        return { read: (rt) => inputText(rt, index, type), input: true, key: `input ${index}` };
+      }
+      case 'binary': {
+        if (e.op === 'and' || e.op === 'or') return null;
+        const a = this.requestValue(e.left);
+        const b = this.requestValue(e.right);
+        if (!a || !b) return null;
+        const op = binaryOp(e.op);
+        return { read: (rt) => op(a.read(rt), b.read(rt)), input: a.input || b.input, key: `(${a.key} ${e.op} ${b.key})` };
       }
     }
-    const v = this.constEval(e);
-    return v === NOT_CONST ? undefined : v;
+    return null;
+  }
+
+  /** Runs `fn` with names resolved as they were when `info` was declared. */
+  private inDeclarationScope<T>(info: VarInfo, fn: () => T): T {
+    const { scope, count } = info.inline!;
+    const saved = this.scope;
+    const view = new Scope(scope.parent);
+    let i = 0;
+    for (const [k, v] of scope.vars) {
+      if (i++ >= count) break;
+      view.vars.set(k, v);
+    }
+    this.scope = view;
+    try {
+      return fn();
+    } finally {
+      this.scope = saved;
+    }
   }
 
   /**
@@ -1171,23 +1238,14 @@ export class Compiler {
                   ? 'its value cannot be computed on the requested bars'
                   : null;
     if (why) throw new ScriptError(securityVarMessage(info.name, why), span);
-    const { expr, scope, count, index } = info.inline!;
+    const { expr, index } = info.inline!;
     this.inlined.push({ info, span: sec.span });
-    // Resolve names as they were when the variable was declared.
-    const saved = this.scope;
-    const view = new Scope(scope.parent);
-    let i = 0;
-    for (const [k, v] of scope.vars) {
-      if (i++ >= count) break;
-      view.vars.set(k, v);
-    }
-    this.scope = view;
     sec.inlining.add(info);
     let value: Fn;
     try {
-      value = this.expr(expr);
+      // Resolve names as they were when the variable was declared.
+      value = this.inDeclarationScope(info, () => this.expr(expr));
     } finally {
-      this.scope = saved;
       sec.inlining.delete(info);
     }
     if (index >= 0) {
@@ -1351,7 +1409,11 @@ export class Compiler {
     const existing = this.inputAt.get(span.from);
     if (existing !== undefined) return this.inputReader(existing);
     const get = (p: string) => b[params.indexOf(p)];
-    const defval = this.requireConst(get('defval'), 'An input default');
+    // input.timeframe(timeframe.period) and input.symbol(syminfo.tickerid) follow the chart, stored as "".
+    const defName = get('defval') ? this.dottedName(get('defval')!) : null;
+    const followsChart =
+      (kind === 'timeframe' && defName === 'timeframe.period') || (kind === 'symbol' && (defName === 'syminfo.tickerid' || defName === 'syminfo.ticker'));
+    const defval = followsChart ? '' : this.requireConst(get('defval'), 'An input default');
     const title = this.requireConst(get('title'), 'An input title');
     const index = this.inputs.length;
 
@@ -1369,7 +1431,6 @@ export class Compiler {
         type = 'float';
         break;
       case 'text_area':
-      case 'timeframe':
         type = 'string';
         break;
       default:
@@ -1386,9 +1447,13 @@ export class Compiler {
     } else if (type === 'bool') {
       if (typeof defval !== 'boolean') throw new ScriptError('input.bool needs true or false', get('defval')?.span ?? span);
       def = defval;
-    } else if (type === 'string') {
+    } else if (type === 'string' || type === 'symbol') {
       if (typeof defval !== 'string') throw new ScriptError(`${name} needs a string`, get('defval')?.span ?? span);
-      def = defval;
+      def = type === 'symbol' ? defval.trim() : defval;
+    } else if (type === 'timeframe') {
+      if (typeof defval !== 'string') throw new ScriptError(`${name} needs a timeframe string such as "60" or "D"`, get('defval')?.span ?? span);
+      if (defval.trim() && !requestTimeframe(defval)) throw new ScriptError(timeframeMessage(defval), get('defval')?.span ?? span);
+      def = defval.trim();
     } else {
       if (typeof defval !== 'number' || defval !== defval) throw new ScriptError(`${name} needs a number`, get('defval')?.span ?? span);
       def = type === 'int' ? Math.trunc(defval) : defval;
@@ -1412,6 +1477,11 @@ export class Compiler {
     if (params.includes('options')) {
       const opts = this.requireConst(get('options'), 'options');
       if (Array.isArray(opts)) input.options = opts.filter((o): o is InputValue => typeof o === 'number' || typeof o === 'string' || typeof o === 'boolean');
+      if (type === 'timeframe' && input.options) {
+        for (const o of input.options) {
+          if (typeof o !== 'string' || (o.trim() && !requestTimeframe(o))) throw new ScriptError(timeframeMessage(String(o)), get('options')!.span);
+        }
+      }
     }
     const tooltip = this.requireConst(get('tooltip'), 'tooltip');
     if (typeof tooltip === 'string') input.tooltip = tooltip;
@@ -1447,6 +1517,11 @@ export class Compiler {
         }
         return cached;
       };
+    }
+    if (type === 'symbol' || type === 'timeframe') {
+      // Inside request.security the value is still the chart's, like any other input.
+      const main = this.mainRt;
+      return () => inputText(main, index, type);
     }
     return () => rt.inputValues[index];
   }

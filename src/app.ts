@@ -108,7 +108,13 @@ export class App {
       remove: (id) => this.removeIndicator(id),
       update: (id, params) => this.updateIndicator(id, params),
       extraActive: (rerender) =>
-        this.scripts ? scriptRows(this.scripts, { rerender, onEdit: (id) => (this.indicatorPanel.close(), void this.openScriptEditor(id)) }) : [],
+        this.scripts
+          ? scriptRows(this.scripts, {
+              rerender,
+              onEdit: (id) => (this.indicatorPanel.close(), void this.openScriptEditor(id)),
+              symbols: () => loadSymbols(getSource(this.layout.source), this.storage).then((list) => list.map((s) => s.symbol)),
+            })
+          : [],
     });
     this.helpModal = this.buildHelp();
   }

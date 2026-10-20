@@ -8,7 +8,7 @@ import { KEYWORDS } from '../script/lexer';
 import '../script/compiler';
 
 const NAMESPACES = new Set(['ta', 'math', 'str', 'color', 'array', 'input', 'timeframe', 'syminfo', 'barstate', 'plot', 'shape', 'location', 'size', 'hline', 'display', 'format', 'order', 'request', 'barmerge']);
-const OUTPUT_FUNCTIONS = ['indicator', 'plot', 'plotshape', 'plotchar', 'hline', 'fill', 'bgcolor', 'barcolor', 'input', 'input.int', 'input.float', 'input.bool', 'input.string', 'input.source', 'input.color', 'input.price', 'input.timeframe', 'input.text_area', 'request.security'];
+const OUTPUT_FUNCTIONS = ['indicator', 'plot', 'plotshape', 'plotchar', 'hline', 'fill', 'bgcolor', 'barcolor', 'input', 'input.int', 'input.float', 'input.bool', 'input.string', 'input.source', 'input.color', 'input.price', 'input.timeframe', 'input.symbol', 'input.text_area', 'request.security'];
 const CONTEXTUAL = ['to', 'by', 'in', 'method'];
 
 const builtinVariables = new Set([...VARIABLES.keys()].filter((k) => !k.includes('.')));

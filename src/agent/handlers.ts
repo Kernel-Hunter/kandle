@@ -57,7 +57,7 @@ export interface HostEnv {
   removeDrawing(id: string): boolean;
   clearDrawings(): number;
   /** The script runner if this build has one (window.kandle.runScript). */
-  scriptRunner(): ((code: string, name?: string) => unknown) | undefined;
+  scriptRunner(): ((code: string, options?: string | { id?: string; inputs?: Record<string, unknown> }) => unknown) | undefined;
   /** Backtest results of a strategy script (window.kandle.getBacktest), if this build has strategies. */
   backtestReader?(): ((id?: string, trades?: number) => unknown) | undefined;
   /** Page background colour for screenshots. */
@@ -459,7 +459,10 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
       const code = required(str(params, 'code'), 'code');
       const runner = env.scriptRunner();
       if (!runner) return 'not available yet: this build of Kandle has no script engine.';
-      const result = await runner(code, str(params, 'name'));
+      const id = str(params, 'id');
+      const inputs = params.inputs && typeof params.inputs === 'object' && !Array.isArray(params.inputs) ? (params.inputs as Record<string, unknown>) : undefined;
+      // The name only labels the call; id and inputs go to the runner as options.
+      const result = await runner(code, id || inputs ? { ...(id ? { id } : {}), ...(inputs ? { inputs } : {}) } : str(params, 'name'));
       try {
         return JSON.parse(JSON.stringify(result ?? { ok: true }));
       } catch {

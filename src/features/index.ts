@@ -32,7 +32,7 @@ interface KandleApi {
   getState(): { source: string; symbol: string; timeframe: TimeframeId; theme: Theme; drawings: DrawingRecord[] };
   listIndicators(): ActiveIndicator[];
   draw(name: string, points: Array<{ timestamp: number; value: number }>, text?: string): string | null | Array<string | null>;
-  runScript?: (code: string, name?: string) => unknown;
+  runScript?: (code: string, options?: string | { id?: string; inputs?: Record<string, unknown> }) => unknown;
   getBacktest?: (id?: string, trades?: number) => unknown;
   [key: string]: unknown;
 }

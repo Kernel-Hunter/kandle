@@ -3,8 +3,8 @@ import { ScriptError } from './errors';
 import type { Outputs } from './outputs';
 import { parse } from './parser';
 import { Frame, type Candle, type Runtime, type SymbolContext } from './runtime';
-import { chartTimeframe, periodOf, requestKey, resampleBars, type RequestFeeds, type ResolvedRequest, type SecuritySite } from './security';
-import { getTimeframe } from '../data/timeframes';
+import { chartTimeframe, periodOf, requestKey, requestTimeframe, resampleBars, type RequestFeeds, type ResolvedRequest, type SecuritySite } from './security';
+import { TIMEFRAMES, getTimeframe } from '../data/timeframes';
 import type { StrategyReport } from './strategy';
 import { Color } from './values';
 
@@ -45,7 +45,59 @@ export function validateInput(def: InputDef, value: unknown): InputValue {
       return typeof value === 'string' && value in SOURCE_SERIES ? value : fallback;
     case 'color':
       return typeof value === 'string' && Color.fromHex(value) ? value : fallback;
+    case 'timeframe': {
+      if (typeof value !== 'string') return fallback;
+      const text = value.trim();
+      if (text && !requestTimeframe(text)) return fallback;
+      if (def.options && def.options.length > 0) {
+        // "1D" picks the option written "D".
+        const match = def.options.find((o) => typeof o === 'string' && sameTimeframe(o, text));
+        return match === undefined ? fallback : match;
+      }
+      return text;
+    }
+    case 'symbol': {
+      if (typeof value !== 'string') return fallback;
+      const text = value.trim();
+      return text.length <= MAX_SYMBOL_LENGTH && SYMBOL_TEXT.test(text) ? text : fallback;
+    }
   }
+}
+
+const MAX_SYMBOL_LENGTH = 64;
+/** Letters, digits and the punctuation tickers use ("BINANCE:ETHUSDT", "EUR/USD", "BRK.B", "BTC-USD"); empty follows the chart. */
+const SYMBOL_TEXT = /^[A-Za-z0-9._:/^=!&-]*$/;
+
+const sameTimeframe = (a: string, b: string): boolean => (a.trim() === '' || b === '' ? a.trim() === b : requestTimeframe(a) === requestTimeframe(b));
+
+/** A value an input can be set to, with the text to show for it. */
+export interface InputChoice {
+  value: InputValue;
+  label: string;
+}
+
+/**
+ * The fixed set of values an input offers, for a dropdown, or null when any value of its
+ * type can be typed. Timeframe inputs offer Kandle's timeframes (or their own options) and
+ * "Chart", which follows the chart's timeframe.
+ */
+export function inputChoices(def: InputDef): InputChoice[] | null {
+  if (def.type === 'timeframe') {
+    const values: string[] = def.options && def.options.length > 0 ? def.options.map(String) : ['', ...TIMEFRAMES.map((tf) => periodOf(tf.id))];
+    return values.map((v) => {
+      const tf = requestTimeframe(v);
+      return { value: v, label: v.trim() === '' ? 'Chart' : tf ? getTimeframe(tf)!.label : v };
+    });
+  }
+  if (def.options && def.options.length > 0) return def.options.map((o) => ({ value: o, label: String(o) }));
+  if (def.type === 'source') return Object.keys(SOURCE_SERIES).map((k) => ({ value: k, label: k }));
+  return null;
+}
+
+/** The choice that holds `value`; timeframes match by bar size, so "1D" selects "D". */
+export function selectedChoice(def: InputDef, choices: InputChoice[], value: InputValue): InputChoice | undefined {
+  if (def.type === 'timeframe' && typeof value === 'string') return choices.find((c) => sameTimeframe(String(c.value), value.trim()));
+  return choices.find((c) => c.value === value);
 }
 
 /** A compiled script plus its runtime state. Each chart indicator owns one. */
@@ -108,20 +160,28 @@ export class ScriptEngine {
   requests(): ResolvedRequest[] {
     const out = new Map<string, ResolvedRequest>();
     for (const site of this.compiled.securities) {
-      const req = this.resolve(site);
+      let req: ResolvedRequest | null;
+      try {
+        req = this.resolve(site);
+      } catch {
+        // A bad input value; the run reports it.
+        continue;
+      }
       if (req && !this.isChartSeries(req)) out.set(requestKey(req), req);
     }
     return [...out.values()];
   }
 
+  /** The series a call site reads with the current symbol and input values. Throws for a bad input value. */
   private resolve(site: SecuritySite): ResolvedRequest | null {
-    const ctx = this.compiled.rt.symbol;
-    const chartTf = chartTimeframe(ctx);
-    const timeframe = site.request.timeframe ?? chartTf;
+    const rt = this.compiled.rt;
+    const ctx = rt.symbol;
+    const request = site.current(rt);
+    const timeframe = request.timeframe ?? chartTimeframe(ctx);
     if (!timeframe) return null;
-    const prefix = site.request.source;
+    const prefix = request.source;
     const source = prefix && this.feeds?.hasSource(prefix) ? prefix : (ctx.source ?? '');
-    return { source, symbol: site.request.symbol ?? ctx.ticker, timeframe };
+    return { source, symbol: request.symbol ?? ctx.ticker, timeframe };
   }
 
   private isChartSeries(req: ResolvedRequest): boolean {

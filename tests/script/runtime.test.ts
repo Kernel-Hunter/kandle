@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compileScript, validateInput } from '../../src/script/engine';
+import { compileScript, inputChoices, selectedChoice, validateInput } from '../../src/script/engine';
 import { CANDLES, compile, expectSeriesClose, makeCandles, plotValues, run } from './fixtures';
 import * as ref from './reference';
 
@@ -266,6 +266,108 @@ plot(show ? (mode == "EMA" ? ta.ema(src, len) : ta.sma(src, len)) * mult : na, c
   it('reads the script title and overlay flag', () => {
     const r = compileScript('indicator("My Script", shorttitle = "MS", overlay = true, precision = 3)\nplot(close)');
     expect(r.ok && r.engine.meta).toMatchObject({ title: 'My Script', shortTitle: 'MS', overlay: true, precision: 3 });
+  });
+});
+
+describe('timeframe and symbol inputs', () => {
+  const src = `indicator("t")
+tf = input.timeframe("D", "Higher timeframe")
+sym = input.symbol("ETHUSDT", "Symbol", tooltip = "Market to compare")
+plotchar(tf == "D", "isD", "x")
+plotchar(sym == "ETHUSDT", "isEth", "x")`;
+
+  it('lists them with their type and default', () => {
+    const e = compile(src);
+    expect(e.inputs.map((i) => [i.key, i.type, i.defval])).toEqual([
+      ['Higher timeframe', 'timeframe', 'D'],
+      ['Symbol', 'symbol', 'ETHUSDT'],
+    ]);
+    expect(e.inputs[1].tooltip).toBe('Market to compare');
+  });
+
+  it('return their values as strings', () => {
+    const e = compile(src);
+    e.run(CANDLES);
+    expect(e.outputs.shapes[0].values[10]).not.toBeNaN();
+    expect(e.outputs.shapes[1].values[10]).not.toBeNaN();
+    e.setInputValues({ 'Higher timeframe': '240', Symbol: 'SOLUSDT' });
+    e.run(CANDLES);
+    expect(e.outputs.shapes[0].values[10]).toBeNaN();
+    expect(e.outputs.shapes[1].values[10]).toBeNaN();
+    expect(e.inputValues()).toEqual({ 'Higher timeframe': '240', Symbol: 'SOLUSDT' });
+  });
+
+  it('follow the chart when empty', () => {
+    const e = compile(`indicator("t")
+tf = input.timeframe(timeframe.period, "TF")
+sym = input.symbol(syminfo.tickerid, "Sym")
+plotchar(tf == timeframe.period and sym == syminfo.tickerid, "same", "x")`);
+    expect(e.inputs.map((i) => i.defval)).toEqual(['', '']);
+    e.setSymbol({ ticker: 'BTCUSDT', period: '60', periodSeconds: 3600, mintick: 0.01 });
+    e.run(CANDLES);
+    expect(e.outputs.shapes[0].values[5]).not.toBeNaN();
+  });
+
+  it('validate edited values', () => {
+    const [tf, sym] = compile(src).inputs;
+    expect(validateInput(tf, '60')).toBe('60');
+    expect(validateInput(tf, ' 1W ')).toBe('1W');
+    expect(validateInput(tf, '')).toBe('');
+    expect(validateInput(tf, '30')).toBe('D');
+    expect(validateInput(tf, 60)).toBe('D');
+    expect(validateInput(sym, ' BINANCE:SOLUSDT ')).toBe('BINANCE:SOLUSDT');
+    expect(validateInput(sym, 'EUR/USD')).toBe('EUR/USD');
+    expect(validateInput(sym, '')).toBe('');
+    expect(validateInput(sym, 'BTC USDT')).toBe('ETHUSDT');
+    expect(validateInput(sym, 'X'.repeat(65))).toBe('ETHUSDT');
+    expect(validateInput(sym, 5)).toBe('ETHUSDT');
+  });
+
+  it('offer Kandle timeframes plus Chart in the settings dropdown', () => {
+    const [tf, sym] = compile(src).inputs;
+    const choices = inputChoices(tf)!;
+    expect(choices.map((c) => [c.value, c.label])).toEqual([
+      ['', 'Chart'],
+      ['1', '1m'],
+      ['5', '5m'],
+      ['15', '15m'],
+      ['60', '1H'],
+      ['240', '4H'],
+      ['D', '1D'],
+      ['W', '1W'],
+    ]);
+    // Any spelling of a timeframe selects its entry.
+    expect(selectedChoice(tf, choices, 'D')?.label).toBe('1D');
+    expect(selectedChoice(tf, choices, '1D')?.label).toBe('1D');
+    expect(selectedChoice(tf, choices, '4h')?.label).toBe('4H');
+    expect(selectedChoice(tf, choices, '')?.label).toBe('Chart');
+    // Symbols are typed.
+    expect(inputChoices(sym)).toBeNull();
+  });
+
+  it('limit the dropdown to the given options', () => {
+    const e = compile('indicator("t")\ntf = input.timeframe("240", "TF", options = ["60", "240", "1D"])\nplot(close)');
+    const def = e.inputs[0];
+    expect(inputChoices(def)!.map((c) => [c.value, c.label])).toEqual([
+      ['60', '1H'],
+      ['240', '4H'],
+      ['1D', '1D'],
+    ]);
+    expect(validateInput(def, 'D')).toBe('1D');
+    expect(validateInput(def, '15')).toBe('240');
+    expect(validateInput(def, '')).toBe('240');
+  });
+
+  it('reject defaults and options that are not timeframes', () => {
+    const error = (s: string) => {
+      const r = compileScript(`indicator("t")\n${s}\nplot(close)`);
+      return r.ok ? null : r.error.message;
+    };
+    expect(error('tf = input.timeframe("30", "TF")')).toBe('Timeframe "30" is not available; use 1, 5, 15, 60, 240, D or W');
+    expect(error('tf = input.timeframe("D", "TF", options = ["D", "3D"])')).toBe('Timeframe "3D" is not available; use 1, 5, 15, 60, 240, D or W');
+    expect(error('tf = input.timeframe(60, "TF")')).toBe('input.timeframe needs a timeframe string such as "60" or "D"');
+    expect(error('s = input.symbol(1, "S")')).toBe('input.symbol needs a string');
+    expect(error('s = input.symbol(str.tostring(close), "S")')).toBe('An input default must be a constant value');
   });
 });
 

@@ -281,6 +281,8 @@ describe('bridge handlers', () => {
     const withEngine = setup({ scriptRunner: () => runner }).handlers;
     expect(await call(withEngine, 'run_script', { code: 'plot(close)', name: 'test' })).toEqual({ plots: 1 });
     expect(runner).toHaveBeenCalledWith('plot(close)', 'test');
+    await call(withEngine, 'run_script', { code: 'plot(close)', id: 's1', inputs: { Symbol: 'SOLUSDT', 'Higher timeframe': '240' } });
+    expect(runner).toHaveBeenLastCalledWith('plot(close)', { id: 's1', inputs: { Symbol: 'SOLUSDT', 'Higher timeframe': '240' } });
   });
 
   it('reads backtest results of a strategy script', async () => {

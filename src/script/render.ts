@@ -100,7 +100,11 @@ export function scriptIndicator(opts: ScriptIndicatorOptions): Omit<IndicatorCre
       const i = crosshair.dataIndex ?? engine.barCount - 1;
       const values = engine.inputs
         .filter((d) => d.type !== 'color' && d.type !== 'bool')
-        .map((d) => String(engine.inputValues()[d.key]))
+        .map((d) => {
+          const v = engine.inputValues()[d.key];
+          // An empty symbol or timeframe follows the chart.
+          return v === '' && (d.type === 'symbol' || d.type === 'timeframe') ? 'chart' : String(v);
+        })
         .slice(0, 6);
       const legends = plots
         .filter((p) => p.visible && p.title)

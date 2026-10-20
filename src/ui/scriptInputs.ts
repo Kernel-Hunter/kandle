@@ -1,31 +1,74 @@
 import { h, ICONS } from './dom';
 import './scripts.css';
-import type { InputDef, InputValue } from '../script/engine';
+import { inputChoices, selectedChoice, validateInput, type InputDef, type InputValue } from '../script/engine';
 import type { ScriptInfo, ScriptManager } from '../script/manager';
-import { SOURCE_SERIES } from '../script/compiler';
 
 export interface ScriptRowsOptions {
   onEdit: (id: string) => void;
   rerender: () => void;
+  /** Symbols of the chart's data source, suggested in symbol inputs. */
+  symbols?: () => Promise<readonly string[]>;
 }
 
+export interface InputFieldOptions {
+  symbols?: () => Promise<readonly string[]>;
+}
+
+/** Symbols suggested in one symbol field; the browser filters them as the user types. */
+const MAX_SUGGESTIONS = 5000;
+let listCounter = 0;
+
 /** One editable field for a script input, matching the input's type. */
-export function inputField(def: InputDef, value: InputValue, onChange: (v: InputValue) => void): HTMLElement {
+export function inputField(def: InputDef, value: InputValue, onChange: (v: InputValue) => void, opts: InputFieldOptions = {}): HTMLElement {
   const label = `${def.title}`;
   let control: HTMLElement;
-  const select = (options: InputValue[]) => {
+  const choices = inputChoices(def);
+  if (choices) {
     const el = h('select', { class: 'param-input', 'aria-label': label }) as HTMLSelectElement;
-    for (const o of options) el.append(h('option', { value: String(o), selected: o === value }, String(o)));
+    const current = selectedChoice(def, choices, value);
+    choices.forEach((c, i) => el.append(h('option', { value: String(i), selected: c === current }, c.label)));
     el.addEventListener('change', () => {
-      const raw = el.value;
-      onChange(typeof def.defval === 'number' ? Number(raw) : raw);
+      const c = choices[Number(el.value)];
+      if (c) onChange(c.value);
     });
-    return el;
-  };
-  if (def.options && def.options.length > 0) {
-    control = select(def.options);
-  } else if (def.type === 'source') {
-    control = select(Object.keys(SOURCE_SERIES));
+    control = el;
+  } else if (def.type === 'symbol') {
+    const listId = `script-symbols-${listCounter++}`;
+    const list = h('datalist', { id: listId }) as HTMLDataListElement;
+    const el = h('input', {
+      type: 'text',
+      class: 'param-input',
+      value: String(value),
+      placeholder: 'Chart symbol',
+      list: listId,
+      autocomplete: 'off',
+      spellcheck: 'false',
+      'aria-label': label,
+    }) as HTMLInputElement;
+    let known: readonly string[] = [];
+    void opts
+      .symbols?.()
+      .then((symbols) => {
+        known = symbols;
+        list.append(...symbols.slice(0, MAX_SUGGESTIONS).map((s) => h('option', { value: s })));
+      })
+      .catch(() => undefined);
+    el.addEventListener('change', () => {
+      const typed = el.value.trim();
+      // "ethusdt" becomes the source's own spelling, "ETHUSDT".
+      const text = known.includes(typed) ? typed : (known.find((s) => s.toUpperCase() === typed.toUpperCase()) ?? typed);
+      // Values a symbol cannot have fall back to the default; show what was kept instead.
+      if (validateInput(def, text) !== text) {
+        el.value = String(value);
+        el.setCustomValidity('Symbols use letters, digits and . _ : / - ^ = ! &');
+        el.reportValidity();
+        el.setCustomValidity('');
+        return;
+      }
+      el.value = text;
+      onChange(text);
+    });
+    control = h('span', {}, el, list);
   } else if (def.type === 'bool') {
     const el = h('input', { type: 'checkbox', class: 'param-check', checked: value === true, 'aria-label': label }) as HTMLInputElement;
     el.addEventListener('change', () => onChange(el.checked));
@@ -69,10 +112,15 @@ export function scriptRows(manager: ScriptManager, opts: ScriptRowsOptions): Nod
       'div',
       { class: 'param-fields' },
       ...s.inputs.map((def) =>
-        inputField(def, s.values[def.key] ?? def.defval, (v) => {
-          const res = manager.setInputs(s.id, { [def.key]: v });
-          if (res.ok) opts.rerender();
-        }),
+        inputField(
+          def,
+          s.values[def.key] ?? def.defval,
+          (v) => {
+            const res = manager.setInputs(s.id, { [def.key]: v });
+            if (res.ok) opts.rerender();
+          },
+          { symbols: opts.symbols },
+        ),
       ),
     );
     return h(

@@ -211,7 +211,7 @@ describe('request.security errors', () => {
 
   it('needs constant symbol and timeframe', () => {
     expect(error('plot(request.security(close > open ? "A" : "B", "D", close))')).toBe('request.security needs constant symbol and timeframe');
-    expect(error('tf = input.string("D")\nplot(request.security(syminfo.tickerid, tf, close))')).toBe('request.security needs constant symbol and timeframe');
+    expect(error('tf = input.string("D")\nplot(request.security(syminfo.tickerid, tf, close))')).toBeNull();
     expect(error('sym = "ETHUSDT"\nplot(request.security(sym, "D", close))')).toBeNull();
     expect(error('plot(request.security(syminfo.tickerid, "30", close))')).toBe('Timeframe "30" is not available; use 1, 5, 15, 60, 240, D or W');
   });
@@ -236,5 +236,130 @@ describe('request.security errors', () => {
 
   it('keeps other request functions unsupported', () => {
     expect(error('plot(request.financial("A", "B", "FQ"))')).toBe("'request.financial' is not supported yet");
+  });
+});
+
+describe('request.security with inputs', () => {
+  const eth = makeCandles(n, 7);
+  const sol = makeCandles(n, 11);
+  const ethDaily = resampleBars(eth, '1D');
+  const sol4h = resampleBars(sol, '4h');
+  const src = `tf = input.timeframe("D", "Higher timeframe")
+sym = input.symbol("ETHUSDT", "Symbol")
+plot(request.security(sym, tf, close))`;
+  const series = { 'binance|ETHUSDT|1D': ethDaily, 'binance|SOLUSDT|4h': sol4h, 'binance|ETHUSDT|1h': eth };
+
+  /** ETH daily close as seen by hourly chart bar b: the day that closed last, or the developing day on the last bar. */
+  const ethDailyOnChart = close.map((_, b) => {
+    if (b === n - 1) return ethDaily[ethDaily.length - 1].close;
+    const j = Math.floor((b + 1) / 24) - 1;
+    return j >= 0 ? ethDaily[j].close : NaN;
+  });
+  /** SOL 4-hour close: bar k of 4 h closes at the end of chart bar 4k + 3. */
+  const sol4hOnChart = close.map((_, b) => {
+    const j = Math.floor((b + 1) / 4) - 1;
+    return j >= 0 ? sol[4 * j + 3].close : NaN;
+  });
+
+  it('loads the series the inputs name', () => {
+    const { feeds, needs } = fakeFeeds(series);
+    const e = engineFor(src, BTC_1H, feeds);
+    expect(e.requests().map(requestKey)).toEqual(['binance|ETHUSDT|1D']);
+    expect(e.run(CANDLES).error).toBeNull();
+    expectSeriesClose(plotValues(e), ethDailyOnChart);
+    expect(ethDailyOnChart[47]).toBe(eth[47].close);
+    expect(needs.map((x) => x.key)).toEqual(['binance|ETHUSDT|1D']);
+  });
+
+  it('switches to the other series when the inputs change', () => {
+    const { feeds, needs } = fakeFeeds(series);
+    const e = engineFor(src, BTC_1H, feeds);
+    e.run(CANDLES);
+    e.setInputValues({ 'Higher timeframe': '240', Symbol: 'SOLUSDT' });
+    expect(e.requests().map(requestKey)).toEqual(['binance|SOLUSDT|4h']);
+    const r = e.run(CANDLES);
+    expect(r.error).toBeNull();
+    expect(r.incremental).toBe(false);
+    expectSeriesClose(plotValues(e), sol4hOnChart);
+    expect(plotValues(e)[3]).toBe(sol[3].close);
+    expect(plotValues(e)[2]).toBeNaN();
+    expect(needs.map((x) => x.key)).toEqual(['binance|ETHUSDT|1D', 'binance|SOLUSDT|4h']);
+    // And back again.
+    e.setInputValues({ 'Higher timeframe': '1D', Symbol: 'ETHUSDT' });
+    e.run(CANDLES);
+    expectSeriesClose(plotValues(e), ethDailyOnChart);
+  });
+
+  it('shows na while the new series loads', () => {
+    const { feeds } = fakeFeeds({ 'binance|ETHUSDT|1D': ethDaily });
+    const e = engineFor(src, BTC_1H, feeds);
+    e.setInputValues({ Symbol: 'SOLUSDT' });
+    expect(e.run(CANDLES).error).toBeNull();
+    expect(plotValues(e).every((v) => Number.isNaN(v))).toBe(true);
+  });
+
+  it('accepts an input written in the call, a string input and text built from inputs', () => {
+    const { feeds } = fakeFeeds(series);
+    const direct = engineFor('plot(request.security(input.symbol("ETHUSDT", "Symbol"), input.timeframe("60", "TF"), close))', BTC_1H, feeds);
+    expect(direct.inputs.map((i) => i.type)).toEqual(['symbol', 'timeframe']);
+    direct.run(CANDLES);
+    expectSeriesClose(plotValues(direct), eth.map((b) => b.close));
+    const joined = engineFor('ex = input.string("BINANCE", "Exchange")\nsym = input.symbol("ETHUSDT", "Symbol")\npair = ex + ":" + sym\nplot(request.security(pair, input.string("D", "TF"), close))', BTC_1H, feeds);
+    expect(joined.requests().map(requestKey)).toEqual(['binance|ETHUSDT|1D']);
+    joined.run(CANDLES);
+    expectSeriesClose(plotValues(joined), ethDailyOnChart);
+  });
+
+  it('follows the chart when an input is empty', () => {
+    // No feeds: the chart's own bars are combined into days.
+    const own = values('sym = input.symbol(syminfo.tickerid, "Symbol")\nplot(request.security(sym, input.timeframe("D", "TF"), close))');
+    const expected = close.map((_, b) => {
+      const j = Math.floor((b + 1) / 24) - 1;
+      return j >= 0 ? dailyClose(j) : NaN;
+    });
+    expected[n - 1] = close[n - 1];
+    expectSeriesClose(own, expected);
+    const { feeds } = fakeFeeds(series);
+    const e = engineFor('plot(request.security(input.symbol("ETHUSDT", "Symbol"), input.timeframe("", "TF"), close))', BTC_1H, feeds);
+    expect(e.requests().map(requestKey)).toEqual(['binance|ETHUSDT|1h']);
+    e.setInputValues({ Symbol: '' });
+    expect(e.requests()).toEqual([]);
+    e.run(CANDLES);
+    expectSeriesClose(plotValues(e), close);
+  });
+
+  it('reports a string input that is not a timeframe when the script runs', () => {
+    const { feeds } = fakeFeeds(series);
+    const e = engineFor('tf = input.string("D", "TF")\nplot(request.security("ETHUSDT", tf, close))', BTC_1H, feeds);
+    e.setInputValues({ TF: '30' });
+    expect(e.requests()).toEqual([]);
+    expect(e.run(CANDLES).error?.message).toBe('Timeframe "30" is not available; use 1, 5, 15, 60, 240, D or W');
+    e.setInputValues({ TF: 'W' });
+    expect(e.run(CANDLES).error).toBeNull();
+  });
+
+  it('counts an input as one pair towards the limit', () => {
+    const error = (s: string) => {
+      const r = compileScript(`indicator("t")\nsym = input.symbol("ETHUSDT", "Symbol")\n${s}`);
+      return r.ok ? null : r.error.message;
+    };
+    const four = ['A', 'B', 'C', 'D'].map((s) => `request.security("${s}", "D", close)`).join(' + ');
+    expect(error(`plot(${four} + request.security(sym, "D", close) + request.security(sym, "D", open))`)).toBeNull();
+    expect(error(`plot(${four} + request.security(sym, "D", close) + request.security(sym, "W", close))`)).toBe(
+      'A script can request at most 5 different symbol and timeframe pairs',
+    );
+  });
+
+  it('still refuses values that change from bar to bar', () => {
+    const error = (s: string) => {
+      const r = compileScript(`indicator("t")\n${s}`);
+      return r.ok ? null : r.error.message;
+    };
+    expect(error('sym = close > open ? "ETHUSDT" : "SOLUSDT"\nplot(request.security(sym, "D", close))')).toBe('request.security needs constant symbol and timeframe');
+    expect(error('sym = input.symbol("ETHUSDT")\nplot(request.security(sym + str.tostring(bar_index), "D", close))')).toBe('request.security needs constant symbol and timeframe');
+    expect(error('len = input.int(60, "Minutes")\nplot(request.security(syminfo.tickerid, len, close))')).toBe('request.security needs constant symbol and timeframe');
+    expect(error('tf = input.timeframe("D", "TF")\nplot(request.security(syminfo.tickerid, tf, close))\nif close > open\n    tf := "W"')).toMatch(
+      /cannot use 'tf' because it is changed with :=/,
+    );
   });
 });

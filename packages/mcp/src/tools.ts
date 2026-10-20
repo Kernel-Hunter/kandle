@@ -88,6 +88,11 @@ export const schemas = {
   run_script: z.object({
     code: z.string().min(1).max(100_000).describe('Script source code'),
     name: z.string().max(80).optional(),
+    id: z.string().min(1).max(80).optional().describe('Id of a script from an earlier run_script, to replace it instead of adding another'),
+    inputs: z
+      .record(z.string().min(1).max(80), z.union([z.string().max(200), z.number().finite(), z.boolean()]))
+      .optional()
+      .describe('Input values by input title, e.g. {"Symbol": "SOLUSDT", "Higher timeframe": "240"}. Inputs left out keep their defaults.'),
   }),
   get_backtest: z.object({
     id: z.string().min(1).max(80).optional().describe('Script id from run_script. Defaults to the most recently added strategy.'),
@@ -192,7 +197,7 @@ export const TOOLS: readonly ToolDef[] = [
     name: 'run_script',
     title: 'Run script',
     description:
-      'Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. request.security can read other symbols on the same source and other timeframes. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. Orders fill at the next bar\'s open; limit and stop orders when the bar reaches their price.',
+      'Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. request.security can read other symbols on the same source and other timeframes, including ones picked with input.symbol and input.timeframe. `inputs` sets input values by title and `id` replaces an earlier script; the result lists the input values. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. Orders fill at the next bar\'s open; limit and stop orders when the bar reaches their price.',
     method: 'run_script',
     timeoutMs: 60_000,
   },

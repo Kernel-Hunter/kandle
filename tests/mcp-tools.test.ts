@@ -23,6 +23,8 @@ describe('tool schemas', () => {
     expect(schemas.get_candles.parse({}).limit).toBeUndefined();
     expect(schemas.get_backtest.parse({})).toEqual({});
     expect(schemas.get_backtest.parse({ id: 's1', trades: 0 })).toEqual({ id: 's1', trades: 0 });
+    const inputs = { Symbol: 'BINANCE:SOLUSDT', 'Higher timeframe': '240', Length: 20, Show: true };
+    expect(schemas.run_script.parse({ code: 'plot(close)', id: 's1', inputs })).toEqual({ code: 'plot(close)', id: 's1', inputs });
   });
 
   it('rejects bad input with field errors', () => {
@@ -40,6 +42,8 @@ describe('tool schemas', () => {
     expect(schemas.get_chart_state.safeParse({ pane: 5 }).success).toBe(false);
     expect(schemas.get_backtest.safeParse({ trades: 501 }).success).toBe(false);
     expect(schemas.get_backtest.safeParse({ trades: 2.5 }).success).toBe(false);
+    expect(schemas.run_script.safeParse({ code: 'plot(close)', inputs: { Symbol: ['ETHUSDT'] } }).success).toBe(false);
+    expect(schemas.run_script.safeParse({ code: 'plot(close)', inputs: { Length: Number.NaN } }).success).toBe(false);
   });
 });
 
