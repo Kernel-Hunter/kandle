@@ -1,3 +1,4 @@
+import { isChartType, isPriceScale, type ChartType, type PriceScale } from '../chart/chartStyle';
 import { APP } from '../config';
 import { isTimeframeId, type TimeframeId } from '../data/timeframes';
 import type { KeyValueStorage } from '../store/layout';
@@ -9,6 +10,10 @@ export interface PaneConfig {
   symbol: string;
   timeframe: TimeframeId;
   indicators: Array<{ name: string; params: number[] }>;
+  /** How bars are drawn; candles when left out. */
+  chartType?: ChartType;
+  /** Price axis scale; normal when left out. */
+  scale?: PriceScale;
 }
 
 export interface SyncOptions {
@@ -58,12 +63,15 @@ function sanitizePane(raw: unknown, fallback: PaneConfig): PaneConfig {
           params: Array.isArray(i.params) ? i.params.filter((p): p is number => typeof p === 'number' && Number.isFinite(p)).slice(0, 10) : [],
         }))
     : [];
-  return {
+  const pane: PaneConfig = {
     source: typeof r.source === 'string' && r.source ? r.source : fallback.source,
     symbol: typeof r.symbol === 'string' && r.symbol ? r.symbol.slice(0, 40) : fallback.symbol,
     timeframe: isTimeframeId(r.timeframe) ? r.timeframe : fallback.timeframe,
     indicators,
   };
+  if (isChartType(r.chartType)) pane.chartType = r.chartType;
+  if (isPriceScale(r.scale)) pane.scale = r.scale;
+  return pane;
 }
 
 export function sanitizeConfig(raw: unknown): MultiChartConfig {

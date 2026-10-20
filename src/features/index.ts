@@ -3,6 +3,7 @@ import './features.css';
 import { BridgeClient } from '../agent/client';
 import { createHandlers, dispatch, type HostEnv, type PaneLike } from '../agent/handlers';
 import { createAgentPanel } from '../agent/panel';
+import type { ChartStyle } from '../chart/chartStyle';
 import { AlertEngine, type Alert, type AlertKind, type TickContext } from '../alerts/engine';
 import { ensureNotificationPermission, playAlertSound, showSystemNotification, unlockAudioOnGesture } from '../alerts/notify';
 import { createAlertsPanel } from '../alerts/panel';
@@ -25,6 +26,8 @@ export interface FeatureApp {
   setTimeframe(id: TimeframeId): void;
   addIndicator(name: string, params?: number[]): string | null;
   removeIndicator(id: string): void;
+  chartStyle(): ChartStyle;
+  setChartStyle(change: Partial<ChartStyle>): ChartStyle;
 }
 
 /** Shape of window.kandle as set up by App.exposeForAutomation (plus runScript when a script engine is present). */
@@ -229,6 +232,8 @@ export function createFeatures(deps: FeatureDeps): Features {
           const { source, symbol } = main.info();
           return getSource(source).timeframesFor?.(symbol) ?? TIMEFRAMES.map((tf) => tf.id);
         },
+        chartStyle: () => app.chartStyle(),
+        setChartStyle: (change) => app.setChartStyle(change),
       };
       mainPane = main;
 

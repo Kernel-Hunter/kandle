@@ -1,4 +1,6 @@
 import { dispose, init, type Chart, type DeepPartial, type Styles } from 'klinecharts';
+import { DEFAULT_CHART_STYLE, type ChartStyle } from '../chart/chartStyle';
+import { applyChartType, applyPriceScale } from '../chart/chartStyleRender';
 import { INDICATORS, getIndicatorDef } from '../chart/indicators';
 import { createDataLoader } from '../chart/loader';
 import { cachedSymbols, getSource } from '../data/sources';
@@ -7,6 +9,7 @@ import { TIMEFRAMES, getTimeframe, type TimeframeId } from '../data/timeframes';
 import type { Candle, SymbolMeta } from '../data/types';
 import { SwitchingLoader } from '../replay/loader';
 import type { KeyValueStorage, Theme } from '../store/layout';
+import { createChartStyleControl, type ChartStyleControl } from '../ui/chartStyleMenu';
 import { h, ICONS } from '../ui/dom';
 import type { ActiveIndicator } from '../ui/indicatorPanel';
 import type { PaneConfig } from './config';
@@ -27,6 +30,9 @@ export interface PaneHandle {
   indicators(): ActiveIndicator[];
   /** Timeframes the current symbol can be shown in (imported data only goes up from its own). */
   timeframes(): readonly TimeframeId[];
+  /** Chart type and price scale. */
+  chartStyle(): ChartStyle;
+  setChartStyle(change: Partial<ChartStyle>): ChartStyle;
 }
 
 export interface SecondaryPaneDeps {
@@ -52,6 +58,7 @@ export class SecondaryPane implements PaneHandle {
   private readonly symbolBtn: HTMLButtonElement;
   private readonly tfSelect: HTMLSelectElement;
   private readonly chips: HTMLElement;
+  private readonly styleControl: ChartStyleControl;
   private chartRef: Chart | null = null;
   private readonly switching: SwitchingLoader;
   private meta: SymbolMeta | null = null;
@@ -83,11 +90,17 @@ export class SecondaryPane implements PaneHandle {
       ...INDICATORS.map((d) => h('option', { value: d.name }, `${d.name}  ${d.label}`)),
     ) as HTMLSelectElement;
     this.chips = h('div', { class: 'mc-chips' });
+    this.styleControl = createChartStyleControl({
+      get: () => this.chartStyle(),
+      set: (change) => this.setChartStyle(change),
+      compact: true,
+      name: `chart ${index}`,
+    });
     this.chartEl = h('div', { class: 'chart mc-chart' });
     this.el = h(
       'div',
       { class: 'mc-pane', dataset: { pane: String(index) } },
-      h('div', { class: 'mc-head' }, h('span', { class: 'mc-num' }, String(index)), this.symbolBtn, this.tfSelect, indSelect, this.chips),
+      h('div', { class: 'mc-head' }, h('span', { class: 'mc-num' }, String(index)), this.symbolBtn, this.tfSelect, this.styleControl.el, indSelect, this.chips),
       h('div', { class: 'mc-body' }, this.chartEl),
     );
     this.switching = new SwitchingLoader(
@@ -130,6 +143,7 @@ export class SecondaryPane implements PaneHandle {
     if (!chart) throw new Error(`Chart ${this.index} failed to initialise`);
     this.chartRef = chart;
     this.applyTheme(this.deps.theme());
+    applyPriceScale(chart, this.chartStyle().scale);
     chart.setOffsetRightDistance(40);
     this.meta = await this.lookupMeta(this.config.source, this.config.symbol);
     if (this.disposed) return;
@@ -152,6 +166,22 @@ export class SecondaryPane implements PaneHandle {
     if (!this.chartRef) return;
     this.chartRef.setStyles(theme);
     this.chartRef.setStyles(this.deps.styles(theme));
+    applyChartType(this.chartRef, this.chartStyle().type);
+  }
+
+  chartStyle(): ChartStyle {
+    return { type: this.config.chartType ?? DEFAULT_CHART_STYLE.type, scale: this.config.scale ?? DEFAULT_CHART_STYLE.scale };
+  }
+
+  setChartStyle(change: Partial<ChartStyle>): ChartStyle {
+    const current = this.chartStyle();
+    const next = { ...current, ...change };
+    this.config = { ...this.config, chartType: next.type, scale: next.scale };
+    if (this.chartRef && next.type !== current.type) applyChartType(this.chartRef, next.type);
+    if (this.chartRef && next.scale !== current.scale) applyPriceScale(this.chartRef, next.scale);
+    this.styleControl.refresh();
+    this.deps.onConfigChange();
+    return next;
   }
 
   private async lookupMeta(source: string, symbol: string): Promise<SymbolMeta | null> {

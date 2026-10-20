@@ -8,6 +8,8 @@ import {
   nextChartType,
   parseChartStyleChange,
 } from '../src/chart/chartStyle';
+import { loadConfig, sanitizeConfig, saveConfig, defaultConfig } from '../src/layout/config';
+import { LayoutStore, MemoryStorage, sanitizeLayout } from '../src/store/layout';
 
 const H = 3_600_000;
 const T0 = Date.UTC(2026, 9, 1);
@@ -112,5 +114,33 @@ describe('chart style values', () => {
     expect(() => parseChartStyleChange({ type: 'Candles' })).toThrow('Unknown chart type Candles. Use one of candles, hollow_candles, bars, line, area, heikin_ashi.');
     expect(() => parseChartStyleChange({ scale: 2 })).toThrow('Unknown scale 2. Use one of normal, log, percent.');
     expect(() => parseChartStyleChange({})).toThrow('Give a chart type, a scale or both');
+  });
+});
+
+describe('chart style persistence', () => {
+  it('is saved with the main chart layout and left out when never set', () => {
+    const storage = new MemoryStorage();
+    const store = new LayoutStore(storage, 'test');
+    const layout = store.loadLayout();
+    expect(layout.chartType).toBeUndefined();
+    expect(layout.scale).toBeUndefined();
+    store.saveLayout({ ...layout, chartType: 'heikin_ashi', scale: 'log' });
+    expect(new LayoutStore(storage, 'test').loadLayout()).toMatchObject({ chartType: 'heikin_ashi', scale: 'log' });
+    const bad = sanitizeLayout({ chartType: 'renko', scale: 'linear' });
+    expect(bad.chartType).toBeUndefined();
+    expect(bad.scale).toBeUndefined();
+  });
+
+  it('is saved per pane in multi-chart layouts', () => {
+    const storage = new MemoryStorage();
+    const config = { ...defaultConfig(), count: 4 as const };
+    config.panes[0] = { ...config.panes[0], chartType: 'bars', scale: 'percent' };
+    config.panes[2] = { ...config.panes[2], chartType: 'area' };
+    saveConfig(storage, config);
+    const loaded = loadConfig(storage);
+    expect(loaded).toEqual(config);
+    expect(loaded.panes[1].chartType).toBeUndefined();
+    const repaired = sanitizeConfig({ panes: [{ symbol: 'XRPUSDT', chartType: 'point_figure', scale: 'log' }] });
+    expect(repaired.panes[0]).toEqual({ source: 'binance', symbol: 'XRPUSDT', timeframe: '1h', indicators: [], scale: 'log' });
   });
 });

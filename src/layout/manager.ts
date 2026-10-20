@@ -1,4 +1,5 @@
 import type { Chart, Crosshair, DeepPartial, Styles } from 'klinecharts';
+import type { ChartType, PriceScale } from '../chart/chartStyle';
 import { cachedSymbols, getSource } from '../data/sources';
 import type { TimeframeId } from '../data/timeframes';
 import type { Candle, SymbolMeta } from '../data/types';
@@ -23,7 +24,7 @@ export interface LayoutManagerOptions {
 export interface LayoutState {
   charts: ChartCount;
   sync: SyncOptions;
-  panes: Array<{ pane: number; exchange: string; symbol: string; timeframe: TimeframeId }>;
+  panes: Array<{ pane: number; exchange: string; symbol: string; timeframe: TimeframeId; chart_type: ChartType; price_scale: PriceScale }>;
 }
 
 export const LAYOUT_ICONS: Record<ChartCount, string> = {
@@ -110,7 +111,8 @@ export class LayoutManager {
       sync: this.sync,
       panes: this.allPanes().map((p) => {
         const info = p.info();
-        return { pane: p.index, exchange: info.source, symbol: info.symbol, timeframe: info.timeframe };
+        const style = p.chartStyle();
+        return { pane: p.index, exchange: info.source, symbol: info.symbol, timeframe: info.timeframe, chart_type: style.type, price_scale: style.scale };
       }),
     };
   }

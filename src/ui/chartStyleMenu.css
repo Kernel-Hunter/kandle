@@ -1,0 +1,71 @@
+/* Chart type and price scale menu (src/ui/chartStyleMenu.ts). */
+
+.cs-btn {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.cs-btn:hover {
+  background: var(--hover);
+}
+
+.cs-btn[aria-expanded='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.cs-btn.compact {
+  height: 26px;
+  padding: 0 4px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.popover.cs-menu {
+  position: fixed;
+  min-width: 190px;
+}
+
+.cs-types {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cs-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cs-item:hover {
+  background: var(--hover);
+}
+
+.cs-item.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.cs-icon {
+  display: flex;
+  color: inherit;
+}
+
+.cs-scales {
+  align-self: flex-start;
+}

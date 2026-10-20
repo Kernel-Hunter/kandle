@@ -3,6 +3,8 @@ import { APP } from './config';
 import { createDataLoader } from './chart/loader';
 import { getIndicatorDef, registerCustomIndicators } from './chart/indicators';
 import { DRAWING_TOOLS, registerCustomOverlays } from './chart/overlays';
+import { CHART_TYPE_LABELS, nextChartType, parseChartStyleChange, type ChartStyle } from './chart/chartStyle';
+import { applyChartType, applyPriceScale, registerChartTypes } from './chart/chartStyleRender';
 import { SOURCES, cachedSymbols, getSource, loadSymbols } from './data/sources';
 import { SeriesFeeds } from './data/feeds';
 import { CSV_SOURCE_ID, csvStore } from './data/csv';
@@ -14,6 +16,7 @@ import { h, ICONS, isTypingTarget } from './ui/dom';
 import { createModal, promptText, topModal } from './ui/modal';
 import { createSymbolSearch } from './ui/symbolSearch';
 import { createIndicatorPanel, type ActiveIndicator } from './ui/indicatorPanel';
+import { createChartStyleControl } from './ui/chartStyleMenu';
 import { createFeatures, type Features } from './features';
 import { displayName } from './data/search';
 import { keyStore } from './data/keys';
@@ -90,6 +93,7 @@ export class App {
   private readonly symbolSearch;
   private readonly indicatorPanel;
   private readonly helpModal;
+  private readonly styleControl;
 
   constructor(
     private readonly root: HTMLElement,
@@ -117,11 +121,17 @@ export class App {
           : [],
     });
     this.helpModal = this.buildHelp();
+    this.styleControl = createChartStyleControl({
+      get: () => this.chartStyle(),
+      set: (change) => this.setChartStyle(change),
+      hint: 'Alt+C for the next type',
+    });
   }
 
   async start(): Promise<void> {
     registerCustomIndicators();
     registerCustomOverlays();
+    registerChartTypes();
     this.render();
     this.applyTheme(this.layout.theme, false);
 
@@ -130,6 +140,8 @@ export class App {
     this.chart = chart;
     this.chart.setStyles(chartStyles(this.layout.theme));
     this.chart.setOffsetRightDistance(60);
+    applyChartType(this.chart, this.chartStyle().type);
+    applyPriceScale(this.chart, this.chartStyle().scale);
 
     this.meta = await this.lookupMeta(this.layout.source, this.layout.symbol);
     this.chart.setSymbol(this.symbolInfo());
@@ -189,6 +201,7 @@ export class App {
       h('div', { class: 'brand', title: APP.tagline }, h('span', { html: ICONS.logo }), h('span', { class: 'brand-name' }, APP.name)),
       this.el.symbolBtn,
       this.el.timeframes,
+      this.styleControl.el,
       h(
         'button',
         { class: 'tb-btn', title: 'Indicators (/)', onclick: () => this.indicatorPanel.open() },
@@ -534,11 +547,30 @@ export class App {
     if (this.chart) {
       this.chart.setStyles(theme);
       this.chart.setStyles(chartStyles(theme));
+      applyChartType(this.chart, this.chartStyle().type);
     }
     if (persist) {
       this.layout = { ...this.layout, theme };
       this.persistLayout();
     }
+  }
+
+  // ---------------------------------------------------------------- chart type and scale
+
+  chartStyle(): ChartStyle {
+    return { type: this.layout.chartType ?? 'candles', scale: this.layout.scale ?? 'normal' };
+  }
+
+  /** Changes how bars are drawn and the price scale. Indicators, scripts and alerts keep reading the real bars. */
+  setChartStyle(change: Partial<ChartStyle>): ChartStyle {
+    const current = this.chartStyle();
+    const next = { ...current, ...change };
+    if (next.type !== current.type) applyChartType(this.chart, next.type);
+    if (next.scale !== current.scale) applyPriceScale(this.chart, next.scale);
+    this.layout = { ...this.layout, chartType: next.type, scale: next.scale };
+    this.persistLayout();
+    this.styleControl.refresh();
+    return next;
   }
 
   private refreshPriceFromChart(): void {
@@ -634,6 +666,12 @@ export class App {
           this.indicatorPanel.open();
           return;
         }
+        if (code === 'KeyC') {
+          e.preventDefault();
+          const { type } = this.setChartStyle({ type: nextChartType(this.chartStyle().type) });
+          this.toast(CHART_TYPE_LABELS[type]);
+          return;
+        }
         return;
       }
       if (e.ctrlKey || e.metaKey) return;
@@ -668,6 +706,7 @@ export class App {
       ['Alt+1 ... Alt+7', 'Timeframes 1m to 1W'],
       ...DRAWING_TOOLS.filter((t) => t.shortcut).map((t): [string, string] => [shortcutLabel(t.shortcut!), t.label]),
       ['Alt+M', 'Magnet on or off'],
+      ['Alt+C', 'Next chart type'],
       ['Delete / Backspace', 'Delete selected drawing'],
       ['Double click a note', 'Edit note text'],
       ['Esc', 'Cancel drawing or close dialog'],
@@ -688,6 +727,8 @@ export class App {
     (window as unknown as Record<string, unknown>)[APP.id] = {
       getState: () => ({
         ...this.layout,
+        chartType: this.chartStyle().type,
+        scale: this.chartStyle().scale,
         drawings: this.serializeDrawings(),
         bars: this.chart.getDataList().length,
         lastPrice: this.lastPrice,
@@ -699,6 +740,8 @@ export class App {
         this.setSymbol(sourceId, meta);
       },
       setTimeframe: (tf: TimeframeId) => this.setTimeframe(tf),
+      /** { type, scale }: type is candles, hollow_candles, bars, line, area or heikin_ashi; scale is normal, log or percent. */
+      setChartStyle: (style: { type?: unknown; scale?: unknown }) => this.setChartStyle(parseChartStyleChange(style ?? {})),
       addIndicator: (name: string, params?: number[]) => this.addIndicator(name, params),
       removeIndicator: (id: string) => this.removeIndicator(id),
       listIndicators: () => this.indicators.map((i) => ({ ...i })),
