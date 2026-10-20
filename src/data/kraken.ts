@@ -198,7 +198,8 @@ export class KrakenSource implements DataSource {
     return candles.slice(-limit);
   }
 
-  private async wsSymbolFor(symbol: string): Promise<string> {
+  /** The v2 websocket name of a pair, e.g. XBTUSD -> BTC/USD. */
+  async wsSymbolFor(symbol: string): Promise<string> {
     const known = this.wsNames.get(symbol);
     if (known) return known;
     const meta = await this.getSymbol(symbol);
