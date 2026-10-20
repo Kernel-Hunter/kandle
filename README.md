@@ -18,7 +18,7 @@ Claude Code, Codex, Cursor or Gemini CLI can read the chart, draw support and re
 ## Connect your agent in one line
 
 ```sh
-claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.6.0/kandle-mcp-0.6.0.tgz kandle-mcp
+claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.7.0/kandle-mcp-0.7.0.tgz kandle-mcp
 ```
 
 Then open Kandle, click **Agent**, paste the pairing code your agent gives you and turn on **Agent bridge**. Ask it something like "mark the last swing high and low on BTC and draw a Fibonacci retracement between them". Setup for other agents is [below](#use-it-with-your-ai-agent).
@@ -94,7 +94,7 @@ This works with the [hosted app](https://kernel-hunter.github.io/kandle/) and wi
 Claude Code:
 
 ```sh
-claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.6.0/kandle-mcp-0.6.0.tgz kandle-mcp
+claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.7.0/kandle-mcp-0.7.0.tgz kandle-mcp
 ```
 
 Codex (`~/.codex/config.toml`):
@@ -102,7 +102,7 @@ Codex (`~/.codex/config.toml`):
 ```toml
 [mcp_servers.kandle]
 command = "npx"
-args = ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.6.0/kandle-mcp-0.6.0.tgz", "kandle-mcp"]
+args = ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.7.0/kandle-mcp-0.7.0.tgz", "kandle-mcp"]
 ```
 
 Cursor (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project) and Gemini CLI (`~/.gemini/settings.json`):
@@ -112,13 +112,13 @@ Cursor (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project) and Gemini CLI 
   "mcpServers": {
     "kandle": {
       "command": "npx",
-      "args": ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.6.0/kandle-mcp-0.6.0.tgz", "kandle-mcp"]
+      "args": ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.7.0/kandle-mcp-0.7.0.tgz", "kandle-mcp"]
     }
   }
 }
 ```
 
-Claude Desktop: download [kandle-mcp-0.6.0.mcpb](https://github.com/Kernel-Hunter/kandle/releases/download/v0.6.0/kandle-mcp-0.6.0.mcpb) and open it to install the server.
+Claude Desktop: download [kandle-mcp-0.7.0.mcpb](https://github.com/Kernel-Hunter/kandle/releases/download/v0.7.0/kandle-mcp-0.7.0.mcpb) and open it to install the server.
 
 Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotocol.io/) as `io.github.Kernel-Hunter/kandle`, so clients that browse the registry can find it.
 

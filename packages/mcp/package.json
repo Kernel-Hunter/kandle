@@ -1,6 +1,6 @@
 {
   "name": "kandle-mcp",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "MCP server that lets AI agents read and draw on a running Kandle chart.",
   "license": "MIT",
   "type": "module",
