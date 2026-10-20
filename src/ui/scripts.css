@@ -32,3 +32,37 @@ select.param-input {
   color: var(--accent);
   border-color: var(--accent);
 }
+
+.strategy-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.strategy-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.strategy-settings-head .param-label {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.strategy-settings .param-row {
+  gap: 4px;
+}
+
+.strategy-settings .param-input[type='number'] {
+  width: 96px;
+}
+
+.param-changed .param-label {
+  color: var(--accent);
+}

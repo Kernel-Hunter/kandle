@@ -36,8 +36,11 @@ const ARG_NAMES: Record<string, keyof StrategyConfig> = {
   process_orders_on_close: 'processOrdersOnClose',
 };
 
-/** Checks one value against what the strategy() call accepts. Returns the value or an error message. */
-function checkValue(key: keyof StrategyConfig, name: string, v: unknown): { value: StrategyConfig[typeof key] } | { error: string } {
+/**
+ * Checks one value against what the strategy() call accepts. Returns the value, or an error
+ * message that calls the setting `name`.
+ */
+export function checkStrategySetting(key: keyof StrategyConfig, name: string, v: unknown): { value: StrategyConfig[typeof key] } | { error: string } {
   const isNumber = typeof v === 'number' && Number.isFinite(v);
   switch (key) {
     case 'initialCapital':
@@ -82,7 +85,7 @@ export function parseStrategyPatch(raw: unknown): { ok: true; patch: StrategyPat
       patch[key] = null;
       continue;
     }
-    const res = checkValue(key, name, v);
+    const res = checkStrategySetting(key, name, v);
     if ('error' in res) return { ok: false, error: res.error };
     patch[key] = res.value;
   }
@@ -96,7 +99,7 @@ export function sanitizeStrategyOverrides(raw: unknown): StrategyOverrides {
   for (const key of STRATEGY_KEYS) {
     const v = (raw as Record<string, unknown>)[key];
     if (v === undefined || v === null) continue;
-    const res = checkValue(key, key, v);
+    const res = checkStrategySetting(key, key, v);
     if ('value' in res) out[key] = res.value;
   }
   return out as StrategyOverrides;
