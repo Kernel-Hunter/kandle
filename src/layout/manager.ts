@@ -47,6 +47,8 @@ export class LayoutManager {
   private readonly listeners = new Set<() => void>();
   private syncingCrosshair = false;
   private readonly crosshairHandlers = new Map<number, (data?: unknown) => void>();
+  /** The pane the user last clicked or touched; the watchlist loads symbols into it. */
+  private focusedIndex = 1;
 
   constructor(private readonly options: LayoutManagerOptions) {
     this.config = loadConfig(options.storage);
@@ -55,6 +57,7 @@ export class LayoutManager {
     this.grid.append(options.mainWrap);
     options.mainWrap.classList.add('mc-main');
     options.mainWrap.addEventListener('mouseleave', () => this.clearCrosshairs(1));
+    options.mainWrap.addEventListener('pointerdown', () => this.focus(1), true);
 
     this.search = createSymbolSearch({
       storage: options.storage,
@@ -99,6 +102,26 @@ export class LayoutManager {
   pane(index: number): PaneHandle | null {
     if (index === 1) return this.options.main;
     return this.panes.find((p) => p.index === index) ?? null;
+  }
+
+  /** The focused pane: the one the user last clicked, pane 1 until then. */
+  focused(): PaneHandle {
+    return this.pane(this.focusedIndex) ?? this.options.main;
+  }
+
+  focus(index: number): void {
+    const target = this.pane(index) ? index : 1;
+    if (target === this.focusedIndex) return;
+    this.focusedIndex = target;
+    this.markFocus();
+    this.emit();
+  }
+
+  /** Outlines the focused pane when more than one chart is showing. */
+  private markFocus(): void {
+    const many = this.panes.length > 0;
+    this.options.mainWrap.classList.toggle('mc-focused', many && this.focusedIndex === 1);
+    for (const p of this.panes) p.el.classList.toggle('mc-focused', many && this.focusedIndex === p.index);
   }
 
   allPanes(): PaneHandle[] {
@@ -151,6 +174,7 @@ export class LayoutManager {
       this.panes.push(pane);
       this.grid.append(pane.el);
       pane.el.addEventListener('mouseleave', () => this.clearCrosshairs(pane.index));
+      pane.el.addEventListener('pointerdown', () => this.focus(pane.index), true);
       mounting.push(
         pane.mount().then(
           () => {
@@ -161,6 +185,8 @@ export class LayoutManager {
         ),
       );
     }
+    if (!this.pane(this.focusedIndex)) this.focusedIndex = 1;
+    this.markFocus();
     await Promise.all(mounting);
     // The engine watches its container size, but a nudge avoids one stale frame.
     requestAnimationFrame(() => {

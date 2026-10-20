@@ -84,6 +84,17 @@
 .mc-pane {
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+/* The pane the watchlist loads into, outlined when more than one chart is showing. */
+.chart-grid > .mc-focused::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border: 1px solid var(--accent);
+  pointer-events: none;
 }
 
 .mc-head {
