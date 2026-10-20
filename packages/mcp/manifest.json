@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "kandle-mcp",
   "display_name": "Kandle",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Lets an agent read and draw on a live Kandle chart for crypto, stocks and forex, run indicator and strategy scripts, and set alerts.",
   "long_description": "Kandle is an open-source charting app that runs in the browser. This server connects to an open Kandle tab over a WebSocket on 127.0.0.1, after you pair it with a code and turn on the Agent bridge in the app. Open the app at https://kernel-hunter.github.io/kandle/ or run it locally.",
   "author": {
