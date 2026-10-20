@@ -133,7 +133,7 @@ Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotoco
 | `set_alert`, `list_alerts`, `remove_alert` | Alerts on price, drawn lines and indicators |
 | `start_replay`, `step_replay`, `stop_replay` | Bar replay |
 | `set_layout` | 1, 2 or 4 charts, sync options, symbol and timeframe per chart |
-| `run_script` | Adds a Kandle script to the main chart and returns its id and latest plot values, or the error with line and column. For a strategy it also returns the backtest summary and the last 20 trades |
+| `run_script` | Adds a Kandle script to the main chart and returns its id, input values and latest plot values, or the error with line and column. `inputs` sets input values by title and `id` replaces a script added earlier. For a strategy it also returns the backtest summary and the last 20 trades |
 | `get_backtest` | Settings, summary and up to 500 trades of a strategy script on the chart |
 
 Most tools take an optional `pane` (1 to 4) when several charts are showing. Times can be ISO 8601 dates or Unix times in seconds or milliseconds. Inputs are validated and errors say what to fix.
@@ -240,8 +240,18 @@ plot(dailyEma, "Daily EMA", color.orange, 2, plot.style_stepline)
 
 - `symbol` is `syminfo.tickerid` (or `syminfo.ticker`) for the chart's symbol, or a symbol on the same data source such as `"ETHUSDT"` while you chart BTCUSDT on Binance. A prefix such as `"BINANCE:ETHUSDT"` picks that data source when Kandle has it and is ignored otherwise.
 - `timeframe` is `"1"`, `"5"`, `"15"`, `"60"`, `"240"`, `"D"` or `"W"` (`"1D"`, `"1W"`, `"1h"` and `"4h"` also work), or `timeframe.period` or `""` for the chart's own.
-- Symbol and timeframe must be constants: strings, or variables set once to a string. Kandle loads the data before the script runs, so anything else, inputs included, gives the error "request.security needs constant symbol and timeframe". A script can request up to 5 different symbol and timeframe pairs.
+- Symbol and timeframe must stay the same for the whole run, because Kandle loads the data before the script runs. They can be strings, inputs (`input.symbol`, `input.timeframe`, `input.string`), variables set once to one of these, or text joined from them such as `"BINANCE:" + sym`. Anything that can change from bar to bar, such as `close > open ? "ETHUSDT" : "SOLUSDT"`, gives the error "request.security needs constant symbol and timeframe". A script can request up to 5 different symbol and timeframe pairs; an input counts as one pair whatever it holds.
 - The expression runs on the requested bars with its own history, so `ta.ema(close, 20)` in a `"D"` request is a 20-day EMA. Variables, inputs and functions it uses are calculated again on the requested bars. Variables declared with `var`, variables changed with `:=`, function parameters and loop variables cannot be used in it. Tuples work: `[o, c] = request.security(syminfo.tickerid, "D", [open, close])`.
+
+Inputs let you pick the series in the **Indicators** dialog. Changing one runs the script again and loads the new series; series loaded before stay cached, so switching back is instant.
+
+```
+//@version=5
+indicator("HTF close", overlay = true)
+tf = input.timeframe("D", "Higher timeframe")
+sym = input.symbol("ETHUSDT", "Symbol")
+plot(request.security(sym, tf, close))
+```
 
 No lookahead by default. With `lookahead = barmerge.lookahead_off`, a chart bar gets the value of the last requested bar that had closed when the chart bar closed. On a 1H chart a daily value changes on the last hourly bar of each day, and the bars before it show the previous day. History never sees later data. Only the newest chart bar, while the current day is still forming, shows that day's value as it develops.
 
@@ -258,7 +268,7 @@ Requested series load through the chart's data source with the same caching and 
 - Data: `open`, `high`, `low`, `close`, `volume`, `hl2`, `hlc3`, `ohlc4`, `hlcc4`, `time`, `bar_index`, `last_bar_index`, `year`, `month`, `dayofmonth`, `dayofweek`, `hour`, `minute`, `barstate.*`, `syminfo.ticker`, `syminfo.mintick`, `timeframe.period`, `timeframe.change()`.
 - `ta.*`: `sma`, `ema`, `rma`, `wma`, `vwma`, `hma`, `rsi`, `macd`, `stoch`, `atr`, `tr`, `bb`, `bbw`, `kc`, `cci`, `mfi`, `obv`, `vwap` (with optional anchor and bands), `supertrend`, `dmi`, `wpr`, `change`, `mom`, `roc`, `highest`, `lowest`, `highestbars`, `lowestbars`, `crossover`, `crossunder`, `cross`, `rising`, `falling`, `stdev`, `variance`, `dev`, `cum`, `valuewhen`, `barssince`, `pivothigh`, `pivotlow`, `linreg`, `correlation`, `percentrank`, `median`.
 - `math.*`: `abs`, `max`, `min`, `avg`, `sum`, `round`, `floor`, `ceil`, `sqrt`, `pow`, `log`, `log10`, `exp`, `sign`, trigonometry, `pi` and `e`.
-- `input`, `input.int`, `input.float`, `input.bool`, `input.string` (with `options`), `input.source`, `input.color`, `input.price`.
+- `input`, `input.int`, `input.float`, `input.bool`, `input.string` (with `options`), `input.source`, `input.color`, `input.price`, `input.timeframe` (a dropdown of Kandle's timeframes, or its `options`, plus Chart, which follows the chart's timeframe) and `input.symbol` (a text field that suggests symbols from the chart's data source; empty follows the chart's symbol). `input.timeframe(timeframe.period)` and `input.symbol(syminfo.tickerid)` start out following the chart.
 - `color.*` constants, `color.new`, `color.rgb`, `color.from_gradient`, and `#RRGGBB` or `#RRGGBBAA` literals.
 - `str.tostring`, `str.format`, `str.length`, `str.contains`, `str.upper`, `str.lower` and a few more. `array.*` for float, int, bool, string and color arrays.
 - Other symbols and timeframes: `request.security` with `barmerge.gaps_on`, `gaps_off`, `lookahead_on` and `lookahead_off`. See [Other symbols and timeframes](#other-symbols-and-timeframes).
@@ -287,7 +297,6 @@ Click **Layout** to show 1 chart, 2 side by side or 4 in a grid. The first chart
 
 ## Roadmap
 
-- Inputs (`input.timeframe`, `input.symbol`) as `request.security` arguments.
 - Strategy settings in the Indicators dialog, `strategy.risk.*` and order groups (OCA).
 - Desktop app for macOS, Windows, and Linux.
 - Larger CSV imports stored in IndexedDB.

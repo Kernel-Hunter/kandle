@@ -88,7 +88,7 @@ plotshape(ta.crossover(fast, slow), "Up", shape.triangleup, location.belowbar, c
 
 ### 其他品种和周期
 
-`request.security(symbol, timeframe, expression)` 可以在更高或更低的周期上计算表达式，也可以读取同一数据源的其他品种，例如在 Binance 的 BTCUSDT 图上用 `request.security("ETHUSDT", "D", close)` 读取 ETH 的日线收盘价，或用 `request.security(syminfo.tickerid, "D", ta.ema(close, 20))` 得到日线 EMA。品种和周期必须是常量，每个脚本最多 5 组不同的品种和周期。默认不使用未来数据：每根 K 线只看到在它收盘时已经收盘的那根高周期 K 线，只有最新一根 K 线会显示当天正在形成的值；`lookahead = barmerge.lookahead_on` 会在历史上看到未来数据，`gaps = barmerge.gaps_on` 只在高周期 K 线收盘的那根 K 线上返回值。详见 [English README](README.md#other-symbols-and-timeframes)。
+`request.security(symbol, timeframe, expression)` 可以在更高或更低的周期上计算表达式，也可以读取同一数据源的其他品种，例如在 Binance 的 BTCUSDT 图上用 `request.security("ETHUSDT", "D", close)` 读取 ETH 的日线收盘价，或用 `request.security(syminfo.tickerid, "D", ta.ema(close, 20))` 得到日线 EMA。品种和周期在一次运行中必须保持不变：可以是字符串，也可以来自输入项 `input.symbol`、`input.timeframe` 或 `input.string`。`input.timeframe` 在 **Indicators** 对话框中显示为周期下拉框（选 Chart 即跟随图表周期），`input.symbol` 显示为品种输入框，会提示当前数据源的品种；修改后脚本会重新运行并加载新的数据。随 K 线变化的值（例如 `close > open ? "ETHUSDT" : "SOLUSDT"`）会报错。每个脚本最多 5 组不同的品种和周期，一个输入项无论取什么值都只算一组。默认不使用未来数据：每根 K 线只看到在它收盘时已经收盘的那根高周期 K 线，只有最新一根 K 线会显示当天正在形成的值；`lookahead = barmerge.lookahead_on` 会在历史上看到未来数据，`gaps = barmerge.gaps_on` 只在高周期 K 线收盘的那根 K 线上返回值。详见 [English README](README.md#other-symbols-and-timeframes)。
 
 支持的语法和函数列表见 [English README](README.md#what-is-supported)。除 `request.security` 外，其他 `request.*` 函数暂不支持。
 
