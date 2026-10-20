@@ -133,8 +133,8 @@ Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotoco
 | `set_alert`, `list_alerts`, `remove_alert` | Alerts on price, drawn lines and indicators |
 | `start_replay`, `step_replay`, `stop_replay` | Bar replay |
 | `set_layout` | 1, 2 or 4 charts, sync options, symbol and timeframe per chart |
-| `run_script` | Adds a Kandle script to the main chart and returns its id, input values and latest plot values, or the error with line and column. `inputs` sets input values by title and `id` replaces a script added earlier. For a strategy it also returns the backtest summary and the last 20 trades |
-| `get_backtest` | Settings, summary and up to 500 trades of a strategy script on the chart |
+| `run_script` | Adds a Kandle script to the main chart and returns its id, input values and latest plot values, or the error with line and column. `inputs` sets input values by title and `id` replaces a script added earlier. For a strategy it also returns the backtest summary and the last 20 trades, and `strategy` changes its backtest settings |
+| `get_backtest` | Settings (and which ones differ from the script), summary and up to 500 trades of a strategy script on the chart |
 
 Most tools take an optional `pane` (1 to 4) when several charts are showing. Times can be ISO 8601 dates or Unix times in seconds or milliseconds. Inputs are validated and errors say what to fix.
 
@@ -207,6 +207,8 @@ plot(fast, "Fast", color.orange)
 plot(slow, "Slow", color.blue)
 ```
 
+The values in the `strategy()` call are the script's defaults. To try others without editing the code, open the **Indicators** dialog: a strategy has a **Backtest settings** group under its inputs with initial capital, order size and its type, commission and its type, slippage in ticks, pyramiding, and filling market orders on the bar close. A change runs the backtest again, and the trades on the chart and the **Strategy** tab follow. Changed settings are highlighted and saved with the layout like input values, and **Reset** goes back to the values in the script.
+
 How orders fill:
 
 - The script runs once at the close of each bar. An order placed on a bar fills on a later bar: a market order at the next open, a limit or stop order when a bar's range reaches its price. With `process_orders_on_close = true`, market orders fill at the close of the bar that placed them.
@@ -222,7 +224,7 @@ How the figures are measured: max drawdown is the largest fall of bar-close equi
 
 Supported: `strategy()` with `initial_capital` (default 100000), `default_qty_type` (`strategy.fixed`, `strategy.cash`, `strategy.percent_of_equity`), `default_qty_value`, `commission_type` (`strategy.commission.percent`, `cash_per_contract`, `cash_per_order`), `commission_value`, `slippage`, `pyramiding` and `process_orders_on_close`. Orders: `strategy.entry`, `strategy.order`, `strategy.exit` (`profit`, `limit`, `loss`, `stop`, `trail_price` or `trail_points` with `trail_offset`, `qty`, `qty_percent`, `comment_profit`, `comment_loss`, `comment_trailing`), `strategy.close` (with `qty`, `qty_percent` and `immediately`), `strategy.close_all`, `strategy.cancel` and `strategy.cancel_all`, with `strategy.long` and `strategy.short`. State: `strategy.position_size`, `position_avg_price`, `equity`, `netprofit`, `openprofit`, `grossprofit`, `grossloss`, `max_drawdown`, `closedtrades`, `opentrades`, `wintrades`, `losstrades`, `eventrades`, `initial_capital`, and per-trade values such as `strategy.closedtrades.profit(i)` and `strategy.opentrades.entry_price(i)`. `currency` and `calc_on_every_tick` are accepted and ignored; OCA group arguments are accepted and not modelled.
 
-Agents get the same results: `run_script` returns the backtest summary and the last 20 trades of a strategy, and `get_backtest` returns up to 500 trades.
+Agents get the same results: `run_script` returns the backtest summary and the last 20 trades of a strategy, and `get_backtest` returns up to 500 trades. `run_script` also takes `strategy`, backtest settings named like the `strategy()` arguments, such as `{"initial_capital": 5000, "commission_value": 0.1}`; `null` puts a setting back to the script's value, and with `id` it reruns a strategy already on the chart. In the page, `window.kandle.setStrategySettings(id, settings)` does the same for a script on the chart, `listScripts()` shows each strategy's own settings and the ones in use, and `getBacktest()` lists the settings that differ in `changedSettings`.
 
 ![A Donchian breakout strategy on BTC/USDT with its trades on the chart and the Strategy tab open](docs/screenshot-strategy.png)
 
@@ -297,7 +299,7 @@ Click **Layout** to show 1 chart, 2 side by side or 4 in a grid. The first chart
 
 ## Roadmap
 
-- Strategy settings in the Indicators dialog, `strategy.risk.*` and order groups (OCA).
+- `strategy.risk.*` and order groups (OCA).
 - Desktop app for macOS, Windows, and Linux.
 - Larger CSV imports stored in IndexedDB.
 
