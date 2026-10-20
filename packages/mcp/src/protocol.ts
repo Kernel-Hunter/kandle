@@ -60,6 +60,7 @@ export const BRIDGE_METHODS = [
   'step_replay',
   'stop_replay',
   'set_layout',
+  'set_chart_style',
 ] as const;
 
 export type BridgeMethod = (typeof BRIDGE_METHODS)[number];

@@ -26,6 +26,8 @@ describe('tool schemas', () => {
     expect(schemas.get_backtest.parse({ id: 's1', trades: 0 })).toEqual({ id: 's1', trades: 0 });
     const inputs = { Symbol: 'BINANCE:SOLUSDT', 'Higher timeframe': '240', Length: 20, Show: true };
     expect(schemas.run_script.parse({ code: 'plot(close)', id: 's1', inputs })).toEqual({ code: 'plot(close)', id: 's1', inputs });
+    expect(schemas.set_chart_style.parse({ type: 'heikin_ashi', scale: 'log', pane: 2 })).toEqual({ type: 'heikin_ashi', scale: 'log', pane: 2 });
+    expect(schemas.set_chart_style.parse({ scale: 'percent' })).toEqual({ scale: 'percent' });
   });
 
   it('rejects bad input with field errors', () => {
@@ -45,6 +47,9 @@ describe('tool schemas', () => {
     expect(schemas.get_backtest.safeParse({ trades: 2.5 }).success).toBe(false);
     expect(schemas.run_script.safeParse({ code: 'plot(close)', inputs: { Symbol: ['ETHUSDT'] } }).success).toBe(false);
     expect(schemas.run_script.safeParse({ code: 'plot(close)', inputs: { Length: Number.NaN } }).success).toBe(false);
+    expect(schemas.set_chart_style.safeParse({ type: 'renko' }).success).toBe(false);
+    expect(schemas.set_chart_style.safeParse({ scale: 'logarithmic' }).success).toBe(false);
+    expect(schemas.set_chart_style.safeParse({ type: 'line', pane: 0 }).success).toBe(false);
   });
 });
 
@@ -117,6 +122,8 @@ describe('argument preparation', () => {
     expect(() => prepareArgs('set_alert', { type: 'drawing' })).toThrow(/drawing_id/);
     expect(() => prepareArgs('set_alert', { type: 'indicator', level: 1 })).toThrow(/indicator_id/);
     expect(() => prepareArgs('start_replay', { start_time: 1, bars_back: 5 })).toThrow(/not both/);
+    expect(() => prepareArgs('set_chart_style', { pane: 2 })).toThrow(/type, a scale or both/);
+    expect(prepareArgs('set_chart_style', { scale: 'log' })).toEqual({ scale: 'log' });
   });
 
   it('converts times and trims extra points', () => {
@@ -216,6 +223,17 @@ describe('MCP server', () => {
     const bad = await client.callTool({ name: 'run_script', arguments: { code: 'strategy("s")', strategy: { initial_capital: 0 } } });
     expect(bad.isError).toBe(true);
     expect(JSON.stringify(bad.content)).toContain('initial_capital must be more than 0');
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards chart style changes and refuses empty ones', async () => {
+    const { bridge, request } = fakeBridge(true, (_m, p) => ({ echo: p }));
+    const client = await connect(bridge);
+    await client.callTool({ name: 'set_chart_style', arguments: { type: 'bars', pane: 3 } });
+    expect(request).toHaveBeenCalledWith('set_chart_style', { type: 'bars', pane: 3 }, undefined);
+    const empty = await client.callTool({ name: 'set_chart_style', arguments: {} });
+    expect(empty.isError).toBe(true);
+    expect(JSON.stringify(empty.content)).toContain('Give a type, a scale or both');
     expect(request).toHaveBeenCalledTimes(1);
   });
 

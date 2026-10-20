@@ -77,3 +77,5 @@ Use replay to walk through history without seeing the future, for example to che
 ## Several charts
 
 `set_layout` with `charts` 2 or 4 shows more charts; give `panes` a symbol and timeframe each, for example the same symbol on 1D, 4H, 1H and 15m. Pass `pane` to `get_chart_state`, `get_candles`, `add_indicator`, `screenshot` and the other pane tools. Drawings, alerts and replay apply to pane 1.
+
+`set_chart_style` changes how a pane draws its bars (`candles`, `hollow_candles`, `bars`, `line`, `area`, `heikin_ashi`) and its price scale (`normal`, `log`, `percent`). Use `log` for long histories. In `heikin_ashi` the screen shows averaged bars, but `get_candles`, indicator values and alerts are still the real OHLC, so quote those.

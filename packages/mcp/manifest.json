@@ -111,6 +111,10 @@
     {
       "name": "set_layout",
       "description": "Shows 1, 2 (side by side) or 4 (grid) charts. Each pane has its own symbol, timeframe and indicators; crosshair, timeframe and symbol can be synced."
+    },
+    {
+      "name": "set_chart_style",
+      "description": "Changes how a chart draws its bars (candles, hollow_candles, bars, line, area or heikin_ashi) and its price scale (normal, log or percent). Data from the other tools stays the real OHLC."
     }
   ],
   "keywords": [

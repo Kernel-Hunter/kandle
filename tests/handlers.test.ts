@@ -3,6 +3,7 @@ import type { KLineData } from 'klinecharts';
 import { createHandlers, dispatch, type ChartLike, type HostEnv, type PaneLike } from '../src/agent/handlers';
 import { resolveSymbol } from '../src/agent/symbols';
 import { AlertEngine } from '../src/alerts/engine';
+import type { ChartStyle } from '../src/chart/chartStyle';
 import type { TimeframeId } from '../src/data/timeframes';
 import type { SymbolMeta } from '../src/data/types';
 import { MemoryStorage } from '../src/store/layout';
@@ -34,6 +35,7 @@ function mockPane(index = 1) {
   const indicators = [{ id: 'RSI_1', name: 'RSI', pane: 'sub' as const, params: [14] }];
   let info: { source: string; symbol: string; timeframe: TimeframeId } = { source: 'binance', symbol: 'BTCUSDT', timeframe: '1h' };
   let loaded: (() => void) | null = null;
+  let style: ChartStyle = { type: 'candles', scale: 'normal' };
   const chart = {
     getDataList: () => bars,
     getSymbol: () => ({ ticker: info.symbol, pricePrecision: 2, volumePrecision: 4 }),
@@ -69,6 +71,8 @@ function mockPane(index = 1) {
       if (i >= 0) indicators.splice(i, 1);
     }),
     indicators: () => indicators.map((i) => ({ ...i })),
+    chartStyle: () => style,
+    setChartStyle: vi.fn((change: Partial<ChartStyle>) => (style = { ...style, ...change })),
     loader: () => ({
       nextLoad: () =>
         new Promise<number>((resolve) => {
@@ -338,6 +342,34 @@ describe('bridge handlers', () => {
     expect(second.pane.info()).toEqual({ source: 'binance', symbol: 'ETHUSDT', timeframe: '4h' });
     expect((await call(handlers, 'get_chart_state', { pane: 2 })).drawings).toBeUndefined();
     await expect(call(handlers, 'set_layout', { charts: 3 })).rejects.toThrow(/1, 2 or 4/);
+  });
+
+  it('sets the chart type and scale per pane and keeps the data real', async () => {
+    const second = mockPane(2);
+    const { handlers, main } = setup({ pane: (i) => (i === 1 ? main.pane : i === 2 ? second.pane : null) });
+    expect(await call(handlers, 'get_chart_state')).toMatchObject({ chart_type: 'candles', price_scale: 'normal' });
+
+    const res = await call(handlers, 'set_chart_style', { type: 'heikin_ashi' });
+    expect(res).toMatchObject({ pane: 1, chart_type: 'heikin_ashi', price_scale: 'normal' });
+    expect(res.note).toMatch(/real OHLC/);
+    expect(main.pane.setChartStyle).toHaveBeenCalledWith({ type: 'heikin_ashi' });
+    // get_candles still returns the bars the chart holds, not averaged ones.
+    const candles = await call(handlers, 'get_candles', { limit: 2 });
+    expect(candles.rows[1]).toEqual([new Date(bars[49].timestamp).toISOString(), 149, 151, 148, 150, 5]);
+    expect(candles.note).toMatch(/Heikin Ashi/);
+
+    await call(handlers, 'set_chart_style', { scale: 'log', pane: 2 });
+    expect(await call(handlers, 'get_chart_state', { pane: 2 })).toMatchObject({ chart_type: 'candles', price_scale: 'log' });
+    expect(await call(handlers, 'get_chart_state')).toMatchObject({ chart_type: 'heikin_ashi', price_scale: 'normal' });
+  });
+
+  it('rejects unknown chart types and scales', async () => {
+    const { handlers, main } = setup();
+    await expect(call(handlers, 'set_chart_style', { type: 'renko' })).rejects.toThrow('Unknown chart type renko. Use one of candles, hollow_candles, bars, line, area, heikin_ashi.');
+    await expect(call(handlers, 'set_chart_style', { scale: 'logarithmic' })).rejects.toThrow(/Unknown scale logarithmic/);
+    await expect(call(handlers, 'set_chart_style', {})).rejects.toThrow(/chart type, a scale or both/);
+    await expect(call(handlers, 'set_chart_style', { type: 'line', pane: 3 })).rejects.toThrow(/Chart 3 is not showing/);
+    expect(main.pane.setChartStyle).not.toHaveBeenCalled();
   });
 
   it('turns unknown methods and thrown errors into messages', async () => {

@@ -4,12 +4,14 @@ import {
   CHART_TYPES,
   DEFAULT_CHART_STYLE,
   HeikinAshiSeries,
+  PRICE_SCALES,
   heikinAshi,
   nextChartType,
   parseChartStyleChange,
 } from '../src/chart/chartStyle';
 import { loadConfig, sanitizeConfig, saveConfig, defaultConfig } from '../src/layout/config';
 import { LayoutStore, MemoryStorage, sanitizeLayout } from '../src/store/layout';
+import { CHART_TYPES as MCP_CHART_TYPES, PRICE_SCALES as MCP_PRICE_SCALES } from '../packages/mcp/src/tools';
 
 const H = 3_600_000;
 const T0 = Date.UTC(2026, 9, 1);
@@ -114,6 +116,11 @@ describe('chart style values', () => {
     expect(() => parseChartStyleChange({ type: 'Candles' })).toThrow('Unknown chart type Candles. Use one of candles, hollow_candles, bars, line, area, heikin_ashi.');
     expect(() => parseChartStyleChange({ scale: 2 })).toThrow('Unknown scale 2. Use one of normal, log, percent.');
     expect(() => parseChartStyleChange({})).toThrow('Give a chart type, a scale or both');
+  });
+
+  it('match the values the MCP server accepts', () => {
+    expect(MCP_CHART_TYPES).toEqual(CHART_TYPES);
+    expect(MCP_PRICE_SCALES).toEqual(PRICE_SCALES);
   });
 });
 

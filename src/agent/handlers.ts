@@ -1,6 +1,7 @@
 import type { Chart, KLineData } from 'klinecharts';
 import type { BridgeMethod } from '../../packages/mcp/src/protocol';
 import { describeAlert, LINE_OVERLAYS, lineValueAt, type Alert, type AlertCondition, type AlertEngine, type LineGeometry, type NewAlert } from '../alerts/engine';
+import { parseChartStyleChange, type ChartStyle } from '../chart/chartStyle';
 import { INDICATORS, getIndicatorDef } from '../chart/indicators';
 import { isTimeframeId, type TimeframeId } from '../data/timeframes';
 import type { Candle, SymbolMeta } from '../data/types';
@@ -28,6 +29,9 @@ export interface PaneLike {
   loader(): { nextLoad(timeoutMs?: number): Promise<number> };
   /** Timeframes the current symbol can be shown in; imported CSV data only goes up from its own. */
   timeframes?(): readonly TimeframeId[];
+  /** Chart type and price scale; only how the bars are drawn, never the data. */
+  chartStyle?(): ChartStyle;
+  setChartStyle?(change: Partial<ChartStyle>): ChartStyle;
 }
 
 export interface ReplayLike {
@@ -217,6 +221,8 @@ function snapTime(bars: readonly KLineData[], time: number): number {
 
 const settleDefault = () => new Promise<void>((r) => setTimeout(r, 60));
 
+const HEIKIN_ASHI_NOTE = 'The chart draws Heikin Ashi bars. Candles, indicators, scripts and alerts use the real OHLC.';
+
 // ---------------------------------------------------------------- handlers
 
 export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
@@ -284,6 +290,11 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
       visible_range: from && to ? { from: iso(from.timestamp), to: iso(to.timestamp) } : null,
       indicators: reportIndicators(pane),
     };
+    const style = pane.chartStyle?.();
+    if (style) {
+      state.chart_type = style.type;
+      state.price_scale = style.scale;
+    }
     if (pane.index === 1) {
       state.drawings = reportDrawings(chart);
       state.alerts = env.alerts
@@ -366,7 +377,10 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
         columns: ['time', 'open', 'high', 'low', 'close', 'volume'],
         rows: rows.map((r) => candleRow(r.bar)),
       };
-      if (env.replay.active && pane.index === 1) result.note = 'Bar replay is on; bars after the replay cursor are hidden.';
+      const notes: string[] = [];
+      if (env.replay.active && pane.index === 1) notes.push('Bar replay is on; bars after the replay cursor are hidden.');
+      if (pane.chartStyle?.().type === 'heikin_ashi') notes.push(HEIKIN_ASHI_NOTE);
+      if (notes.length) result.note = notes.join(' ');
       if (withIndicators) {
         result.indicators = pane.indicators().map((ind) => {
           const { lines, result: values } = indicatorLines(chart, ind.id);
@@ -627,6 +641,14 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
         }
       }
       return layout.state();
+    },
+
+    set_chart_style: async (params) => {
+      const pane = paneOf(params);
+      const change = parseChartStyleChange({ type: params.type, scale: params.scale });
+      if (!pane.setChartStyle) throw new Error('Chart types are not available in this build of Kandle');
+      const style = pane.setChartStyle(change);
+      return { pane: pane.index, chart_type: style.type, price_scale: style.scale, ...(style.type === 'heikin_ashi' ? { note: HEIKIN_ASHI_NOTE } : {}) };
     },
   };
   return handlers;

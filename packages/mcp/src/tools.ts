@@ -28,6 +28,10 @@ export const EXCHANGES = ['binance', 'coinbase', 'bybit', 'okx', 'kraken', 'twel
 
 export const ALERT_CONDITIONS = ['crosses', 'crosses_up', 'crosses_down', 'touches'] as const;
 
+/** Chart types and price scales, matching src/chart/chartStyle.ts. */
+export const CHART_TYPES = ['candles', 'hollow_candles', 'bars', 'line', 'area', 'heikin_ashi'] as const;
+export const PRICE_SCALES = ['normal', 'log', 'percent'] as const;
+
 /** Order size and commission types of strategy(), matching src/script/strategySettings.ts. */
 export const QTY_TYPES = ['fixed', 'cash', 'percent_of_equity'] as const;
 export const COMMISSION_TYPES = ['percent', 'cash_per_contract', 'cash_per_order'] as const;
@@ -158,6 +162,14 @@ export const schemas = {
       .optional()
       .describe('Optional symbol and timeframe per pane, in reading order'),
   }),
+  set_chart_style: z.object({
+    type: z
+      .enum(CHART_TYPES)
+      .optional()
+      .describe('How bars are drawn. heikin_ashi only changes the picture: get_candles, indicators, scripts and alerts keep using the real OHLC.'),
+    scale: z.enum(PRICE_SCALES).optional().describe('Price axis: normal, log (logarithmic) or percent (change from the first bar on screen)'),
+    pane,
+  }),
 } as const;
 
 export type ToolName = keyof typeof schemas;
@@ -256,6 +268,13 @@ export const TOOLS: readonly ToolDef[] = [
     method: 'set_layout',
     timeoutMs: 30_000,
   },
+  {
+    name: 'set_chart_style',
+    title: 'Set chart style',
+    description:
+      'Changes how a chart draws its bars (candles, hollow_candles, bars, line, area or heikin_ashi) and its price scale (normal, log or percent). Data from the other tools stays the real OHLC.',
+    method: 'set_chart_style',
+  },
 ];
 
 /** Accepts milliseconds, seconds or a date string and returns milliseconds. */
@@ -334,6 +353,9 @@ export function prepareArgs(name: ToolName, args: Record<string, unknown>): Reco
     }
     case 'start_replay':
       if (out.start_time !== undefined && out.bars_back !== undefined) throw new Error('Give start_time or bars_back, not both');
+      break;
+    case 'set_chart_style':
+      if (out.type === undefined && out.scale === undefined) throw new Error('Give a type, a scale or both');
       break;
     case 'set_layout':
       if (Array.isArray(out.panes)) {
