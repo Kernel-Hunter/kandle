@@ -45,6 +45,7 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 - Alerts on price levels, drawn lines and indicator values, with browser notifications.
 - Bar replay to step through history one candle at a time.
 - 1, 2 or 4 charts on screen, each with its own symbol, timeframe and indicators.
+- A watchlist next to the charts with live prices and 24 hour change for crypto, and the change since the previous close for stocks and forex. Click a symbol to open it.
 - An MCP server so AI agents can read the chart, draw on it, set alerts and take screenshots.
 - Works on desktop and tablet screens.
 
@@ -72,6 +73,7 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 | `Delete` | Delete the selected drawing |
 | `Esc` | Cancel the current drawing or close a dialog |
 | `Alt+L` | Switch between light and dark |
+| `Alt+W` | Show or hide the watchlist |
 
 ## Use it with your AI agent
 
@@ -136,6 +138,7 @@ Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotoco
 | `start_replay`, `step_replay`, `stop_replay` | Bar replay |
 | `set_layout` | 1, 2 or 4 charts, sync options, symbol and timeframe per chart |
 | `set_chart_style` | Chart type (candles, hollow candles, bars, line, area, Heikin Ashi) and price scale (normal, log, percent) of a chart |
+| `get_watchlist`, `add_to_watchlist`, `remove_from_watchlist` | Watchlist symbols with last price, change and change percent, and adding or removing them |
 | `run_script` | Adds a Kandle script to the main chart and returns its id, input values and latest plot values, or the error with line and column. `inputs` sets input values by title and `id` replaces a script added earlier. For a strategy it also returns the backtest summary and the last 20 trades, and `strategy` changes its backtest settings |
 | `get_backtest` | Settings (and which ones differ from the script), summary and up to 500 trades of a strategy script on the chart |
 
@@ -152,7 +155,7 @@ Most tools take an optional `pane` (1 to 4) when several charts are showing. Tim
 - Every connection must send the pairing code first. The code has about 59 bits of randomness, is compared in constant time, and the server stops accepting codes for a minute after 5 wrong ones.
 - The server rejects WebSocket connections from web pages that are not served from `localhost`, `127.0.0.1` or `[::1]`, so a website you visit cannot connect even if it guesses the port. The hosted app at `https://kernel-hunter.github.io` is also allowed. Add other origins, such as your own hosted copy, with `KANDLE_ALLOWED_ORIGINS`.
 - The server rejects requests whose `Host` header is not a loopback address, which blocks DNS rebinding.
-- The agent can only do what the tools allow: read chart data, change symbols, chart types, indicators, drawings, alerts, replay and layout, and take screenshots of the chart. It cannot read other tabs, your files or your browser storage.
+- The agent can only do what the tools allow: read chart data, change symbols, chart types, indicators, drawings, alerts, replay, layout and the watchlist, and take screenshots of the chart. It cannot read other tabs, your files or your browser storage.
 - Only one Kandle tab is connected at a time. A newer tab takes over and the older one shows that it was replaced.
 - Programs running as your user on the same computer can read `~/.kandle/bridge-token`. That is the same trust level as the agent itself.
 
@@ -300,6 +303,18 @@ Click **Replay**, then click a bar on the main chart. Every bar after it is hidd
 
 Click **Layout** to show 1 chart, 2 side by side or 4 in a grid. The first chart is the main one and uses the top bar and drawing tools. The others each have their own symbol, timeframe, chart type and indicators in a small header. Turn on sync to keep the crosshair, the timeframe or the symbol the same across charts. The layout and each chart's settings are saved in your browser.
 
+## Watchlist
+
+Click **Watchlist** (or press `Alt+W`) to show the list on the right of the charts. Click a symbol to load it into the chart you last clicked, which has a blue outline when several charts are showing. The **+** button adds the symbol of that chart and the search button finds any symbol on any source. Drag a row by its handle to reorder it, or focus it and press `Alt+Up` or `Alt+Down`; `Delete` removes it. The first time you open Kandle the list has BTCUSDT, ETHUSDT and SOLUSDT on Binance.
+
+Each row keeps its own data source, and the change it shows depends on that source:
+
+- Binance, Coinbase, Bybit, OKX and Kraken: the last trade and the change over the last 24 hours (a rolling window, not since midnight), streamed live. Kandle opens one websocket per exchange for all of its symbols.
+- Twelve Data, Alpaca and Polygon: the change since the previous daily close. Kandle reads the last two daily bars every 10 minutes on Twelve Data, every 2 minutes on Alpaca and every 30 minutes on Polygon, one request at a time, to stay within the free plans. When a chart on screen shows the same symbol, the row follows that chart's live price.
+- CSV: the last close of the imported data against the bar before it.
+
+Prices only update while the watchlist is showing. When you hide it, or leave the tab in the background for a minute, Kandle closes the connections and opens them again when you come back. On a phone the list opens over the chart from the list button at the bottom of the drawing toolbar. The list and whether it is showing are saved in your browser.
+
 ## Roadmap
 
 - `strategy.risk.*` and order groups (OCA).
@@ -346,6 +361,7 @@ src/
   alerts/            alert evaluation, notifications, alert manager
   replay/            bar replay and the data loader it sits behind
   layout/            multi-chart layouts
+  watchlist/         watchlist panel, quotes and their persistence
   features/          connects the above to the app
 packages/mcp/        kandle-mcp, the MCP server
 skills/kandle/       agent skill for chart analysis
