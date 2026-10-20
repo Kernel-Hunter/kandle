@@ -739,7 +739,10 @@ export class App {
         if (!meta) throw new Error(`Unknown symbol ${symbol}`);
         this.setSymbol(sourceId, meta);
       },
-      setTimeframe: (tf: TimeframeId) => this.setTimeframe(tf),
+      setTimeframe: (tf: TimeframeId) => {
+        if (!getTimeframe(tf)) throw new Error(`Unknown timeframe ${tf}. Use one of ${TIMEFRAMES.map((t) => t.id).join(', ')}`);
+        this.setTimeframe(tf);
+      },
       /** { type, scale }: type is candles, hollow_candles, bars, line, area or heikin_ashi; scale is normal, log or percent. */
       setChartStyle: (style: { type?: unknown; scale?: unknown }) => this.setChartStyle(parseChartStyleChange(style ?? {})),
       addIndicator: (name: string, params?: number[]) => this.addIndicator(name, params),
