@@ -12,7 +12,8 @@ import { ScriptError, type Span } from './errors';
 import { PLOT_PALETTE, SHAPE_SIZES, emptyOutputs, type BarColorOutput, type FillOutput, type HlineOutput, type Outputs, type PlotOutput, type ShapeOutput } from './outputs';
 import { Frame, Runtime, SLOT_PLAIN, SLOT_VAR, SLOT_VARIP, type FrameLayout } from './runtime';
 import { MAX_REQUESTS, NEEDS_CONSTANT, SecuritySite, parseRequestSymbol, requestTimeframe, timeframeMessage, type InputArg, type InputArgs, type SecurityRequest } from './security';
-import { Broker, DEFAULT_STRATEGY, type CommissionType, type QtyType, type StrategyConfig } from './strategy';
+import { Broker, DEFAULT_STRATEGY, type StrategyConfig } from './strategy';
+import { COMMISSION_TYPES, QTY_TYPES } from './strategySettings';
 import { Color, PlotHandle, ScriptArray, Tuple, isNa, truthy, valuesEqual, typeName } from './values';
 
 export type InputType = 'int' | 'float' | 'bool' | 'string' | 'source' | 'color' | 'timeframe' | 'symbol';
@@ -221,9 +222,6 @@ const STRATEGY_PARAMS = [
   'dynamic_requests',
   'behind_chart',
 ];
-
-const QTY_TYPES: readonly QtyType[] = ['fixed', 'cash', 'percent_of_equity'];
-const COMMISSION_TYPES: readonly CommissionType[] = ['percent', 'cash_per_contract', 'cash_per_order'];
 
 const UNSUPPORTED_CALLS = new Set(['plotcandle', 'plotbar', 'plotarrow', 'study', 'library', 'max_bars_back', 'alert', 'runtime.error']);
 

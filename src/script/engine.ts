@@ -5,7 +5,8 @@ import { parse } from './parser';
 import { Frame, type Candle, type Runtime, type SymbolContext } from './runtime';
 import { chartTimeframe, periodOf, requestKey, requestTimeframe, resampleBars, type RequestFeeds, type ResolvedRequest, type SecuritySite } from './security';
 import { TIMEFRAMES, getTimeframe } from '../data/timeframes';
-import type { StrategyReport } from './strategy';
+import type { StrategyConfig, StrategyReport } from './strategy';
+import { applyStrategyPatch, type StrategyOverrides, type StrategyPatch } from './strategySettings';
 import { Color } from './values';
 
 export type { Candle, SymbolContext } from './runtime';
@@ -106,6 +107,8 @@ export class ScriptEngine {
   private needsFull = true;
   private values: InputValue[];
   private report: StrategyReport | null = null;
+  /** Backtest settings that replace the strategy() call's. */
+  private overrides: StrategyOverrides = {};
   private feeds: RequestFeeds | null = null;
   /** Counts runs, so request.security on the chart's own bars always reruns its tail. */
   private runCount = 0;
@@ -199,6 +202,36 @@ export class ScriptEngine {
     if (!rt.strategy) return null;
     this.report ??= rt.strategy.report(rt.time, rt.close, rt.symbol.periodSeconds);
     return this.report;
+  }
+
+  /** Backtest settings from the strategy() call, or null for indicators. */
+  get strategyDefaults(): StrategyConfig | null {
+    const config = this.compiled.meta.strategy;
+    return config ? { ...config } : null;
+  }
+
+  /** The settings the backtest runs with: the strategy() call's, with the overrides applied. */
+  get strategySettings(): StrategyConfig | null {
+    const broker = this.compiled.rt.strategy;
+    return broker ? { ...broker.config } : null;
+  }
+
+  /** Settings that differ from the strategy() call, ready to store. */
+  strategyOverrides(): StrategyOverrides {
+    return { ...this.overrides };
+  }
+
+  /**
+   * Changes backtest settings. Keys missing from `patch` keep their value; null puts a
+   * setting back to the strategy() call's value. Does nothing for indicators.
+   */
+  setStrategySettings(patch: StrategyPatch): void {
+    const defaults = this.compiled.meta.strategy;
+    const broker = this.compiled.rt.strategy;
+    if (!defaults || !broker) return;
+    this.overrides = applyStrategyPatch(defaults, this.overrides, patch);
+    broker.config = { ...defaults, ...this.overrides };
+    this.needsFull = true;
   }
 
   /** Values keyed by input key, ready to store. */

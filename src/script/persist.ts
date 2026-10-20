@@ -1,11 +1,14 @@
 /** Saved form of scripts. Kept free of chart imports so the layout store can use it anywhere. */
 import type { InputValue } from './compiler';
+import { sanitizeStrategyOverrides, type StrategyOverrides } from './strategySettings';
 
 /** What the saved layout keeps for each script. */
 export interface ScriptRecord {
   id: string;
   source: string;
   inputs: Record<string, InputValue>;
+  /** Backtest settings changed from the strategy() call; left out when there are none. */
+  strategy?: StrategyOverrides;
 }
 
 export const MAX_SCRIPT_LENGTH = 100_000;
@@ -26,7 +29,10 @@ export function sanitizeScripts(raw: unknown): ScriptRecord[] {
         if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'string') inputs[k] = v;
       }
     }
-    out.push({ id: r.id, source: r.source, inputs });
+    const record: ScriptRecord = { id: r.id, source: r.source, inputs };
+    const strategy = sanitizeStrategyOverrides(r.strategy);
+    if (Object.keys(strategy).length > 0) record.strategy = strategy;
+    out.push(record);
   }
   return out;
 }

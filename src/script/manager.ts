@@ -8,6 +8,8 @@ import type { ScriptError } from './errors';
 import { registerScriptIndicator, scriptIndicator, tradesIndicator, SCRIPT_INDICATOR } from './render';
 import { backtestSummary, type BacktestJson } from './backtestJson';
 import { MAX_SCRIPTS, MAX_SCRIPT_LENGTH, type ScriptRecord } from './persist';
+import type { StrategyConfig } from './strategy';
+import { STRATEGY_KEYS, parseStrategyPatch, type StrategyOverrides, type StrategyPatch } from './strategySettings';
 
 export { sanitizeScripts, MAX_SCRIPTS, MAX_SCRIPT_LENGTH, type ScriptRecord } from './persist';
 
@@ -39,6 +41,10 @@ export interface ScriptInfo {
   plots: string[];
   /** Declared with strategy(), so it has backtest results. */
   strategy: boolean;
+  /** Backtest settings from the strategy() call; null for indicators. */
+  strategyDefaults: StrategyConfig | null;
+  /** Backtest settings in use: the strategy() call's with changes from the dialog or automation. */
+  strategySettings: StrategyConfig | null;
   error: string | null;
   /** Milliseconds of the last full run. */
   lastRunMs: number | null;
@@ -84,6 +90,13 @@ export function errorInfo(e: ScriptError): ScriptErrorInfo {
 
 function failure(e: ScriptError): RunScriptResult {
   return { ok: false, error: e.format(), detail: errorInfo(e) };
+}
+
+const NOT_A_STRATEGY = 'Strategy settings only apply to scripts declared with strategy()';
+
+/** Keys of the settings that differ from the strategy() call. */
+function changedSettings(overrides: StrategyOverrides): string[] {
+  return STRATEGY_KEYS.filter((k) => k in overrides);
 }
 
 let counter = 0;
@@ -147,7 +160,12 @@ export class ScriptManager {
   }
 
   records(): ScriptRecord[] {
-    return this.items.map((i) => ({ id: i.id, source: i.engine.source, inputs: i.engine.inputValues() }));
+    return this.items.map((i) => {
+      const record: ScriptRecord = { id: i.id, source: i.engine.source, inputs: i.engine.inputValues() };
+      const strategy = i.engine.strategyOverrides();
+      if (Object.keys(strategy).length > 0) record.strategy = strategy;
+      return record;
+    });
   }
 
   list(): ScriptInfo[] {
@@ -171,6 +189,8 @@ export class ScriptManager {
       values: e.inputValues(),
       plots: e.outputs.plots.map((p) => p.title),
       strategy: e.isStrategy,
+      strategyDefaults: e.strategyDefaults,
+      strategySettings: e.strategySettings,
       error: e.lastError ? e.lastError.format() : null,
       lastRunMs: i.lastFullMs,
     };
@@ -198,14 +218,32 @@ export class ScriptManager {
     return this.items.find((i) => i.id === id)?.engine.strategy ?? null;
   }
 
-  /** Compiles and test-runs a script on the loaded candles without touching the chart. */
-  private prepare(source: string, inputs?: Record<string, unknown>): { engine: ScriptEngine; ms: number | null } | { error: RunScriptResult } {
+  /** Keys of the backtest settings a script runs with that differ from its strategy() call. */
+  changedSettings(id: string): string[] {
+    const item = this.items.find((i) => i.id === id);
+    return item ? changedSettings(item.engine.strategyOverrides()) : [];
+  }
+
+  /**
+   * Compiles and test-runs a script on the loaded candles without touching the chart.
+   * `kept` are strategy settings carried over from an earlier version of the script and
+   * `strategy` the ones asked for now, which fail for a script that is not a strategy.
+   */
+  private prepare(
+    source: string,
+    inputs?: Record<string, unknown>,
+    strategy?: StrategyPatch,
+    kept?: StrategyOverrides,
+  ): { engine: ScriptEngine; ms: number | null } | { error: RunScriptResult } {
     if (typeof source !== 'string' || !source.trim()) return { error: { ok: false, error: '1:1 The script is empty' } };
     if (source.length > MAX_SCRIPT_LENGTH) return { error: { ok: false, error: `1:1 Scripts are limited to ${MAX_SCRIPT_LENGTH} characters` } };
     const compiled = compileScript(source);
     if (!compiled.ok) return { error: failure(compiled.error) };
     const engine = compiled.engine;
+    if (strategy && Object.keys(strategy).length > 0 && !engine.isStrategy) return { error: { ok: false, error: `1:1 ${NOT_A_STRATEGY}` } };
     if (inputs) engine.setInputValues(inputs);
+    if (kept) engine.setStrategySettings(kept);
+    if (strategy) engine.setStrategySettings(strategy);
     engine.setSymbol(this.host.symbol());
     engine.setFeeds(this.host.feeds ?? null);
     const data = this.host.chart().getDataList();
@@ -259,9 +297,9 @@ export class ScriptManager {
   }
 
   /** Adds a script to the chart. Returns its id, or the first error. */
-  add(source: string, inputs?: Record<string, unknown>, id?: string): RunScriptResult {
+  add(source: string, inputs?: Record<string, unknown>, id?: string, strategy?: StrategyPatch): RunScriptResult {
     if (this.items.length >= MAX_SCRIPTS) return { ok: false, error: `1:1 At most ${MAX_SCRIPTS} scripts can be on a chart` };
-    const prepared = this.prepare(source, inputs);
+    const prepared = this.prepare(source, inputs, strategy);
     if ('error' in prepared) return prepared.error;
     const scriptId = id && !this.items.some((i) => i.id === id) ? id : newId();
     const item = this.attach(scriptId, prepared.engine, `${SCRIPT_INDICATOR}_${scriptId}`);
@@ -271,12 +309,15 @@ export class ScriptManager {
     return { ok: true, id: scriptId };
   }
 
-  /** Replaces a script's source, keeping input values whose keys still exist. */
-  update(id: string, source: string): RunScriptResult {
+  /**
+   * Replaces a script's source, keeping input values whose keys still exist and changed
+   * strategy settings while it is still a strategy. `strategy` changes settings as well.
+   */
+  update(id: string, source: string, strategy?: StrategyPatch): RunScriptResult {
     const index = this.items.findIndex((i) => i.id === id);
     if (index < 0) return { ok: false, error: `1:1 No script with id ${id}` };
     const old = this.items[index];
-    const prepared = this.prepare(source, old.engine.inputValues());
+    const prepared = this.prepare(source, old.engine.inputValues(), strategy, old.engine.strategyOverrides());
     if ('error' in prepared) return prepared.error;
     this.detach(old);
     // A fresh indicator id makes the chart drop any cached result of the old script.
@@ -293,6 +334,29 @@ export class ScriptManager {
     item.engine.setInputValues(values);
     // Changing calcParams makes the chart run calc() again.
     this.host.chart().overrideIndicator({ id: item.indicatorId, name: SCRIPT_INDICATOR, calcParams: Object.values(item.engine.inputValues()).map(String) });
+    this.changed();
+    return { ok: true, id };
+  }
+
+  /**
+   * Changes the backtest settings of a strategy script and runs it again. Takes the keys of
+   * a backtest's `settings` or the strategy() argument names; null for a key, or for the
+   * whole argument, goes back to the strategy() call's values.
+   */
+  setStrategySettings(id: string, settings: unknown): RunScriptResult {
+    const item = this.items.find((i) => i.id === id);
+    if (!item) return { ok: false, error: `1:1 No script with id ${id}` };
+    if (!item.engine.isStrategy) return { ok: false, error: `1:1 ${NOT_A_STRATEGY}` };
+    let patch: StrategyPatch;
+    if (settings === null) {
+      patch = Object.fromEntries(STRATEGY_KEYS.map((k) => [k, null]));
+    } else {
+      const parsed = parseStrategyPatch(settings);
+      if (!parsed.ok) return { ok: false, error: `1:1 ${parsed.error}` };
+      patch = parsed.patch;
+    }
+    item.engine.setStrategySettings(patch);
+    this.recalc(item);
     this.changed();
     return { ok: true, id };
   }
@@ -315,6 +379,7 @@ export class ScriptManager {
         continue;
       }
       compiled.engine.setInputValues(r.inputs);
+      if (r.strategy) compiled.engine.setStrategySettings(r.strategy);
       compiled.engine.setSymbol(this.host.symbol());
       compiled.engine.setFeeds(this.host.feeds ?? null);
       const id = this.items.some((i) => i.id === r.id) ? newId() : r.id;
@@ -330,20 +395,28 @@ export function scriptApi(manager: ScriptManager) {
     /**
      * Compiles a script and adds it to the chart, or updates the script with `options.id`.
      * A string second argument (a display name from the agent bridge) is accepted and ignored.
-     * On success the result also carries the title and the last value of each plot. A script
-     * that uses request.security is returned once the series it requests have loaded.
+     * `options.strategy` changes backtest settings like setStrategySettings, and fails for
+     * scripts that are not strategies. On success the result also carries the title and the
+     * last value of each plot. A script that uses request.security is returned once the
+     * series it requests have loaded.
      */
     runScript: async (
       source: string,
-      options: { id?: string; inputs?: Record<string, unknown> } | string = {},
+      options: { id?: string; inputs?: Record<string, unknown>; strategy?: Record<string, unknown> } | string = {},
     ): Promise<RunScriptResult & { title?: string; overlay?: boolean; inputs?: Record<string, InputValue>; plots?: Array<{ title: string; last: number | null }> }> => {
       const opts = typeof options === 'object' && options !== null ? options : {};
+      let strategy: StrategyPatch | undefined;
+      if (opts.strategy !== undefined) {
+        const parsed = parseStrategyPatch(opts.strategy);
+        if (!parsed.ok) return { ok: false, error: `1:1 ${parsed.error}` };
+        strategy = parsed.patch;
+      }
       let res: RunScriptResult;
       if (opts.id && manager.get(opts.id)) {
-        res = manager.update(opts.id, source);
+        res = manager.update(opts.id, source, strategy);
         if (res.ok && opts.inputs) manager.setInputs(opts.id, opts.inputs);
       } else {
-        res = manager.add(source, opts.inputs);
+        res = manager.add(source, opts.inputs, undefined, strategy);
       }
       if (!res.ok || !res.id) return res;
       await manager.whenReady(res.id);
@@ -356,21 +429,30 @@ export function scriptApi(manager: ScriptManager) {
         overlay: info?.overlay,
         inputs: info?.values,
         plots: manager.lastValues(res.id),
-        ...(report ? { backtest: backtestSummary(report, 20) } : {}),
+        ...(report ? { backtest: { ...backtestSummary(report, 20), changedSettings: manager.changedSettings(res.id) } } : {}),
       };
     },
     /**
      * Backtest results of a strategy script: the one with `id`, or the most recently added
      * strategy. `trades` is how many of the latest closed trades to include (default 50).
+     * `settings` are the ones the backtest ran with; `changedSettings` lists the keys that
+     * differ from the strategy() call.
      */
-    getBacktest: (id?: string, trades = 50): (BacktestJson & { id: string; title: string }) | null => {
+    getBacktest: (id?: string, trades = 50): (BacktestJson & { id: string; title: string; changedSettings: string[] }) | null => {
       const info = id ? manager.get(id) : [...manager.list()].reverse().find((s) => s.strategy);
       const report = info ? manager.report(info.id) : null;
       if (!info || !report) return null;
-      return { id: info.id, title: info.title, ...backtestSummary(report, trades) };
+      return { id: info.id, title: info.title, ...backtestSummary(report, trades), changedSettings: manager.changedSettings(info.id) };
     },
     listScripts: (): ScriptInfo[] => manager.list(),
     removeScript: (id: string): boolean => manager.remove(id),
     setScriptInputs: (id: string, values: Record<string, unknown>): RunScriptResult => manager.setInputs(id, values),
+    /**
+     * Changes the backtest settings of a strategy script, for example
+     * `{ initialCapital: 5000, commissionValue: 0.1 }` (the strategy() argument names such as
+     * `initial_capital` work too). A key set to null, or null for all of them, goes back to
+     * the strategy() call's values. The backtest runs again right away.
+     */
+    setStrategySettings: (id: string, settings: Record<string, unknown> | null): RunScriptResult => manager.setStrategySettings(id, settings),
   };
 }
