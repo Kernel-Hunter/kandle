@@ -74,11 +74,11 @@
     },
     {
       "name": "run_script",
-      "description": "Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. request.security can read other symbols on the same source and other timeframes, including ones picked with input.symbol and input.timeframe. `inputs` sets input values by title and `id` replaces an earlier script; the result lists the input values. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. Orders fill at the next bar's open; limit and stop orders when the bar reaches their price."
+      "description": "Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. request.security can read other symbols on the same source and other timeframes, including ones picked with input.symbol and input.timeframe. `inputs` sets input values by title and `id` replaces an earlier script; the result lists the input values. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. `strategy` changes backtest settings such as initial capital, order size, commission and slippage without editing the code; with `id` it reruns an earlier strategy with new settings. Orders fill at the next bar's open; limit and stop orders when the bar reaches their price."
     },
     {
       "name": "get_backtest",
-      "description": "Backtest results of a strategy script on the main chart: settings, summary figures, the latest closed trades with entry and exit time, price, signal and profit, and open trades. Results follow live data."
+      "description": "Backtest results of a strategy script on the main chart: settings in use (and changedSettings, those that differ from the strategy() call), summary figures, the latest closed trades with entry and exit time, price, signal and profit, and open trades. Results follow live data."
     },
     {
       "name": "screenshot",

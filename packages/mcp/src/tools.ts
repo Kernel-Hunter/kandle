@@ -28,11 +28,29 @@ export const EXCHANGES = ['binance', 'coinbase', 'bybit', 'okx', 'kraken', 'twel
 
 export const ALERT_CONDITIONS = ['crosses', 'crosses_up', 'crosses_down', 'touches'] as const;
 
+/** Order size and commission types of strategy(), matching src/script/strategySettings.ts. */
+export const QTY_TYPES = ['fixed', 'cash', 'percent_of_equity'] as const;
+export const COMMISSION_TYPES = ['percent', 'cash_per_contract', 'cash_per_order'] as const;
+
 const time = z
   .union([z.number(), z.string().min(4).max(40)])
   .describe('Unix time in milliseconds or seconds, or an ISO 8601 date such as 2026-10-01T12:00:00Z');
 
 const pane = z.number().int().min(1).max(4).optional().describe('Chart pane, 1 to 4 in reading order. Defaults to 1, the main chart.');
+
+/** Backtest settings for run_script, named like the strategy() arguments. null goes back to the script's value. */
+const strategySettings = z
+  .object({
+    initial_capital: z.number().finite().gt(0, 'initial_capital must be more than 0').nullable().optional().describe('Starting equity'),
+    default_qty_type: z.enum(QTY_TYPES).nullable().optional().describe('How default_qty_value is read: contracts, cash or percent of equity'),
+    default_qty_value: z.number().finite().gt(0, 'default_qty_value must be more than 0').nullable().optional().describe('Order size for orders placed without qty'),
+    commission_type: z.enum(COMMISSION_TYPES).nullable().optional().describe('percent of the fill value, cash per contract or cash per order'),
+    commission_value: z.number().finite().min(0, 'commission_value must be 0 or more').nullable().optional().describe('Charged on every entry and exit'),
+    slippage: z.number().int('slippage must be a whole number of ticks').min(0, 'slippage must be 0 or more').nullable().optional().describe('Ticks added to market and stop fills'),
+    pyramiding: z.number().int('pyramiding must be a whole number').min(0, 'pyramiding must be 0 or more').nullable().optional().describe('Entries allowed in one direction; 0 and 1 both allow one'),
+    process_orders_on_close: z.boolean().nullable().optional().describe('Fill market orders at the close of the bar that placed them'),
+  })
+  .strict();
 
 const point = z.object({
   time: time.optional().describe('Bar time. Optional for horizontal lines; defaults to the latest bar.'),
@@ -93,6 +111,9 @@ export const schemas = {
       .record(z.string().min(1).max(80), z.union([z.string().max(200), z.number().finite(), z.boolean()]))
       .optional()
       .describe('Input values by input title, e.g. {"Symbol": "SOLUSDT", "Higher timeframe": "240"}. Inputs left out keep their defaults.'),
+    strategy: strategySettings
+      .optional()
+      .describe('Backtest settings that replace the ones in the strategy() call, e.g. {"initial_capital": 5000, "commission_value": 0.1}. Settings left out keep their value; null goes back to the script\'s value. Only for scripts declared with strategy().'),
   }),
   get_backtest: z.object({
     id: z.string().min(1).max(80).optional().describe('Script id from run_script. Defaults to the most recently added strategy.'),
@@ -197,7 +218,7 @@ export const TOOLS: readonly ToolDef[] = [
     name: 'run_script',
     title: 'Run script',
     description:
-      'Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. request.security can read other symbols on the same source and other timeframes, including ones picked with input.symbol and input.timeframe. `inputs` sets input values by title and `id` replaces an earlier script; the result lists the input values. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. Orders fill at the next bar\'s open; limit and stop orders when the bar reaches their price.',
+      'Runs a Kandle script on the main chart and returns its id and latest plot values, or the error with line and column. request.security can read other symbols on the same source and other timeframes, including ones picked with input.symbol and input.timeframe. `inputs` sets input values by title and `id` replaces an earlier script; the result lists the input values. A script declared with strategy() is backtested on the loaded bars; the result then also has `backtest`: settings, summary (net profit, profit factor, win rate, max drawdown, Sharpe, buy and hold) and the last 20 trades. `strategy` changes backtest settings such as initial capital, order size, commission and slippage without editing the code; with `id` it reruns an earlier strategy with new settings. Orders fill at the next bar\'s open; limit and stop orders when the bar reaches their price.',
     method: 'run_script',
     timeoutMs: 60_000,
   },
@@ -205,7 +226,7 @@ export const TOOLS: readonly ToolDef[] = [
     name: 'get_backtest',
     title: 'Get backtest',
     description:
-      'Backtest results of a strategy script on the main chart: settings, summary figures, the latest closed trades with entry and exit time, price, signal and profit, and open trades. Results follow live data.',
+      'Backtest results of a strategy script on the main chart: settings in use (and changedSettings, those that differ from the strategy() call), summary figures, the latest closed trades with entry and exit time, price, signal and profit, and open trades. Results follow live data.',
     method: 'get_backtest',
     readOnly: true,
   },

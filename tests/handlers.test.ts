@@ -283,6 +283,9 @@ describe('bridge handlers', () => {
     expect(runner).toHaveBeenCalledWith('plot(close)', 'test');
     await call(withEngine, 'run_script', { code: 'plot(close)', id: 's1', inputs: { Symbol: 'SOLUSDT', 'Higher timeframe': '240' } });
     expect(runner).toHaveBeenLastCalledWith('plot(close)', { id: 's1', inputs: { Symbol: 'SOLUSDT', 'Higher timeframe': '240' } });
+    await call(withEngine, 'run_script', { code: 'strategy("s")', id: 's2', strategy: { initial_capital: 5000, slippage: null } });
+    expect(runner).toHaveBeenLastCalledWith('strategy("s")', { id: 's2', strategy: { initial_capital: 5000, slippage: null } });
+    await expect(call(withEngine, 'run_script', { code: 'strategy("s")', strategy: [1] })).rejects.toThrow(/strategy must be an object/);
   });
 
   it('reads backtest results of a strategy script', async () => {

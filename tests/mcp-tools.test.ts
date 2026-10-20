@@ -6,7 +6,8 @@ import { BRIDGE_METHODS, compareVersions, mcpbPackageUrl, mcpPackageUrl } from '
 import { REGISTRY_NAME, serverJson } from '../packages/mcp/src/registry';
 import { SERVER_VERSION, createMcpServer, updateNotice, type BridgeLike } from '../packages/mcp/src/server';
 import { APP } from '../src/config';
-import { TOOLS, normalizeTimeframe, parseTime, prepareArgs, schemas } from '../packages/mcp/src/tools';
+import { COMMISSION_TYPES, QTY_TYPES, TOOLS, normalizeTimeframe, parseTime, prepareArgs, schemas } from '../packages/mcp/src/tools';
+import * as settings from '../src/script/strategySettings';
 
 describe('tool schemas', () => {
   it('cover every bridge method exactly once, plus the status tool', () => {
@@ -44,6 +45,49 @@ describe('tool schemas', () => {
     expect(schemas.get_backtest.safeParse({ trades: 2.5 }).success).toBe(false);
     expect(schemas.run_script.safeParse({ code: 'plot(close)', inputs: { Symbol: ['ETHUSDT'] } }).success).toBe(false);
     expect(schemas.run_script.safeParse({ code: 'plot(close)', inputs: { Length: Number.NaN } }).success).toBe(false);
+  });
+});
+
+describe('run_script strategy settings', () => {
+  const parse = (strategy: unknown) => schemas.run_script.safeParse({ code: 'strategy("s")', strategy });
+  const message = (strategy: unknown) => {
+    const res = parse(strategy);
+    return res.success ? null : res.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+  };
+
+  it('match the settings the app accepts', () => {
+    expect(QTY_TYPES).toEqual(settings.QTY_TYPES);
+    expect(COMMISSION_TYPES).toEqual(settings.COMMISSION_TYPES);
+  });
+
+  it('accept every strategy() setting, and null to go back to the script value', () => {
+    const all = {
+      initial_capital: 5000,
+      default_qty_type: 'percent_of_equity',
+      default_qty_value: 25,
+      commission_type: 'cash_per_order',
+      commission_value: 0,
+      slippage: 2,
+      pyramiding: 0,
+      process_orders_on_close: true,
+    };
+    expect(parse(all)).toMatchObject({ success: true, data: { strategy: all } });
+    expect(parse({ initial_capital: null, slippage: null }).success).toBe(true);
+    expect(parse({}).success).toBe(true);
+    // The app reads the same names, so what passes here is accepted there.
+    expect(settings.parseStrategyPatch(all).ok).toBe(true);
+  });
+
+  it('reject bad values with messages that name the setting', () => {
+    expect(message({ initial_capital: 0 })).toBe('strategy.initial_capital: initial_capital must be more than 0');
+    expect(message({ default_qty_value: -1 })).toBe('strategy.default_qty_value: default_qty_value must be more than 0');
+    expect(message({ commission_value: -0.5 })).toBe('strategy.commission_value: commission_value must be 0 or more');
+    expect(message({ slippage: 1.5 })).toBe('strategy.slippage: slippage must be a whole number of ticks');
+    expect(message({ pyramiding: -1 })).toBe('strategy.pyramiding: pyramiding must be 0 or more');
+    expect(message({ default_qty_type: 'shares' })).toMatch(/^strategy\.default_qty_type: /);
+    expect(message({ process_orders_on_close: 'yes' })).toMatch(/^strategy\.process_orders_on_close: /);
+    expect(message({ capital: 5 })).toMatch(/capital/);
+    expect(message('fast')).toMatch(/^strategy: /);
   });
 });
 
@@ -114,7 +158,19 @@ describe('MCP server', () => {
     expect(tools.find((t) => t.name === 'get_candles')!.annotations?.readOnlyHint).toBe(true);
     expect(tools.find((t) => t.name === 'clear_drawings')!.annotations?.destructiveHint).toBe(true);
     expect(tools.find((t) => t.name === 'get_backtest')!.annotations?.readOnlyHint).toBe(true);
-    expect(tools.find((t) => t.name === 'run_script')!.description).toMatch(/strategy\(\).*backtest/s);
+    const runScript = tools.find((t) => t.name === 'run_script')!;
+    expect(runScript.description).toMatch(/strategy\(\).*backtest/s);
+    const strategy = (runScript.inputSchema.properties as Record<string, { properties?: Record<string, unknown> }>).strategy;
+    expect(Object.keys(strategy.properties ?? {})).toEqual([
+      'initial_capital',
+      'default_qty_type',
+      'default_qty_value',
+      'commission_type',
+      'commission_value',
+      'slippage',
+      'pyramiding',
+      'process_orders_on_close',
+    ]);
   });
 
   it('explains pairing when the app is not connected', async () => {
@@ -149,6 +205,18 @@ describe('MCP server', () => {
     const fromApp = await client.callTool({ name: 'set_symbol', arguments: { symbol: 'NOPE' } });
     expect(fromApp.isError).toBe(true);
     expect(JSON.stringify(fromApp.content)).toContain('Unknown symbol NOPE.');
+  });
+
+  it('forwards run_script strategy settings and explains bad ones', async () => {
+    const { bridge, request } = fakeBridge(true, (_m, p) => ({ echo: p }));
+    const client = await connect(bridge);
+    const strategy = { initial_capital: 5000, commission_value: 0.1, slippage: null };
+    await client.callTool({ name: 'run_script', arguments: { code: 'strategy("s")', id: 's1', strategy } });
+    expect(request).toHaveBeenCalledWith('run_script', { code: 'strategy("s")', id: 's1', strategy }, 60_000);
+    const bad = await client.callTool({ name: 'run_script', arguments: { code: 'strategy("s")', strategy: { initial_capital: 0 } } });
+    expect(bad.isError).toBe(true);
+    expect(JSON.stringify(bad.content)).toContain('initial_capital must be more than 0');
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   it('returns screenshots as image content', async () => {
