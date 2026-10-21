@@ -16,8 +16,8 @@ import type { PaneHandle } from '../layout/pane';
 import { ReplayController } from '../replay/controller';
 import { SwitchingLoader } from '../replay/loader';
 import type { ScriptRecord } from '../script/persist';
-import { applyRange, createShareControl, createSharedBanner, readRange } from '../share';
-import type { ChartSnapshot } from '../share/codec';
+import { applyRange, createShareControl, createSharedBanner, makeShareLink, readRange } from '../share';
+import { parseInclude, type ChartSnapshot } from '../share/codec';
 import type { SharedView } from '../share/view';
 import type { DrawingRecord, KeyValueStorage, Theme } from '../store/layout';
 import { h, isTypingTarget } from '../ui/dom';
@@ -380,6 +380,7 @@ export function createFeatures(deps: FeatureDeps): Features {
         replay,
         layout,
         watchlist: watchlist.controller,
+        share: (include) => makeShareLink(snapshot(), include),
       };
       const handlers = createHandlers(env);
 
@@ -485,6 +486,8 @@ export function createFeatures(deps: FeatureDeps): Features {
           set: (params: Record<string, unknown>) => dispatch(handlers, 'set_layout', params),
           state: () => layout.state(),
         },
+        /** A link that opens this chart; include picks what it carries (see src/share/codec.ts). */
+        share: async (options: { include?: unknown } = {}) => (await makeShareLink(snapshot(), parseInclude(options?.include))).url,
         bridge: {
           status: () => client?.status ?? 'off',
           call: (method: string, params: Record<string, unknown> = {}) => dispatch(handlers, method as never, params),

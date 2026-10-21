@@ -9,6 +9,8 @@ import type { ChartCount, SyncOptions } from '../layout/config';
 import type { LayoutState } from '../layout/manager';
 import type { ReplayStartOptions, ReplayState } from '../replay/controller';
 import { indexAtTime } from '../replay/session';
+import type { ShareLink } from '../share';
+import { INCLUDE_KEYS, parseInclude, type ShareInclude } from '../share/codec';
 import type { DrawingPoint } from '../store/layout';
 import type { ActiveIndicator } from '../ui/indicatorPanel';
 import { BASIS_LABELS, type WatchlistRow } from '../watchlist/controller';
@@ -87,6 +89,8 @@ export interface HostEnv {
   settle?(): Promise<void>;
   /** Waits for the chart to repaint. Resolves false if the page is hidden and did not paint. */
   paint?(): Promise<boolean>;
+  /** Makes a link that opens the main chart (and the layout, if included) for anyone. */
+  share?(include: ShareInclude): Promise<ShareLink>;
 }
 
 export type Handler = (params: Record<string, unknown>) => Promise<unknown>;
@@ -709,6 +713,17 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
         }
       }
       return layout.state();
+    },
+
+    get_share_link: async (params) => {
+      if (!env.share) throw new Error('Share links are not available in this build of Kandle');
+      const link = await env.share(parseInclude(params.include));
+      return {
+        url: link.url,
+        characters: link.url.length,
+        included: ['exchange', 'symbol', 'timeframe', ...INCLUDE_KEYS.filter((k) => link.include[k])],
+        ...(link.notes.length ? { notes: link.notes } : {}),
+      };
     },
 
     set_chart_style: async (params) => {

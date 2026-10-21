@@ -127,6 +127,10 @@
     {
       "name": "set_chart_style",
       "description": "Changes how a chart draws its bars (candles, hollow_candles, bars, line, area or heikin_ashi) and its price scale (normal, log or percent). Data from the other tools stays the real OHLC."
+    },
+    {
+      "name": "get_share_link",
+      "description": "A link that opens the main chart in Kandle for anyone: exchange, symbol, timeframe, chart type, scale, visible range, indicators and drawings, and optionally scripts and the multi-chart layout. The chart is stored after the # in the link, so it is not sent to any server. Whoever opens it sees it as a temporary view and can keep it or go back to their own chart. Charts of imported CSV files cannot be shared."
     }
   ],
   "keywords": [

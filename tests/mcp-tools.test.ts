@@ -8,6 +8,10 @@ import { SERVER_VERSION, createMcpServer, updateNotice, type BridgeLike } from '
 import { APP } from '../src/config';
 import { COMMISSION_TYPES, QTY_TYPES, TOOLS, normalizeTimeframe, parseTime, prepareArgs, schemas } from '../packages/mcp/src/tools';
 import * as settings from '../src/script/strategySettings';
+import { INCLUDE_KEYS } from '../src/share/codec';
+
+// The share codec reads the drawing and indicator catalogs, which import the chart engine.
+vi.mock('klinecharts', () => ({ registerIndicator: vi.fn(), registerOverlay: vi.fn() }));
 
 describe('tool schemas', () => {
   it('cover every bridge method exactly once, plus the status tool', () => {
@@ -28,6 +32,8 @@ describe('tool schemas', () => {
     expect(schemas.run_script.parse({ code: 'plot(close)', id: 's1', inputs })).toEqual({ code: 'plot(close)', id: 's1', inputs });
     expect(schemas.set_chart_style.parse({ type: 'heikin_ashi', scale: 'log', pane: 2 })).toEqual({ type: 'heikin_ashi', scale: 'log', pane: 2 });
     expect(schemas.set_chart_style.parse({ scale: 'percent' })).toEqual({ scale: 'percent' });
+    expect(schemas.get_share_link.parse({})).toEqual({});
+    expect(schemas.get_share_link.parse({ include: { scripts: true, layout: true, drawings: false } })).toEqual({ include: { scripts: true, layout: true, drawings: false } });
   });
 
   it('rejects bad input with field errors', () => {
@@ -50,6 +56,13 @@ describe('tool schemas', () => {
     expect(schemas.set_chart_style.safeParse({ type: 'renko' }).success).toBe(false);
     expect(schemas.set_chart_style.safeParse({ scale: 'logarithmic' }).success).toBe(false);
     expect(schemas.set_chart_style.safeParse({ type: 'line', pane: 0 }).success).toBe(false);
+    expect(schemas.get_share_link.safeParse({ include: { everything: true } }).success).toBe(false);
+    expect(schemas.get_share_link.safeParse({ include: { scripts: 'yes' } }).success).toBe(false);
+  });
+
+  it('offer the same share link options as the app', () => {
+    const include = schemas.get_share_link.shape.include.unwrap();
+    expect(Object.keys(include.shape)).toEqual(INCLUDE_KEYS);
   });
 
   it('validate the watchlist tools', () => {
@@ -176,6 +189,7 @@ describe('MCP server', () => {
     expect(tools.find((t) => t.name === 'clear_drawings')!.annotations?.destructiveHint).toBe(true);
     expect(tools.find((t) => t.name === 'get_backtest')!.annotations?.readOnlyHint).toBe(true);
     expect(tools.find((t) => t.name === 'get_watchlist')!.annotations?.readOnlyHint).toBe(true);
+    expect(tools.find((t) => t.name === 'get_share_link')!.annotations?.readOnlyHint).toBe(true);
     expect(tools.find((t) => t.name === 'remove_from_watchlist')!.annotations?.destructiveHint).toBe(true);
     expect(tools.find((t) => t.name === 'add_to_watchlist')!.inputSchema.required).toEqual(['symbol']);
     const runScript = tools.find((t) => t.name === 'run_script')!;

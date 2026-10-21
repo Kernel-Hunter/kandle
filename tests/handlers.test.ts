@@ -6,6 +6,7 @@ import { AlertEngine } from '../src/alerts/engine';
 import type { ChartStyle } from '../src/chart/chartStyle';
 import type { TimeframeId } from '../src/data/timeframes';
 import type { SymbolMeta } from '../src/data/types';
+import { DEFAULT_INCLUDE } from '../src/share/codec';
 import { MemoryStorage } from '../src/store/layout';
 import { WatchlistController } from '../src/watchlist/controller';
 
@@ -452,5 +453,25 @@ describe('watchlist handlers', () => {
   it('says so when this build has no watchlist', async () => {
     const { handlers } = setup();
     expect(await dispatch(handlers, 'get_watchlist', {})).toEqual({ ok: false, error: 'The watchlist is not available' });
+  });
+});
+
+describe('get_share_link', () => {
+  const PAGE = 'https://kernel-hunter.github.io/kandle/';
+  const env = (share?: HostEnv['share']) => ({ pane: () => null, sources: () => [], share }) as unknown as HostEnv;
+
+  it('returns the link with what it carries', async () => {
+    const share = vi.fn(async (include) => ({ url: `${PAGE}#s=zABC`, include, notes: [] }));
+    const handlers = createHandlers(env(share));
+    const res = await dispatch(handlers, 'get_share_link', { include: { scripts: true, drawings: false } });
+    expect(share).toHaveBeenCalledWith({ ...DEFAULT_INCLUDE, scripts: true, drawings: false });
+    expect(res).toEqual({ ok: true, result: { url: `${PAGE}#s=zABC`, characters: PAGE.length + 7, included: ['exchange', 'symbol', 'timeframe', 'chart', 'indicators', 'scripts'] } });
+  });
+
+  it('explains bad options and missing support', async () => {
+    const share = vi.fn();
+    expect(await dispatch(createHandlers(env(share)), 'get_share_link', { include: { everything: true } })).toMatchObject({ ok: false, error: expect.stringMatching(/Unknown include option/) });
+    expect(share).not.toHaveBeenCalled();
+    expect(await dispatch(createHandlers(env()), 'get_share_link', {})).toMatchObject({ ok: false, error: expect.stringMatching(/not available/) });
   });
 });

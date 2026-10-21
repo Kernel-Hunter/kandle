@@ -189,6 +189,19 @@ export const schemas = {
     scale: z.enum(PRICE_SCALES).optional().describe('Price axis: normal, log (logarithmic) or percent (change from the first bar on screen)'),
     pane,
   }),
+  get_share_link: z.object({
+    include: z
+      .object({
+        chart: z.boolean().optional().describe('Chart type, price scale and the visible range (default true)'),
+        indicators: z.boolean().optional().describe('Indicators with their parameters (default true)'),
+        drawings: z.boolean().optional().describe('Drawings with their points and text (default true)'),
+        scripts: z.boolean().optional().describe('Script code with input values and strategy settings (default false; scripts make links long)'),
+        layout: z.boolean().optional().describe('The other charts of a 2 or 4 chart layout and its sync settings (default false)'),
+      })
+      .strict()
+      .optional()
+      .describe('What the link carries besides the exchange, symbol and timeframe of the main chart'),
+  }),
 } as const;
 
 export type ToolName = keyof typeof schemas;
@@ -303,6 +316,14 @@ export const TOOLS: readonly ToolDef[] = [
     description:
       'Changes how a chart draws its bars (candles, hollow_candles, bars, line, area or heikin_ashi) and its price scale (normal, log or percent). Data from the other tools stays the real OHLC.',
     method: 'set_chart_style',
+  },
+  {
+    name: 'get_share_link',
+    title: 'Get share link',
+    description:
+      'A link that opens the main chart in Kandle for anyone: exchange, symbol, timeframe, chart type, scale, visible range, indicators and drawings, and optionally scripts and the multi-chart layout. The chart is stored after the # in the link, so it is not sent to any server. Whoever opens it sees it as a temporary view and can keep it or go back to their own chart. Charts of imported CSV files cannot be shared.',
+    method: 'get_share_link',
+    readOnly: true,
   },
 ];
 
