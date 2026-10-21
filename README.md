@@ -40,7 +40,7 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 - Dark and light themes.
 - Keyboard shortcuts for most actions. Press `?` in the app to see them all.
 - Export the chart as a PNG image.
-- Share a chart as a link: symbol, timeframe, chart type, indicators and drawings, plus scripts and the multi-chart layout if you choose. The link carries the chart itself. See [Share a chart](#share-a-chart).
+- Share a chart as a link: symbol, timeframe, chart type, indicators and drawings, plus scripts and the multi-chart layout if you choose. The link carries the chart itself. See [Share a chart](#share-a-chart). The same popover gives an iframe that shows the chart on a blog or docs page, see [Embed a chart](#embed-a-chart).
 - Scripts: write your own indicators in Kandle Script, with an editor under the chart and 14 example scripts. Scripts can read other timeframes and other symbols with `request.security`.
 - Strategy backtests: write a strategy script, see its trades on the chart, and get net profit, drawdown, win rate, an equity curve and the list of trades.
 - Alerts on price levels, drawn lines and indicator values, with browser notifications.
@@ -143,7 +143,7 @@ Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotoco
 | `get_watchlist`, `add_to_watchlist`, `remove_from_watchlist` | Watchlist symbols with last price, change and change percent, and adding or removing them |
 | `run_script` | Adds a Kandle script to the main chart and returns its id, input values and latest plot values, or the error with line and column. `inputs` sets input values by title and `id` replaces a script added earlier. For a strategy it also returns the backtest summary and the last 20 trades, and `strategy` changes its backtest settings |
 | `get_backtest` | Settings (and which ones differ from the script), summary and up to 500 trades of a strategy script on the chart |
-| `get_share_link` | A link that opens the main chart for anyone. `include` picks what it carries besides the exchange, symbol and timeframe |
+| `get_share_link` | A link that opens the main chart for anyone. `include` picks what it carries besides the exchange, symbol and timeframe. `embed: true` adds an iframe for another web page |
 
 Most tools take an optional `pane` (1 to 4) when several charts are showing. Times can be ISO 8601 dates or Unix times in seconds or milliseconds. Inputs are validated and errors say what to fix.
 
@@ -347,6 +347,28 @@ A link opens as a temporary view under a **Shared chart** bar, and your own save
 
 Agents can make links with the `get_share_link` tool. In the page, `await window.kandle.share({ include: { scripts: true } })` returns the URL.
 
+## Embed a chart
+
+Put a live chart on a blog, docs page or any site that allows iframes. Open Share (`Alt+K`), switch to **Embed**, pick a size and theme, and click **Copy code**:
+
+```html
+<iframe src="https://kernel-hunter.github.io/kandle/?embed=1#s=zFcixCsIwFIbRd_nmf0gLBbmbWjfFweoS7hDbDmKM0Kog4ruLZzwfXlglZozzpaTSj4g3xqpbHw9th3hgVC3iitGnMuRxRiSMcp9uKSMmLJZnzlq4uGAxstktUayDmqA6BHdFTvstio2qf7m7GLDo3x8" title="Kandle chart: BTCUSDT 1D on Binance" width="640" height="400" style="border:0" loading="lazy"></iframe>
+```
+
+The embed shows the chart with its indicators and drawings, and the other charts of a layout if the link has them. Viewers can pan, zoom and use the crosshair. A footer shows the symbol, timeframe and last price, and **Open in Kandle** opens the same chart in a new tab as a normal share link. `width="100%"` fills the column. [docs/embed-example.html](docs/embed-example.html) is a minimal page with one embed.
+
+An embed URL is a share link with `?embed=1` before the `#`. The chart stays in the fragment in the same format, so the query is the only part a server sees and it says nothing about the chart. Add `&theme=light` or `&theme=dark` to fix the colors; without it the embed follows the viewer's system setting.
+
+What an embed leaves out:
+
+- Scripts. Embed links never include them. If a link carries scripts anyway, the embed does not run them and says to open the chart in Kandle to run them.
+- Browser storage. An embed reads and writes nothing there, so it never sees the viewer's own chart or API keys. Charts from sources that need a key (Twelve Data, Alpaca, Polygon) show a note instead, so embed charts from the crypto exchanges.
+- Controls. There is no top bar, drawing toolbar, panel, alert, agent bridge, `window.kandle` or `postMessage` API, so the page around an embed cannot drive the chart.
+
+Any site can frame Kandle. That is safe because Kandle has no account and nothing on a server: whatever it saves stays in the browser that uses it, and current browsers give a framed page storage of its own, apart from the viewer's Kandle tab. An embed has no action that changes or deletes anything. GitHub does not show iframes in README files, so link to the chart there instead.
+
+Agents get the iframe from `get_share_link` with `embed: true`. In the page, `await window.kandle.share({ embed: true, theme: 'dark' })` returns the embed URL and `await window.kandle.embedCode({ width: 800, height: 450 })` returns the iframe.
+
 ## Roadmap
 
 - Desktop app for macOS, Windows, and Linux.
@@ -394,6 +416,7 @@ src/
   layout/            multi-chart layouts
   watchlist/         watchlist panel, quotes and their persistence
   share/             share links: encoding, the Share popover and the shared chart view
+  embed/             embed mode: the chart alone in an iframe on another site
   features/          connects the above to the app
 packages/mcp/        kandle-mcp, the MCP server
 skills/kandle/       agent skill for chart analysis

@@ -87,3 +87,5 @@ Use replay to walk through history without seeing the future, for example to che
 ## Share links
 
 `get_share_link` returns a link that opens the main chart in Kandle for anyone: exchange, symbol, timeframe, chart type, scale, visible range, indicators and drawings. Pass `include` with `scripts: true` or `layout: true` to add scripts or the other charts. Offer the link after annotating a chart so the user can send it on. Charts of imported CSV data cannot be shared.
+
+Pass `embed: true` to also get `embed_url` and `iframe`, HTML the user can paste into a blog or docs page to show the chart there with a link back to Kandle. Embeds never include scripts, and charts from sources that need an API key only show a note in an embed, so prefer crypto exchanges for charts meant to be embedded.
