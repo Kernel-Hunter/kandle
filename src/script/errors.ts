@@ -32,6 +32,9 @@ export class ScriptError extends Error {
   }
 }
 
+/** A run that used up its operation budget (src/script/runtime.ts). */
+export class BudgetError extends ScriptError {}
+
 export function spanBetween(a: Span, b: Span): Span {
   return { line: a.line, col: a.col, from: a.from, to: b.to };
 }

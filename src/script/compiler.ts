@@ -8,7 +8,7 @@ import { BuiltinError, CONSTANTS, FUNCTIONS, KNOWN_UNSUPPORTED_NAMESPACES, VARIA
 import './builtins/core';
 import './builtins/ta';
 import { RISK_CHECKS } from './builtins/strategy';
-import { ScriptError, type Span } from './errors';
+import { BudgetError, ScriptError, type Span } from './errors';
 import { PLOT_PALETTE, SHAPE_SIZES, emptyOutputs, type BarColorOutput, type FillOutput, type HlineOutput, type Outputs, type PlotOutput, type ShapeOutput } from './outputs';
 import { Frame, Runtime, SLOT_PLAIN, SLOT_VAR, SLOT_VARIP, type FrameLayout } from './runtime';
 import { MAX_REQUESTS, NEEDS_CONSTANT, SecuritySite, parseRequestSymbol, requestTimeframe, timeframeMessage, type InputArg, type InputArgs, type SecurityRequest } from './security';
@@ -803,6 +803,7 @@ export class Compiler {
     const rt = this.rt;
     return () => {
       if (++rt.loopCount > rt.loopLimit) throw new ScriptError('Loop ran too many times on one bar; check its exit condition', span);
+      if (rt.budget.spend()) throw new BudgetError(rt.budget.message(), span);
     };
   }
 
@@ -1116,6 +1117,7 @@ export class Compiler {
 
     const expression = b[2]!;
     const sub = new Runtime();
+    sub.budget = this.mainRt.budget;
     const ctx: FnCtx = { kinds: [], history: [], stateCount: 0, global: false };
     const saved = { rt: this.rt, fc: this.fc, loop: this.loopDepth, mutates: this.mutatesState };
     this.rt = sub;

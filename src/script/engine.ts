@@ -1,8 +1,8 @@
 import { Compiler, SOURCE_SERIES, type CompiledScript, type InputDef, type InputValue, type ScriptMeta } from './compiler';
-import { ScriptError } from './errors';
+import { BudgetError, ScriptError } from './errors';
 import type { Outputs } from './outputs';
 import { parse } from './parser';
-import { Frame, type Candle, type Runtime, type SymbolContext } from './runtime';
+import { Frame, type Candle, type RunBudget, type Runtime, type SymbolContext } from './runtime';
 import { chartTimeframe, periodOf, requestKey, requestTimeframe, resampleBars, type RequestFeeds, type ResolvedRequest, type SecuritySite } from './security';
 import { TIMEFRAMES, getTimeframe } from '../data/timeframes';
 import type { StrategyConfig, StrategyReport } from './strategy';
@@ -113,6 +113,11 @@ export class ScriptEngine {
   /** Counts runs, so request.security on the chart's own bars always reruns its tail. */
   private runCount = 0;
   lastError: ScriptError | null = null;
+  /**
+   * Set when a run used up its operation budget. Later runs (every live update) return this
+   * error at once instead of spending the budget again, until inputs, settings or the symbol change.
+   */
+  private stopped: BudgetError | null = null;
 
   constructor(
     private readonly compiled: CompiledScript,
@@ -137,6 +142,11 @@ export class ScriptEngine {
   /** Bar data of the last run (open, high, low, close arrays by bar index). */
   get bars(): Pick<Runtime, 'open' | 'high' | 'low' | 'close' | 'time'> {
     return this.compiled.rt;
+  }
+
+  /** What the last run spent of its operation and time budget. */
+  get budget(): RunBudget {
+    return this.compiled.rt.budget;
   }
 
   get barCount(): number {
@@ -232,6 +242,7 @@ export class ScriptEngine {
     this.overrides = applyStrategyPatch(defaults, this.overrides, patch);
     broker.config = { ...defaults, ...this.overrides };
     this.needsFull = true;
+    this.stopped = null;
   }
 
   /** Values keyed by input key, ready to store. */
@@ -247,6 +258,7 @@ export class ScriptEngine {
       if (Object.prototype.hasOwnProperty.call(values, def.key)) this.values[def.index] = validateInput(def, values[def.key]);
     }
     this.needsFull = true;
+    this.stopped = null;
   }
 
   setSymbol(ctx: SymbolContext): void {
@@ -254,6 +266,7 @@ export class ScriptEngine {
     if (rt.symbol.ticker === ctx.ticker && rt.symbol.period === ctx.period && rt.symbol.mintick === ctx.mintick && rt.symbol.source === ctx.source) return;
     rt.symbol = ctx;
     this.needsFull = true;
+    this.stopped = null;
   }
 
   /**
@@ -263,6 +276,11 @@ export class ScriptEngine {
   run(candles: readonly Candle[]): RunResult {
     const started = performance.now();
     const rt = this.compiled.rt;
+    if (this.stopped) {
+      this.lastError = this.stopped;
+      return { error: this.stopped, barsRun: 0, incremental: false, ms: 0 };
+    }
+    rt.budget.start();
     const prev = rt.count;
     const n = candles.length;
     let start = 0;
@@ -298,6 +316,7 @@ export class ScriptEngine {
         const err = e instanceof ScriptError ? e : new ScriptError(e instanceof Error ? e.message : String(e), null);
         this.lastError = err;
         this.needsFull = true;
+        if (err instanceof BudgetError) this.stopped = err;
         return { error: err, barsRun: 0, incremental: canIncrement, ms: performance.now() - started };
       }
     }
@@ -308,6 +327,7 @@ export class ScriptEngine {
         rt.runId++;
         rt.loopCount = 0;
         rt.ctl = 0;
+        if (rt.budget.spend(true)) throw new BudgetError(rt.budget.message(), null);
         // Orders placed on earlier bars fill against this bar before the script sees it.
         broker?.beginBar(b, rt.time[b], rt.open[b], rt.high[b], rt.low[b], rt.close[b]);
         root.enter(rt);
@@ -320,6 +340,7 @@ export class ScriptEngine {
       err.bar = b;
       this.lastError = err;
       this.needsFull = true;
+      if (err instanceof BudgetError) this.stopped = err;
     }
     return { error: this.lastError, barsRun: n - start, incremental: canIncrement, ms: performance.now() - started };
   }

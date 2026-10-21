@@ -90,6 +90,48 @@ export class Frame {
   }
 }
 
+/** Loop iterations one bar may run. */
+export const LOOP_LIMIT = 100_000;
+/** Operations (bars plus loop iterations) one run of a script may use across all its bars. */
+export const RUN_BUDGET = 10_000_000;
+/** One run may also take at most this long, for work that is slow per operation, such as big arrays. */
+export const RUN_TIME_LIMIT_MS = 1000;
+
+/**
+ * What one run of a script has spent. The script's runtime and its request.security
+ * runtimes share one, so a script cannot get around it by looping inside a request.
+ */
+export class RunBudget {
+  limit = RUN_BUDGET;
+  timeLimitMs = RUN_TIME_LIMIT_MS;
+  used = 0;
+  started = 0;
+  private timedOut = false;
+
+  start(): void {
+    this.used = 0;
+    this.started = performance.now();
+    this.timedOut = false;
+  }
+
+  /**
+   * Counts one operation and returns true once the run is over budget. The clock is read on
+   * every bar (`bar`) and every 128 operations, which keeps the count cheap.
+   */
+  spend(bar = false): boolean {
+    if (++this.used > this.limit) return true;
+    if ((bar || (this.used & 127) === 0) && performance.now() - this.started > this.timeLimitMs) this.timedOut = true;
+    return this.timedOut;
+  }
+
+  /** The message for a run that went over budget. */
+  message(): string {
+    const seconds = Math.max(0.1, (performance.now() - this.started) / 1000).toFixed(1);
+    if (this.timedOut) return `Script stopped: it ran for more than ${this.timeLimitMs / 1000} second${this.timeLimitMs === 1000 ? '' : 's'}. Simplify loops and large arrays.`;
+    return `Script stopped: it used more than ${this.limit.toLocaleString('en-US')} operations (about ${seconds} seconds). Simplify loops.`;
+  }
+}
+
 export class Runtime {
   bar = 0;
   runId = 0;
@@ -111,8 +153,10 @@ export class Runtime {
   /** Order and position state of a strategy script; null for indicators. */
   strategy: Broker | null = null;
   /** Guards against runaway loops: iterations allowed per bar. */
-  loopLimit = 500_000;
+  loopLimit = LOOP_LIMIT;
   loopCount = 0;
+  /** Guards against scripts that keep the browser busy: operations allowed per run. */
+  budget = new RunBudget();
 
   setBar(i: number, c: Candle): void {
     this.time[i] = c.timestamp;

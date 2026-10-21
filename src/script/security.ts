@@ -7,7 +7,7 @@
  * bars that had closed by the time the chart bar closed.
  */
 import { getTimeframe, resampleCandles, timeframeForMs, type TimeframeId } from '../data/timeframes';
-import { ScriptError, type Span } from './errors';
+import { BudgetError, ScriptError, type Span } from './errors';
 import { Frame, Runtime, type Candle, type FrameLayout, type SymbolContext } from './runtime';
 import { Tuple } from './values';
 
@@ -321,6 +321,7 @@ export class SecuritySite {
       rt.ctl = 0;
       root.enter(rt);
       try {
+        if (rt.budget.spend(true)) throw new BudgetError(rt.budget.message(), this.span);
         this.values[b] = this.body(root);
       } catch (e) {
         this.reset();
