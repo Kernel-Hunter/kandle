@@ -47,7 +47,7 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 - 1, 2 or 4 charts on screen, each with its own symbol, timeframe and indicators.
 - A watchlist next to the charts with live prices and 24 hour change for crypto, and the change since the previous close for stocks and forex. Click a symbol to open it.
 - An MCP server so AI agents can read the chart, draw on it, set alerts and take screenshots.
-- Works on desktop and tablet screens.
+- Works on desktops, tablets and phones. On a narrow screen the top bar keeps the symbol, timeframe and price in view and moves the other tools into the ... menu.
 
 ![BTC/USDT 4H with the Ichimoku Cloud and a volume profile of the visible bars](docs/screenshot-ichimoku.png)
 
