@@ -7,7 +7,7 @@ import type { Arg, Expr, Program, Stmt, TypeRef } from './ast';
 import { BuiltinError, CONSTANTS, FUNCTIONS, KNOWN_UNSUPPORTED_NAMESPACES, VARIABLES, num, type BuiltinFunction } from './builtins/registry';
 import './builtins/core';
 import './builtins/ta';
-import './builtins/strategy';
+import { RISK_CHECKS } from './builtins/strategy';
 import { ScriptError, type Span } from './errors';
 import { PLOT_PALETTE, SHAPE_SIZES, emptyOutputs, type BarColorOutput, type FillOutput, type HlineOutput, type Outputs, type PlotOutput, type ShapeOutput } from './outputs';
 import { Frame, Runtime, SLOT_PLAIN, SLOT_VAR, SLOT_VARIP, type FrameLayout } from './runtime';
@@ -923,12 +923,31 @@ export class Compiler {
     if (name in OUTPUT_PARAMS) return this.outputCall(name, e.args, e.span);
 
     const builtin = FUNCTIONS.get(name);
+    if (builtin && RISK_CHECKS.has(name)) this.checkRiskCall(name, builtin, e.args, e.span);
     if (builtin) return this.builtinCall(name, builtin, e.args, e.span);
     // close.myMethod(): a user method called on a built-in series.
     if (callee.kind === 'member' && this.functions.get(callee.name)?.isMethod) {
       return this.methodCall(callee.object, callee.name, e.args, e.span);
     }
     throw this.unknown(name, callee.span, true);
+  }
+
+  /** strategy.risk.* calls are settings: top level only, and constant arguments are checked now. */
+  private checkRiskCall(name: string, def: BuiltinFunction, args: Arg[], span: Span): void {
+    if (!this.isGlobalScope()) throw new ScriptError(`${name}() must be called at the top level`, span);
+    const bound = this.bindArgs(name, def.params, def.required, false, args, span);
+    const checks = RISK_CHECKS.get(name)!;
+    bound.forEach((arg, i) => {
+      const check = checks[i];
+      if (!arg || !check) return;
+      const v = this.constEval(arg);
+      if (v === NOT_CONST) return;
+      try {
+        check(v, name);
+      } catch (err) {
+        throw wrapError(err, arg.span);
+      }
+    });
   }
 
   private bindArgs(name: string, params: string[], required: number, variadic: boolean, args: Arg[], span: Span): Array<Expr | undefined> {

@@ -527,7 +527,7 @@ plot(close)`);
     expect(err('strategy("s")\nstrategy("t")')).toMatch(/only once/);
     expect(err('strategy("s", default_qty_type = "lots")')).toMatch(/default_qty_type must be one of strategy.fixed/);
     expect(err('strategy("s", initial_capital = 0)')).toMatch(/initial_capital/);
-    expect(err('strategy("s")\nstrategy.risk.max_drawdown(10, strategy.percent_of_equity)')).toMatch(/not supported yet/);
+    expect(err('strategy("s")\nstrategy.convert_to_symbol(10)')).toMatch(/not supported yet/);
     const r = compile('strategy("s")\nstrategy.entry("L", "up")').run(bars);
     expect(r.error?.message).toMatch(/strategy.long or strategy.short/);
   });

@@ -17,6 +17,23 @@
  * - Commission is charged on every fill: on entries when the trade opens and on exits when
  *   it closes. A reversal is two fills (the close and the new entry).
  * - There are no margin calls; quantities are not rounded.
+ *
+ * Order groups. Entries and plain orders can share an `oca_name`. When one of them fills, its
+ * `oca_type` decides what happens to the other pending orders of the group: `cancel` removes
+ * them, `reduce` lowers their quantity by the filled quantity (removing those that reach 0),
+ * `none` leaves them alone. This happens at the fill, so a cancelled order cannot fill later
+ * in the same bar.
+ *
+ * Risk rules (strategy.risk.*), set by the script and applied from the next fill on:
+ * - allow_entry_in: an entry in a direction that is not allowed only closes an opposite
+ *   position, and does nothing when there is none. Plain orders only reduce.
+ * - max_position_size: an entry or order that would make the position larger is cut down to
+ *   the room left, and does nothing when there is none.
+ * - max_drawdown and max_intraday_loss are checked on bar-close equity; max_intraday_filled_orders
+ *   after every fill; max_cons_loss_days when a new UTC day starts. A rule that triggers cancels
+ *   every pending order and exit, closes the position with a market order at the next fill
+ *   opportunity and ignores new orders: for the rest of the run (max_drawdown,
+ *   max_cons_loss_days) or for the rest of the UTC day (the intraday rules).
  */
 
 export type Side = 1 | -1;
@@ -131,8 +148,56 @@ export interface StrategySummary {
   positionSize: number;
 }
 
+export type OcaType = 'none' | 'cancel' | 'reduce';
+export type RiskDirection = 'all' | 'long' | 'short';
+export type RiskAmountType = 'percent_of_equity' | 'cash';
+export type RiskRule = 'max_drawdown' | 'max_intraday_loss' | 'max_intraday_filled_orders' | 'max_cons_loss_days';
+
+/** strategy.risk.* settings; null means the rule is not used. */
+export interface RiskSettings {
+  allowEntryIn: RiskDirection | null;
+  maxPositionSize: number | null;
+  maxDrawdown: { value: number; type: RiskAmountType } | null;
+  maxIntradayLoss: { value: number; type: RiskAmountType } | null;
+  maxIntradayFilledOrders: number | null;
+  maxConsLossDays: number | null;
+}
+
+/** A risk rule that triggered. */
+export interface RiskEvent {
+  rule: RiskRule;
+  bar: number;
+  time: number;
+  /** True when trading stopped for the rest of the run, false for a halt until the next UTC day. */
+  final: boolean;
+  /** What was measured, in words. */
+  detail: string;
+}
+
+export const RISK_RULE_LABELS: Readonly<Record<RiskRule, string>> = {
+  max_drawdown: 'Max drawdown',
+  max_intraday_loss: 'Max intraday loss',
+  max_intraday_filled_orders: 'Max intraday filled orders',
+  max_cons_loss_days: 'Max losing days',
+};
+
+export const noRisk = (): RiskSettings => ({
+  allowEntryIn: null,
+  maxPositionSize: null,
+  maxDrawdown: null,
+  maxIntradayLoss: null,
+  maxIntradayFilledOrders: null,
+  maxConsLossDays: null,
+});
+
 export interface StrategyReport {
   config: StrategyConfig;
+  /** strategy.risk.* settings the script set. */
+  risk: RiskSettings;
+  /** Every time a risk rule triggered, oldest first. */
+  riskEvents: RiskEvent[];
+  /** The rule that stopped trading for good, or null. */
+  stoppedBy: RiskEvent | null;
   summary: StrategySummary;
   trades: ClosedTrade[];
   openTrades: OpenTradeReport[];
@@ -165,6 +230,8 @@ interface PriceOrder {
   stop: number;
   comment: string | null;
   seq: number;
+  ocaName: string | null;
+  ocaType: OcaType;
 }
 
 interface CloseOrder {
@@ -175,6 +242,8 @@ interface CloseOrder {
   qtyPercent: number;
   comment: string | null;
   seq: number;
+  /** Set on the order a risk rule places to flatten the position; such fills are not counted. */
+  risk?: RiskRule;
 }
 
 export interface ExitParams {
@@ -235,6 +304,22 @@ export class Broker {
   private commissionPaid = 0;
   private maxDd = 0;
   private peak = 0;
+  private risk: RiskSettings = noRisk();
+  private riskEvents: RiskEvent[] = [];
+  /** The rule that stopped trading for the rest of the run. */
+  private stopped: RiskEvent | null = null;
+  /** UTC day number of the current bar. */
+  private day = NaN;
+  /** UTC day on which an intraday rule halted trading. */
+  private haltDay = NaN;
+  /** Equity at the last close of the previous UTC day. */
+  private dayStartEquity = 0;
+  /** Orders filled on the current UTC day, not counting risk closes. */
+  private dayFills = 0;
+  /** Losing UTC days in a row. */
+  private lossDays = 0;
+  /** Equity at the last bar close. */
+  private lastEquity = 0;
 
   constructor(config: Partial<StrategyConfig> = {}) {
     this.config = { ...DEFAULT_STRATEGY, ...config };
@@ -260,6 +345,105 @@ export class Broker {
     this.commissionPaid = 0;
     this.maxDd = 0;
     this.peak = this.config.initialCapital;
+    this.risk = noRisk();
+    this.riskEvents = [];
+    this.stopped = null;
+    this.day = NaN;
+    this.haltDay = NaN;
+    this.dayStartEquity = this.config.initialCapital;
+    this.dayFills = 0;
+    this.lossDays = 0;
+    this.lastEquity = this.config.initialCapital;
+  }
+
+  // ------------------------------------------------------------------ risk rules
+
+  /** Changes strategy.risk.* settings; the script calls these on every bar, the latest call wins. */
+  setRisk(patch: Partial<RiskSettings>): void {
+    Object.assign(this.risk, patch);
+  }
+
+  /** New orders are ignored: trading stopped, or an intraday rule halted the current UTC day. */
+  get blocked(): boolean {
+    return this.stopped !== null || this.haltDay === this.day;
+  }
+
+  private allows(side: Side): boolean {
+    const a = this.risk.allowEntryIn;
+    return a === null || a === 'all' || a === (side > 0 ? 'long' : 'short');
+  }
+
+  /** `qty` cut down so the position in direction `side` stays within max_position_size. */
+  private capQty(qty: number, side: Side): number {
+    const max = this.risk.maxPositionSize;
+    if (max === null || !(qty > 0)) return qty;
+    return Math.min(qty, Math.max(0, max - Math.max(0, this.positionSize * side)));
+  }
+
+  /** Cancels pending orders and exits, flattens at the next fill opportunity and blocks new orders. */
+  private halt(rule: RiskRule, final: boolean, detail: string): void {
+    const event: RiskEvent = { rule, bar: this.bar, time: this.time, final, detail };
+    this.riskEvents.push(event);
+    if (final) this.stopped = event;
+    else this.haltDay = this.day;
+    this.orders = [];
+    this.exits = [];
+    if (this.trades.length > 0) {
+      this.orders.push({ kind: 'close', id: null, qty: NaN, qtyPercent: NaN, comment: null, seq: this.seq++, risk: rule });
+    }
+  }
+
+  /** Called once per order that fills; enforces max_intraday_filled_orders. */
+  private countFill(): void {
+    this.dayFills++;
+    const max = this.risk.maxIntradayFilledOrders;
+    if (max !== null && this.dayFills >= max && !this.blocked) {
+      this.halt('max_intraday_filled_orders', false, `${this.dayFills} orders filled on this UTC day, the limit is ${max}`);
+    }
+  }
+
+  /** A new UTC day starts: score the day that ended and reset the intraday counters. */
+  private newDay(day: number): void {
+    if (this.day === this.day) {
+      const result = this.lastEquity - this.dayStartEquity;
+      if (result < -EPS) this.lossDays++;
+      else if (result > EPS) this.lossDays = 0;
+      this.dayStartEquity = this.lastEquity;
+    }
+    this.day = day;
+    this.dayFills = 0;
+    const max = this.risk.maxConsLossDays;
+    if (max !== null && this.lossDays >= max && !this.stopped) {
+      this.halt('max_cons_loss_days', true, `${this.lossDays} losing days in a row, the limit is ${max}`);
+    }
+  }
+
+  /** Checks the rules measured on bar-close equity; true when one of them triggered. */
+  private checkClose(eq: number): boolean {
+    if (this.stopped) return false;
+    const dd = this.risk.maxDrawdown;
+    if (dd) {
+      const peak = Math.max(this.peak, eq);
+      const loss = peak - eq;
+      const pct = peak > 0 ? (loss / peak) * 100 : 0;
+      if (dd.type === 'cash' ? loss >= dd.value - EPS : pct >= dd.value - EPS) {
+        const limit = dd.type === 'cash' ? `${dd.value}` : `${dd.value}% of equity`;
+        this.halt('max_drawdown', true, `Drawdown of ${loss.toFixed(2)} (${pct.toFixed(2)}%) from the peak of ${peak.toFixed(2)} reached the limit of ${limit}`);
+        return true;
+      }
+    }
+    const il = this.risk.maxIntradayLoss;
+    if (il && this.haltDay !== this.day) {
+      const start = this.dayStartEquity;
+      const loss = start - eq;
+      const pct = start > 0 ? (loss / start) * 100 : 0;
+      if (il.type === 'cash' ? loss >= il.value - EPS : pct >= il.value - EPS) {
+        const limit = il.type === 'cash' ? `${il.value}` : `${il.value}% of equity`;
+        this.halt('max_intraday_loss', false, `Loss of ${loss.toFixed(2)} (${pct.toFixed(2)}%) since the start of the UTC day reached the limit of ${limit}`);
+        return true;
+      }
+    }
+    return false;
   }
 
   // ------------------------------------------------------------------ state the script can read
@@ -330,18 +514,29 @@ export class Broker {
   // ------------------------------------------------------------------ orders placed by the script
 
   /** strategy.entry: opens a position, reversing an opposite one; limited by pyramiding. */
-  entry(id: string, side: Side, qty: number, limit: number, stop: number, comment: string | null): void {
-    this.placePriceOrder('entry', id, side, qty, limit, stop, comment);
+  entry(id: string, side: Side, qty: number, limit: number, stop: number, comment: string | null, ocaName: string | null = null, ocaType: OcaType = 'none'): void {
+    this.placePriceOrder('entry', id, side, qty, limit, stop, comment, ocaName, ocaType);
   }
 
   /** strategy.order: a plain buy or sell that reduces an opposite position before opening one. */
-  order(id: string, side: Side, qty: number, limit: number, stop: number, comment: string | null): void {
-    this.placePriceOrder('order', id, side, qty, limit, stop, comment);
+  order(id: string, side: Side, qty: number, limit: number, stop: number, comment: string | null, ocaName: string | null = null, ocaType: OcaType = 'none'): void {
+    this.placePriceOrder('order', id, side, qty, limit, stop, comment, ocaName, ocaType);
   }
 
-  private placePriceOrder(kind: PriceOrder['kind'], id: string, side: Side, qty: number, limit: number, stop: number, comment: string | null): void {
+  private placePriceOrder(
+    kind: PriceOrder['kind'],
+    id: string,
+    side: Side,
+    qty: number,
+    limit: number,
+    stop: number,
+    comment: string | null,
+    ocaName: string | null,
+    ocaType: OcaType,
+  ): void {
     if (isSet(qty) && !(qty > 0)) return;
-    const order: PriceOrder = { kind, id, side, qty, limit, stop, comment, seq: this.seq++ };
+    if (this.blocked) return;
+    const order: PriceOrder = { kind, id, side, qty, limit, stop, comment, seq: this.seq++, ocaName: ocaName || null, ocaType };
     // Placing an order with the id of a pending one replaces it.
     const i = this.orders.findIndex((o) => o.kind === kind && o.id === id);
     if (i >= 0) this.orders[i] = order;
@@ -351,7 +546,7 @@ export class Broker {
   /** strategy.exit: a take-profit, stop-loss and/or trailing stop bracket for open entries. */
   exit(id: string, params: ExitParams): void {
     const hasLevel = [params.profit, params.limit, params.loss, params.stop, params.trailPrice, params.trailPoints].some(isSet);
-    if (!hasLevel) return;
+    if (!hasLevel || this.blocked) return;
     const existing = this.exits.find((e) => e.id === id);
     if (existing) Object.assign(existing, params);
     else this.exits.push({ ...params, id, seq: this.seq++, done: new Set(), trail: new Map() });
@@ -388,13 +583,11 @@ export class Broker {
     this.bar = i;
     this.time = time;
     this.mark = c;
+    const day = Math.floor(time / DAY_MS);
+    if (day !== this.day) this.newDay(day);
     if (!(o === o && h === h && l === l && c === c)) return;
     // Market orders first, in the order they were placed.
-    for (const order of this.orders.filter(isMarket)) {
-      if (!this.orders.includes(order)) continue;
-      this.fillMarket(order, o);
-    }
-    this.pruneExits();
+    this.fillMarketOrders(o);
     const path = barPath(o, h, l, c);
     let guard = 0;
     for (let k = 0; k + 1 < path.length; k++) {
@@ -414,17 +607,29 @@ export class Broker {
 
   /** Fills market orders on the close when asked to, then records equity for bar `i`. */
   endBar(i: number, c: number): void {
-    if (this.config.processOrdersOnClose && c === c) {
-      for (const order of this.orders.filter(isMarket)) {
-        if (!this.orders.includes(order)) continue;
-        this.fillMarket(order, c);
-      }
-      this.pruneExits();
+    const onClose = this.config.processOrdersOnClose && c === c;
+    const events = this.riskEvents.length;
+    if (onClose) this.fillMarketOrders(c);
+    let eq = this.equity;
+    const triggered = c === c && this.checkClose(eq);
+    // With fills on the close, a rule that triggered on this bar flattens at this close.
+    if (onClose && (triggered || this.riskEvents.length > events)) {
+      this.fillMarketOrders(c);
+      eq = this.equity;
     }
-    const eq = this.equity;
     this.equityCurve[i] = eq;
+    this.lastEquity = eq;
     if (eq > this.peak) this.peak = eq;
     if (this.peak - eq > this.maxDd) this.maxDd = this.peak - eq;
+  }
+
+  /** Fills pending market orders at `price`, in the order they were placed. */
+  private fillMarketOrders(price: number): void {
+    for (const order of this.orders.filter(isMarket)) {
+      if (!this.orders.includes(order)) continue;
+      this.fillMarket(order, price);
+    }
+    this.pruneExits();
   }
 
   /** Updates the price extremes of open trades and trailing stops at a point of the bar path. */
@@ -528,7 +733,7 @@ export class Broker {
     if (isSet(order.qtyPercent)) want = (total * Math.min(100, Math.max(0, order.qtyPercent))) / 100;
     else if (isSet(order.qty)) want = Math.min(total, Math.max(0, order.qty));
     if (want <= EPS) return;
-    const exitId = order.id === null ? 'Close all' : 'Close';
+    const exitId = order.risk ? RISK_RULE_LABELS[order.risk] : order.id === null ? 'Close all' : 'Close';
     const parts: Array<[Trade, number]> = [];
     for (const t of matching) {
       if (want <= EPS) break;
@@ -538,6 +743,7 @@ export class Broker {
     }
     const price = rawPrice - parts[0][0].dir * this.config.slippage * this.mintick;
     this.closeParts(parts, price, exitId, order.comment ?? exitId);
+    if (!order.risk) this.countFill();
   }
 
   private fillExit(e: ExitOrder, t: Trade, price: number, legComment: string | null): void {
@@ -548,27 +754,33 @@ export class Broker {
     else if (isSet(e.qty)) q = Math.min(t.qty, Math.max(0, e.qty));
     if (q <= EPS) return;
     this.closeParts([[t, q]], price, e.id, legComment ?? e.comment ?? e.id);
+    this.countFill();
   }
 
   /** Fills an entry or a plain order at `price` (slippage already applied). */
   private fillPrice(order: PriceOrder, price: number): void {
     this.remove(order);
     const side = order.side;
+    const allowed = this.allows(side);
+    let traded = 0;
     if (order.kind === 'entry') {
       const pos = this.positionSize;
       if (pos * side < 0) {
-        // Reversal: close everything, then open the new position.
-        this.closeParts(
-          this.trades.map((t): [Trade, number] => [t, t.qty]),
-          price,
-          order.id,
-          order.comment ?? order.id,
-        );
+        // Reversal: close everything, then open the new position (unless that direction is not allowed).
+        const parts = this.trades.map((t): [Trade, number] => [t, t.qty]);
+        traded += parts.reduce((sum, [, q]) => sum + q, 0);
+        this.closeParts(parts, price, order.id, order.comment ?? order.id);
       } else if (pos * side > 0 && this.trades.length >= Math.max(1, this.config.pyramiding)) {
         return;
       }
-      const qty = this.orderQty(order, price);
-      if (qty > EPS) this.open(order, qty, price);
+      if (allowed) {
+        const qty = this.capQty(this.orderQty(order, price), side);
+        if (qty > EPS) {
+          this.open(order, qty, price);
+          traded += qty;
+        }
+      }
+      this.afterFill(order, traded, price);
       return;
     }
     let remaining = this.orderQty(order, price);
@@ -579,9 +791,35 @@ export class Broker {
       const q = Math.min(t.qty, remaining);
       parts.push([t, q]);
       remaining -= q;
+      traded += q;
     }
     if (parts.length) this.closeParts(parts, price, order.id, order.comment ?? order.id);
-    if (remaining > EPS) this.open(order, remaining, price);
+    // What is left would open a position: only in an allowed direction and within the size limit.
+    const opening = allowed ? this.capQty(remaining, side) : 0;
+    if (opening > EPS) {
+      this.open(order, opening, price);
+      traded += opening;
+    }
+    this.afterFill(order, traded, price);
+  }
+
+  /** Applies the filled order's group (OCA) to the other pending orders, then counts the fill. */
+  private afterFill(order: PriceOrder, traded: number, price: number): void {
+    if (!(traded > EPS)) return;
+    if (order.ocaName !== null && order.ocaType !== 'none') {
+      for (const o of this.orders.slice()) {
+        if (o.kind === 'close' || o.ocaName !== order.ocaName) continue;
+        if (order.ocaType === 'cancel') {
+          this.remove(o);
+          continue;
+        }
+        // An order without qty is first given its default size at this fill's price.
+        const left = (isSet(o.qty) ? o.qty : this.orderQty(o, price)) - traded;
+        if (left > EPS) o.qty = left;
+        else this.remove(o);
+      }
+    }
+    this.countFill();
   }
 
   private orderQty(order: PriceOrder, price: number): number {
@@ -725,8 +963,12 @@ export class Broker {
       commissionPaid: this.commissionPaid,
       positionSize: this.positionSize,
     });
+    const r = this.risk;
     return {
       config: { ...this.config },
+      risk: { ...r, maxDrawdown: r.maxDrawdown && { ...r.maxDrawdown }, maxIntradayLoss: r.maxIntradayLoss && { ...r.maxIntradayLoss } },
+      riskEvents: this.riskEvents.map((e) => ({ ...e })),
+      stoppedBy: this.stopped && { ...this.stopped },
       summary,
       trades: this.closed.slice(),
       openTrades,
