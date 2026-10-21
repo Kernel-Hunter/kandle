@@ -891,6 +891,26 @@ kbd {
   }
 }
 
+/* Phones: dialogs use the full height, and inputs stay at 16px so iOS does not zoom in on focus. */
+@media (max-width: 640px) {
+  .modal-backdrop {
+    padding: 12px 8px;
+  }
+  .modal {
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+  input,
+  select,
+  textarea,
+  .search-input,
+  .text-input,
+  .param-input,
+  .sp-editor .cm-editor {
+    font-size: 16px;
+  }
+}
+
 @media (max-width: 480px) {
   .brand {
     display: none;

@@ -181,7 +181,35 @@
     display: none;
   }
   .sp-select {
-    max-width: 110px;
+    max-width: 90px;
+  }
+  /* Tabs and the close button on the first row, the tools on a second row that scrolls sideways. */
+  .sp-head {
+    flex-wrap: wrap;
+    height: auto;
+    column-gap: 4px;
+    padding: 0 4px 0 6px;
+  }
+  .sp-tabs {
+    height: 44px;
+  }
+  .sp-head > .icon-btn {
+    margin-left: auto;
+  }
+  .sp-tools {
+    order: 1;
+    flex-basis: 100%;
+    gap: 6px;
+    padding: 0 2px 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .sp-tools > * {
+    flex-shrink: 0;
+  }
+  .sp-select,
+  .sp-head .btn {
+    height: 36px;
   }
 }
 

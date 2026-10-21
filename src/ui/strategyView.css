@@ -328,3 +328,25 @@
     padding: 6px 8px;
   }
 }
+
+/* Phones: two columns of numbers, and the overview scrolls down to the equity chart. */
+@media (max-width: 480px) {
+  .st-overview {
+    overflow-y: auto;
+  }
+  .st-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .st-kpi:nth-child(odd) {
+    border-right: 1px solid var(--border);
+  }
+  .st-kpi:nth-child(even) {
+    border-right: 0;
+  }
+  .st-kpi:nth-child(-n + 6) {
+    border-bottom: 1px solid var(--border);
+  }
+  .st-main {
+    flex: 0 0 180px;
+  }
+}

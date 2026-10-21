@@ -491,8 +491,53 @@
 
 @media (max-width: 640px) {
   .mc-ind,
-  .mc-chips {
+  .mc-chips,
+  .mc-source {
     display: none;
+  }
+  /* Four charts leave each header too narrow for its controls; let it scroll sideways. */
+  .mc-head {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}
+
+/* Portrait phones: two charts one above the other. !important beats the inline grid from LayoutManager. */
+@media (max-width: 640px) and (orientation: portrait) {
+  .chart-grid.n2 {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Phones: the replay buttons on one row and the date under them. Centered with auto margins,
+   since left: 50% would leave the bar only half the chart's width to wrap in. */
+@media (max-width: 640px) {
+  .replay-bar,
+  .replay-hint {
+    left: 8px;
+    right: 8px;
+    width: fit-content;
+    margin: 0 auto;
+    transform: none;
+  }
+  .replay-bar {
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 4px 6px;
+    white-space: normal;
+  }
+  .replay-hint {
+    text-align: center;
+  }
+  .rp-title {
+    display: none;
+  }
+  .rp-label {
+    order: 1;
+    flex-basis: 100%;
+    margin: 0 0 2px;
+    text-align: center;
   }
 }
 
