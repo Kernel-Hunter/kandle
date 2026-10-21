@@ -21,7 +21,7 @@ import {
   type SharedRange,
   type SharedScript,
 } from './codec';
-import { DEFAULT_EMBED_OPTIONS, appPage, embedTitle, embedUrl, iframeSnippet, type EmbedOptions } from './embed';
+import { DEFAULT_EMBED_OPTIONS, EMBED_SIZES, appPage, embedTitle, embedUrl, iframeSnippet, type EmbedOptions } from './embed';
 import type { SharedView } from './view';
 import './share.css';
 
@@ -115,7 +115,7 @@ export async function applyRange(chart: ScrollChart, range: SharedRange, pageWai
 
 // ---------------------------------------------------------------- clipboard
 
-async function copyText(text: string, fallback: HTMLInputElement): Promise<boolean> {
+async function copyText(text: string, fallback: HTMLInputElement | HTMLTextAreaElement): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
     return true;
@@ -156,9 +156,13 @@ const INCLUDE_LABELS: Record<keyof ShareInclude, string> = {
   layout: 'Other charts in the layout',
 };
 
-/** The Share button: a popover to pick what the link carries, its length, and Copy. */
+const EMBED_NO_SCRIPTS = 'Scripts are never included in embeds';
+
+/** The Share button: a popover to pick what the link carries, its length, and Copy, or an iframe to embed the chart. */
 export function createShareControl(options: ShareControlOptions): ShareControl {
   const include: ShareInclude = { ...DEFAULT_INCLUDE };
+  let mode: 'link' | 'embed' = 'link';
+  const embed: EmbedOptions = { ...DEFAULT_EMBED_OPTIONS };
   const button = h('button', { class: 'icon-btn', type: 'button', title: 'Share a link to this chart (Alt+K)', 'aria-label': 'Share chart link', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', html: SHARE_ICON });
 
   const boxes = new Map<keyof ShareInclude, { input: HTMLInputElement; count: HTMLElement; row: HTMLElement }>();
@@ -172,19 +176,49 @@ export function createShareControl(options: ShareControlOptions): ShareControl {
     boxes.set(key, { input, count, row });
     return row;
   });
+  const modeBtns = (['link', 'embed'] as const).map((m) =>
+    h('button', { class: 'seg-btn', type: 'button', dataset: { mode: m }, 'aria-pressed': 'false', onclick: () => setMode(m) }, m === 'link' ? 'Link' : 'Embed'),
+  );
   const field = h('input', { class: 'sh-url', type: 'text', readonly: true, 'aria-label': 'Link to this chart', spellcheck: 'false' }) as HTMLInputElement;
   const length = h('span', { class: 'sh-length muted', 'aria-live': 'polite' });
   const copyBtn = h('button', { class: 'btn btn-primary sh-copy', type: 'button' }, 'Copy link') as HTMLButtonElement;
+  const copyUrlBtn = h('button', { class: 'btn', type: 'button', hidden: true }, 'Copy URL') as HTMLButtonElement;
   const notes = h('div', { class: 'sh-notes' });
+
+  const sizeSelect = h(
+    'select',
+    { class: 'sh-select', 'aria-label': 'Embed size', onchange: () => {
+      const size = EMBED_SIZES[Number(sizeSelect.value)] ?? EMBED_SIZES[0];
+      embed.width = size.width;
+      embed.height = size.height;
+      void refresh();
+    } },
+    ...EMBED_SIZES.map((size, i) => h('option', { value: String(i) }, size.label)),
+  ) as HTMLSelectElement;
+  const themeSelect = h(
+    'select',
+    { class: 'sh-select', 'aria-label': 'Embed theme', onchange: () => {
+      embed.theme = themeSelect.value === 'light' || themeSelect.value === 'dark' ? themeSelect.value : null;
+      void refresh();
+    } },
+    h('option', { value: '' }, "Viewer's theme"),
+    h('option', { value: 'light' }, 'Light'),
+    h('option', { value: 'dark' }, 'Dark'),
+  ) as HTMLSelectElement;
+  const code = h('textarea', { class: 'sh-code', readonly: true, rows: 4, 'aria-label': 'HTML to paste into a page', spellcheck: 'false' }) as HTMLTextAreaElement;
+  const embedBox = h('div', { class: 'sh-embed', hidden: true }, h('div', { class: 'sh-embed-row' }, sizeSelect, themeSelect), code);
+  const privacy = h('p', { class: 'sh-privacy muted' });
+
   const popover = h(
     'div',
     { class: 'popover sh-menu', hidden: true, role: 'dialog', 'aria-label': 'Share a link to this chart' },
-    h('div', { class: 'popover-title' }, 'Share this chart'),
+    h('div', { class: 'sh-head' }, h('div', { class: 'popover-title' }, 'Share this chart'), h('div', { class: 'seg sh-modes', role: 'group', 'aria-label': 'Share as' }, ...modeBtns)),
     h('div', { class: 'sh-options' }, ...rows),
+    embedBox,
     field,
-    h('div', { class: 'sh-actions' }, length, copyBtn),
+    h('div', { class: 'sh-actions' }, length, h('span', { class: 'sh-buttons' }, copyUrlBtn, copyBtn)),
     notes,
-    h('p', { class: 'sh-privacy muted' }, 'The chart is stored after the # in the link, which browsers do not send to any server. Exchange, symbol and timeframe are always included.'),
+    privacy,
   );
   const wrap = h('div', { class: 'popover-wrap sh-wrap' }, button, popover);
 
@@ -195,6 +229,29 @@ export function createShareControl(options: ShareControlOptions): ShareControl {
   const setNotes = (list: string[], error = false) => {
     notes.replaceChildren(...list.map((n) => h('p', { class: error ? 'sh-note sh-error' : 'sh-note' }, n)));
   };
+
+  const copyLabel = () => (mode === 'embed' ? 'Copy code' : 'Copy link');
+
+  function setMode(next: 'link' | 'embed'): void {
+    // Copy waits for the new link rather than copying the other mode's.
+    if (next !== mode) link = null;
+    mode = next;
+    for (const b of modeBtns) {
+      const on = b.dataset.mode === mode;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+    embedBox.hidden = mode !== 'embed';
+    copyUrlBtn.hidden = mode !== 'embed';
+    clearTimeout(copiedTimer);
+    copyBtn.textContent = copyLabel();
+    field.setAttribute('aria-label', mode === 'embed' ? 'Embed URL' : 'Link to this chart');
+    privacy.textContent =
+      mode === 'embed'
+        ? `The embed shows the chart with a link to open it in ${APP.name}. Scripts are never included, and it saves nothing in the viewer's browser.`
+        : 'The chart is stored after the # in the link, which browsers do not send to any server. Exchange, symbol and timeframe are always included.';
+    void refresh();
+  }
 
   async function refresh(): Promise<void> {
     const mine = ++build;
@@ -211,38 +268,54 @@ export function createShareControl(options: ShareControlOptions): ShareControl {
       box.count.textContent = n === undefined ? '' : `(${n})`;
       // Nothing to share: show the box off and leave the choice as it was.
       const empty = key === 'layout' && n === 0;
-      box.input.disabled = empty;
-      if (empty) box.input.checked = false;
-      box.row.title = empty ? 'Only one chart is showing' : '';
+      const noScripts = key === 'scripts' && mode === 'embed';
+      box.input.disabled = empty || noScripts;
+      if (empty || noScripts) box.input.checked = false;
+      box.row.title = empty ? 'Only one chart is showing' : noScripts ? EMBED_NO_SCRIPTS : '';
     }
     try {
-      const made = await makeShareLink(snap, include);
+      const embedded = mode === 'embed' ? await makeEmbedLink(snap, { ...include, scripts: false }, embed) : null;
+      const made = embedded ?? (await makeShareLink(snap, include));
       if (mine !== build) return;
       link = made;
       field.value = made.url;
-      length.textContent = `${made.url.length.toLocaleString('en-US')} characters`;
-      length.classList.toggle('sh-long', made.url.length > SOFT_LINK_LIMIT);
+      code.value = embedded?.html ?? '';
+      length.textContent = mode === 'embed' ? '' : `${made.url.length.toLocaleString('en-US')} characters`;
+      length.classList.toggle('sh-long', mode === 'link' && made.url.length > SOFT_LINK_LIMIT);
       copyBtn.disabled = false;
+      copyUrlBtn.disabled = false;
       setNotes(made.notes);
     } catch (error) {
       if (mine !== build) return;
       link = null;
       field.value = '';
+      code.value = '';
       length.textContent = '';
       copyBtn.disabled = true;
+      copyUrlBtn.disabled = true;
       setNotes([error instanceof ShareError ? error.message : `Could not make a link: ${error instanceof Error ? error.message : String(error)}`], true);
     }
   }
 
-  copyBtn.addEventListener('click', async () => {
-    if (!link) return;
-    const ok = await copyText(link.url, field);
+  const copy = async (button: HTMLButtonElement, label: string, text: string, from: HTMLInputElement | HTMLTextAreaElement) => {
+    const ok = await copyText(text, from);
     clearTimeout(copiedTimer);
-    copyBtn.textContent = ok ? 'Copied' : 'Copy failed';
-    copiedTimer = setTimeout(() => (copyBtn.textContent = 'Copy link'), 1600);
-    if (!ok) options.toast('Could not copy. Select the link and copy it by hand.', 'error');
+    copyBtn.textContent = copyLabel();
+    copyUrlBtn.textContent = 'Copy URL';
+    button.textContent = ok ? 'Copied' : 'Copy failed';
+    copiedTimer = setTimeout(() => (button.textContent = label), 1600);
+    if (!ok) options.toast('Could not copy. Select the text and copy it by hand.', 'error');
+  };
+  copyBtn.addEventListener('click', () => {
+    if (!link) return;
+    if (mode === 'embed') void copy(copyBtn, 'Copy code', code.value, code);
+    else void copy(copyBtn, 'Copy link', link.url, field);
+  });
+  copyUrlBtn.addEventListener('click', () => {
+    if (link) void copy(copyUrlBtn, 'Copy URL', link.url, field);
   });
   field.addEventListener('focus', () => field.select());
+  code.addEventListener('focus', () => code.select());
 
   const onDown = (e: PointerEvent) => {
     if (!wrap.contains(e.target as Node)) close();
@@ -263,7 +336,7 @@ export function createShareControl(options: ShareControlOptions): ShareControl {
   const open = (anchor: HTMLElement = button) => {
     popover.hidden = false;
     button.setAttribute('aria-expanded', 'true');
-    void refresh();
+    setMode(mode);
     // Fixed to the window and kept inside it, so it also opens from the More menu on a phone.
     const visible = anchor.getClientRects().length > 0 ? anchor : (options.fallbackAnchor?.() ?? anchor);
     const r = visible.getBoundingClientRect();

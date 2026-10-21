@@ -165,3 +165,72 @@
     font-size: 16px;
   }
 }
+
+/* ---------------------------------------------------------------- embed */
+
+.sh-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sh-modes .seg-btn {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.sh-embed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sh-embed[hidden] {
+  display: none;
+}
+
+.sh-embed-row {
+  display: flex;
+  gap: 6px;
+}
+
+.sh-select {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.sh-code {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: 12px/1.4 var(--mono);
+  resize: none;
+  word-break: break-all;
+}
+
+.sh-code:focus {
+  outline: 0;
+  border-color: var(--accent);
+}
+
+.sh-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.sh-buttons [hidden] {
+  display: none;
+}

@@ -16,8 +16,9 @@ import type { PaneHandle } from '../layout/pane';
 import { ReplayController } from '../replay/controller';
 import { SwitchingLoader } from '../replay/loader';
 import type { ScriptRecord } from '../script/persist';
-import { applyRange, createShareControl, createSharedBanner, makeShareLink, readRange } from '../share';
+import { applyRange, createShareControl, createSharedBanner, makeEmbedLink, makeShareLink, readRange } from '../share';
 import { parseInclude, type ChartSnapshot } from '../share/codec';
+import { parseEmbedOptions } from '../share/embed';
 import type { SharedView } from '../share/view';
 import type { DrawingRecord, KeyValueStorage, Theme } from '../store/layout';
 import { h, isTypingTarget } from '../ui/dom';
@@ -486,8 +487,19 @@ export function createFeatures(deps: FeatureDeps): Features {
           set: (params: Record<string, unknown>) => dispatch(handlers, 'set_layout', params),
           state: () => layout.state(),
         },
-        /** A link that opens this chart; include picks what it carries (see src/share/codec.ts). */
-        share: async (options: { include?: unknown } = {}) => (await makeShareLink(snapshot(), parseInclude(options?.include))).url,
+        /**
+         * A link that opens this chart; include picks what it carries (see src/share/codec.ts).
+         * With embed: true it is the URL for an iframe instead, with an optional theme.
+         */
+        share: async (options: { include?: unknown; embed?: unknown; theme?: unknown } = {}) => {
+          const include = parseInclude(options?.include);
+          if (options?.embed !== undefined && typeof options.embed !== 'boolean') throw new Error('embed must be true or false');
+          if (!options?.embed) return (await makeShareLink(snapshot(), include)).url;
+          return (await makeEmbedLink(snapshot(), include, parseEmbedOptions({ theme: options.theme }))).url;
+        },
+        /** The iframe HTML that embeds this chart in another page; theme, width and height are optional. */
+        embedCode: async (options: { include?: unknown; theme?: unknown; width?: unknown; height?: unknown } = {}) =>
+          (await makeEmbedLink(snapshot(), parseInclude(options?.include), parseEmbedOptions(options))).html,
         bridge: {
           status: () => client?.status ?? 'off',
           call: (method: string, params: Record<string, unknown> = {}) => dispatch(handlers, method as never, params),
