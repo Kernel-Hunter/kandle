@@ -9,7 +9,7 @@ import type { ChartCount, SyncOptions } from '../layout/config';
 import type { LayoutState } from '../layout/manager';
 import type { ReplayStartOptions, ReplayState } from '../replay/controller';
 import { indexAtTime } from '../replay/session';
-import type { ShareLink } from '../share';
+import type { EmbedLink, ShareLink } from '../share';
 import { INCLUDE_KEYS, parseInclude, type ShareInclude } from '../share/codec';
 import type { DrawingPoint } from '../store/layout';
 import type { ActiveIndicator } from '../ui/indicatorPanel';
@@ -91,6 +91,8 @@ export interface HostEnv {
   paint?(): Promise<boolean>;
   /** Makes a link that opens the main chart (and the layout, if included) for anyone. */
   share?(include: ShareInclude): Promise<ShareLink>;
+  /** An embed link and iframe for the main chart; scripts are always left out. */
+  embed?(include: ShareInclude): Promise<EmbedLink>;
 }
 
 export type Handler = (params: Record<string, unknown>) => Promise<unknown>;
@@ -716,12 +718,26 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
     },
 
     get_share_link: async (params) => {
+      if (params.embed !== undefined && typeof params.embed !== 'boolean') throw new Error('embed must be true or false');
+      const include = parseInclude(params.include);
+      const included = (link: ShareLink) => ['exchange', 'symbol', 'timeframe', ...INCLUDE_KEYS.filter((k) => link.include[k])];
+      if (params.embed) {
+        if (!env.embed) throw new Error('Embeds are not available in this build of Kandle');
+        const link = await env.embed(include);
+        return {
+          url: link.openUrl,
+          embed_url: link.url,
+          iframe: link.html,
+          included: included(link),
+          ...(link.notes.length ? { notes: link.notes } : {}),
+        };
+      }
       if (!env.share) throw new Error('Share links are not available in this build of Kandle');
-      const link = await env.share(parseInclude(params.include));
+      const link = await env.share(include);
       return {
         url: link.url,
         characters: link.url.length,
-        included: ['exchange', 'symbol', 'timeframe', ...INCLUDE_KEYS.filter((k) => link.include[k])],
+        included: included(link),
         ...(link.notes.length ? { notes: link.notes } : {}),
       };
     },

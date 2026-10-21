@@ -382,6 +382,7 @@ export function createFeatures(deps: FeatureDeps): Features {
         layout,
         watchlist: watchlist.controller,
         share: (include) => makeShareLink(snapshot(), include),
+        embed: (include) => makeEmbedLink(snapshot(), include),
       };
       const handlers = createHandlers(env);
 

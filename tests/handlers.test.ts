@@ -474,4 +474,19 @@ describe('get_share_link', () => {
     expect(share).not.toHaveBeenCalled();
     expect(await dispatch(createHandlers(env()), 'get_share_link', {})).toMatchObject({ ok: false, error: expect.stringMatching(/not available/) });
   });
+
+  it('returns the embed URL and iframe with embed: true', async () => {
+    const share = vi.fn();
+    const embed = vi.fn(async (include) => ({ url: `${PAGE}?embed=1#s=zABC`, openUrl: `${PAGE}#s=zABC`, html: '<iframe></iframe>', include: { ...include, scripts: false }, notes: ['Scripts are never included in embeds, so they were left out.'] }));
+    const handlers = createHandlers({ ...env(share), embed } as unknown as HostEnv);
+    const res = await dispatch(handlers, 'get_share_link', { embed: true, include: { scripts: true } });
+    expect(share).not.toHaveBeenCalled();
+    expect(embed).toHaveBeenCalledWith({ ...DEFAULT_INCLUDE, scripts: true });
+    expect(res).toEqual({
+      ok: true,
+      result: { url: `${PAGE}#s=zABC`, embed_url: `${PAGE}?embed=1#s=zABC`, iframe: '<iframe></iframe>', included: ['exchange', 'symbol', 'timeframe', 'chart', 'indicators', 'drawings'], notes: ['Scripts are never included in embeds, so they were left out.'] },
+    });
+    expect(await dispatch(handlers, 'get_share_link', { embed: 'yes' })).toMatchObject({ ok: false, error: 'embed must be true or false' });
+    expect(await dispatch(createHandlers(env(share)), 'get_share_link', { embed: true })).toMatchObject({ ok: false, error: expect.stringMatching(/Embeds are not available/) });
+  });
 });

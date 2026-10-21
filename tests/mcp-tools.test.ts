@@ -8,7 +8,8 @@ import { SERVER_VERSION, createMcpServer, updateNotice, type BridgeLike } from '
 import { APP } from '../src/config';
 import { COMMISSION_TYPES, QTY_TYPES, TOOLS, normalizeTimeframe, parseTime, prepareArgs, schemas } from '../packages/mcp/src/tools';
 import * as settings from '../src/script/strategySettings';
-import { INCLUDE_KEYS } from '../src/share/codec';
+import { createHandlers, dispatch, type HostEnv } from '../src/agent/handlers';
+import { DEFAULT_INCLUDE, INCLUDE_KEYS } from '../src/share/codec';
 
 // The share codec reads the drawing and indicator catalogs, which import the chart engine.
 vi.mock('klinecharts', () => ({ registerIndicator: vi.fn(), registerOverlay: vi.fn() }));
@@ -34,6 +35,7 @@ describe('tool schemas', () => {
     expect(schemas.set_chart_style.parse({ scale: 'percent' })).toEqual({ scale: 'percent' });
     expect(schemas.get_share_link.parse({})).toEqual({});
     expect(schemas.get_share_link.parse({ include: { scripts: true, layout: true, drawings: false } })).toEqual({ include: { scripts: true, layout: true, drawings: false } });
+    expect(schemas.get_share_link.parse({ embed: true })).toEqual({ embed: true });
   });
 
   it('rejects bad input with field errors', () => {
@@ -58,11 +60,18 @@ describe('tool schemas', () => {
     expect(schemas.set_chart_style.safeParse({ type: 'line', pane: 0 }).success).toBe(false);
     expect(schemas.get_share_link.safeParse({ include: { everything: true } }).success).toBe(false);
     expect(schemas.get_share_link.safeParse({ include: { scripts: 'yes' } }).success).toBe(false);
+    expect(schemas.get_share_link.safeParse({ embed: 'yes' }).success).toBe(false);
   });
 
-  it('offer the same share link options as the app', () => {
+  it('offer the same share link options as the app', async () => {
     const include = schemas.get_share_link.shape.include.unwrap();
     expect(Object.keys(include.shape)).toEqual(INCLUDE_KEYS);
+    expect(Object.keys(schemas.get_share_link.shape)).toEqual(['include', 'embed']);
+    // Every option the tool offers reaches the app's handler, which reads include and embed.
+    const env = { pane: () => null, sources: () => [], share: vi.fn(), embed: vi.fn(async () => ({ url: 'e', openUrl: 'o', html: 'h', include: DEFAULT_INCLUDE, notes: [] })) };
+    const res = await dispatch(createHandlers(env as unknown as HostEnv), 'get_share_link', schemas.get_share_link.parse({ embed: true, include: { layout: true } }));
+    expect(res).toMatchObject({ ok: true, result: { embed_url: 'e', iframe: 'h' } });
+    expect(env.embed).toHaveBeenCalledWith({ ...DEFAULT_INCLUDE, layout: true });
   });
 
   it('validate the watchlist tools', () => {

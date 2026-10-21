@@ -201,6 +201,10 @@ export const schemas = {
       .strict()
       .optional()
       .describe('What the link carries besides the exchange, symbol and timeframe of the main chart'),
+    embed: z
+      .boolean()
+      .optional()
+      .describe('Also return embed_url and iframe, HTML that shows the chart on another web page with a link back to Kandle (default false). Embeds never include scripts'),
   }),
 } as const;
 
@@ -321,7 +325,7 @@ export const TOOLS: readonly ToolDef[] = [
     name: 'get_share_link',
     title: 'Get share link',
     description:
-      'A link that opens the main chart in Kandle for anyone: exchange, symbol, timeframe, chart type, scale, visible range, indicators and drawings, and optionally scripts and the multi-chart layout. The chart is stored after the # in the link, so it is not sent to any server. Whoever opens it sees it as a temporary view and can keep it or go back to their own chart. Charts of imported CSV files cannot be shared.',
+      'A link that opens the main chart in Kandle for anyone: exchange, symbol, timeframe, chart type, scale, visible range, indicators and drawings, and optionally scripts and the multi-chart layout. The chart is stored after the # in the link, so it is not sent to any server. Whoever opens it sees it as a temporary view and can keep it or go back to their own chart. With embed: true it also returns an iframe that shows the chart on a blog or docs page. Charts of imported CSV files cannot be shared.',
     method: 'get_share_link',
     readOnly: true,
   },
