@@ -4,6 +4,7 @@ import { cachedSymbols, getSource } from '../data/sources';
 import type { TimeframeId } from '../data/timeframes';
 import type { Candle, SymbolMeta } from '../data/types';
 import type { KeyValueStorage, Theme } from '../store/layout';
+import { keyGate } from '../share/keyGate';
 import { h } from '../ui/dom';
 import { createSymbolSearch } from '../ui/symbolSearch';
 import { EXTRA_PANES, gridShape, isChartCount, loadConfig, saveConfig, type ChartCount, type MultiChartConfig, type SyncOptions } from './config';
@@ -230,9 +231,12 @@ export class LayoutManager {
   async metaFor(source: string, symbol: string): Promise<SymbolMeta> {
     const cached = cachedSymbols(getSource(source), this.options.storage)?.find((s) => s.symbol === symbol);
     if (cached) return cached;
-    const fetched = await getSource(source)
-      .getSymbol(symbol)
-      .catch(() => null);
+    // Some keyed sources look a symbol up with the key, which a shared view holds back.
+    const fetched = keyGate().holds(source)
+      ? null
+      : await getSource(source)
+          .getSymbol(symbol)
+          .catch(() => null);
     return fetched ?? { symbol, base: symbol, quote: '', pricePrecision: 2, volumePrecision: 4 };
   }
 

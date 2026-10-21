@@ -15,6 +15,10 @@ export interface LoaderHooks {
   onLoading?(loading: boolean): void;
   onLiveCandle?(candle: Candle): void;
   onStreamStatus?(status: StreamStatus): void;
+  /** True while nothing may be requested from the source yet (a keyed source in a shared view). */
+  held?(source: DataSource): boolean;
+  /** Called on every first load with the held source, or null when the chart loads. */
+  onHeld?(source: DataSource | null): void;
 }
 
 /**
@@ -46,6 +50,12 @@ export function createDataLoader(hooks: LoaderHooks): DataLoader & { generation(
         params.callback([], false);
         return;
       }
+      const held = hooks.held?.(source) ?? false;
+      if (params.type === 'init') hooks.onHeld?.(held ? source : null);
+      if (held) {
+        params.callback([], false);
+        return;
+      }
       const before = params.type === 'forward' ? params.timestamp ?? undefined : undefined;
       if (params.type === 'init') hooks.onLoading?.(true);
       try {
@@ -73,6 +83,7 @@ export function createDataLoader(hooks: LoaderHooks): DataLoader & { generation(
     subscribeBar(params) {
       stopStream();
       const { source, symbol, timeframe } = hooks.resolve();
+      if (hooks.held?.(source)) return;
       const myGeneration = generation;
       unsubscribe = source.subscribe(
         symbol,

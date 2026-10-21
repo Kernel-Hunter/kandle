@@ -110,4 +110,31 @@ describe('createDataLoader', () => {
     loader.unsubscribeBar!({ symbol: { ticker: 'BTCUSDT', pricePrecision: 2, volumePrecision: 2 }, period: { type: 'minute', span: 1 } });
     expect(unsubscribe).toHaveBeenCalled();
   });
+
+  it('asks a held source for nothing, then loads once it is let go', async () => {
+    const fetchCandles = vi.fn(async () => [candle(MIN)]);
+    const source = stubSource(fetchCandles);
+    const subscribe = vi.fn(() => () => undefined);
+    source.subscribe = subscribe;
+    let held = true;
+    const onHeld = vi.fn();
+    const loader = createDataLoader({ resolve: () => ({ source, symbol: 'AAPL', timeframe: '1m' }), held: () => held, onHeld });
+
+    const first = request('init');
+    await loader.getBars(first.params);
+    await loader.getBars(request('forward', MIN).params);
+    loader.subscribeBar!({ symbol: { ticker: 'AAPL', pricePrecision: 2, volumePrecision: 2 }, period: { type: 'minute', span: 1 }, callback: vi.fn() });
+    expect(fetchCandles).not.toHaveBeenCalled();
+    expect(subscribe).not.toHaveBeenCalled();
+    expect(first.callback).toHaveBeenCalledWith([], false);
+    expect(onHeld).toHaveBeenLastCalledWith(source);
+
+    held = false;
+    const second = request('init');
+    await loader.getBars(second.params);
+    loader.subscribeBar!({ symbol: { ticker: 'AAPL', pricePrecision: 2, volumePrecision: 2 }, period: { type: 'minute', span: 1 }, callback: vi.fn() });
+    expect(fetchCandles).toHaveBeenCalledTimes(1);
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(onHeld).toHaveBeenLastCalledWith(null);
+  });
 });

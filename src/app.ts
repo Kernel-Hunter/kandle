@@ -27,6 +27,7 @@ import { symbolContext } from './script/render';
 import { scriptRows } from './ui/scriptInputs';
 import type { ScriptPanel } from './ui/scriptPanel';
 import type { SharedView } from './share/view';
+import { createKeyCover, keyGate } from './share/keyGate';
 
 const DRAWINGS_GROUP = 'drawings';
 const CANDLE_PANE = 'candle_pane';
@@ -95,6 +96,8 @@ export class App {
     toasts: h('div', { class: 'toasts', 'aria-live': 'polite' }),
   };
 
+  /** Covers the chart while a shared view waits to use the viewer's API key. */
+  private readonly keyCover = createKeyCover();
   private readonly symbolSearch;
   private readonly indicatorPanel;
   private readonly helpModal;
@@ -168,8 +171,13 @@ export class App {
           this.features.onLiveCandle(candle);
         },
         onStreamStatus: (status) => this.setStreamStatus(status),
+        held: (source) => keyGate().holds(source.id),
+        onHeld: (source) => this.keyCover.show(source),
       })),
     );
+    keyGate().onRelease((id) => {
+      if (id === this.layout.source) void this.reloadReleased();
+    });
 
     for (const ind of this.layout.indicators) this.addIndicator(ind.name, ind.params, false);
     this.restoreDrawings();
@@ -245,7 +253,7 @@ export class App {
     );
 
     this.renderDrawbar();
-    const workspace = h('main', { class: 'workspace' }, this.el.drawbar, h('div', { class: 'chart-wrap' }, this.el.chart, this.el.loading));
+    const workspace = h('main', { class: 'workspace' }, this.el.drawbar, h('div', { class: 'chart-wrap' }, this.el.chart, this.el.loading, this.keyCover.el));
     this.root.replaceChildren(topbar, workspace, this.el.toasts);
   }
 
@@ -315,6 +323,8 @@ export class App {
     const source = getSource(sourceId);
     const cached = cachedSymbols(source, this.storage)?.find((s) => s.symbol === symbol);
     if (cached) return cached;
+    // Some keyed sources look a symbol up with the key.
+    if (keyGate().holds(sourceId)) return null;
     try {
       return await Promise.race([
         source.getSymbol(symbol),
@@ -323,6 +333,17 @@ export class App {
     } catch {
       return null;
     }
+  }
+
+  /** Loads the main chart after the user let its keyed source load. */
+  private async reloadReleased(): Promise<void> {
+    const { source, symbol } = this.layout;
+    const meta = await this.lookupMeta(source, symbol);
+    // A symbol picked meanwhile has loaded already.
+    if (this.layout.source !== source || this.layout.symbol !== symbol) return;
+    if (meta) this.meta = meta;
+    this.chart.setSymbol(this.symbolInfo());
+    this.updateHeader();
   }
 
   private symbolInfo() {

@@ -3,6 +3,7 @@ import { App } from './app';
 import { APP } from './config';
 import { ShareError, decodeShareHash, isShareHash } from './share/codec';
 import { parseEmbedParams } from './share/embed';
+import { keyGate, keyedSources } from './share/keyGate';
 import { openSharedView, type SharedView } from './share/view';
 import { browserStorage, type KeyValueStorage } from './store/layout';
 
@@ -17,6 +18,8 @@ async function openLink(storage: KeyValueStorage): Promise<{ view: SharedView | 
   if (!isShareHash(window.location.hash)) return { view: null, error: null };
   try {
     const { chart, notes } = await decodeShareHash(window.location.hash);
+    // The link picks the source but the key is the viewer's: those charts wait for a click.
+    keyGate().hold(keyedSources(chart));
     return { view: openSharedView(storage, chart, notes), error: null };
   } catch (error) {
     history.replaceState(null, '', window.location.pathname + window.location.search);

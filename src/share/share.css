@@ -234,3 +234,29 @@
 .sh-buttons [hidden] {
   display: none;
 }
+
+/* ---------------------------------------------------------------- keyed source in a shared view */
+
+.key-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  background: var(--bg);
+  text-align: center;
+}
+
+.key-gate[hidden] {
+  display: none;
+}
+
+.key-gate p {
+  max-width: 360px;
+  margin: 0;
+  color: var(--muted);
+}

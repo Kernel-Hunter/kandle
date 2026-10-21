@@ -8,6 +8,7 @@ import { displayName } from '../data/search';
 import { TIMEFRAMES, getTimeframe, type TimeframeId } from '../data/timeframes';
 import type { Candle, SymbolMeta } from '../data/types';
 import { SwitchingLoader } from '../replay/loader';
+import { createKeyCover, keyGate, type KeyCover } from '../share/keyGate';
 import type { KeyValueStorage, Theme } from '../store/layout';
 import { createChartStyleControl, type ChartStyleControl } from '../ui/chartStyleMenu';
 import { h, ICONS } from '../ui/dom';
@@ -64,6 +65,8 @@ export class SecondaryPane implements PaneHandle {
   private meta: SymbolMeta | null = null;
   private active: ActiveIndicator[] = [];
   private disposed = false;
+  private readonly keyCover: KeyCover = createKeyCover();
+  private readonly offRelease: () => void;
 
   constructor(
     readonly index: number,
@@ -101,15 +104,30 @@ export class SecondaryPane implements PaneHandle {
       'div',
       { class: 'mc-pane', dataset: { pane: String(index) } },
       h('div', { class: 'mc-head' }, h('span', { class: 'mc-num' }, String(index)), this.symbolBtn, this.tfSelect, this.styleControl.el, indSelect, this.chips),
-      h('div', { class: 'mc-body' }, this.chartEl),
+      h('div', { class: 'mc-body' }, this.chartEl, this.keyCover.el),
     );
     this.switching = new SwitchingLoader(
       createDataLoader({
         resolve: () => ({ source: getSource(this.config.source), symbol: this.config.symbol, timeframe: this.config.timeframe }),
         onError: (message) => deps.toast(`Chart ${index}: ${message}`, 'error'),
         onLiveCandle: (candle) => deps.onLiveCandle(this, candle),
+        held: (source) => keyGate().holds(source.id),
+        onHeld: (source) => this.keyCover.show(source),
       }),
     );
+    this.offRelease = keyGate().onRelease((id) => {
+      if (id === this.config.source) void this.reloadReleased();
+    });
+  }
+
+  /** Loads the chart after the user let its keyed source load. */
+  private async reloadReleased(): Promise<void> {
+    const { source, symbol } = this.config;
+    const meta = await this.lookupMeta(source, symbol);
+    if (this.disposed || this.config.source !== source || this.config.symbol !== symbol) return;
+    if (meta) this.meta = meta;
+    this.chartRef?.setSymbol(this.symbolInfo());
+    this.renderHead();
   }
 
   get currentConfig(): PaneConfig {
@@ -157,6 +175,8 @@ export class SecondaryPane implements PaneHandle {
 
   dispose(): void {
     this.disposed = true;
+    this.offRelease();
+    this.keyCover.dispose();
     if (this.chartRef) dispose(this.chartEl);
     this.chartRef = null;
     this.el.remove();
@@ -187,6 +207,7 @@ export class SecondaryPane implements PaneHandle {
   private async lookupMeta(source: string, symbol: string): Promise<SymbolMeta | null> {
     const cached = cachedSymbols(getSource(source), this.deps.storage)?.find((s) => s.symbol === symbol);
     if (cached) return cached;
+    if (keyGate().holds(source)) return null;
     try {
       return await Promise.race([getSource(source).getSymbol(symbol), new Promise<null>((r) => setTimeout(() => r(null), 4000))]);
     } catch {

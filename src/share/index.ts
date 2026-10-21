@@ -21,6 +21,7 @@ import {
   type SharedRange,
   type SharedScript,
 } from './codec';
+import { keyGate } from './keyGate';
 import { DEFAULT_EMBED_OPTIONS, EMBED_SIZES, appPage, embedTitle, embedUrl, iframeSnippet, type EmbedOptions } from './embed';
 import type { SharedView } from './view';
 import './share.css';
@@ -423,6 +424,8 @@ export function createSharedBanner(options: SharedBannerOptions): HTMLElement {
   keepBtn.addEventListener('click', () => {
     const result = view.keep();
     clearHash();
+    // The chart is the user's own now, so keyed sources load as they always do.
+    keyGate().releaseAll();
     if (!result.saved) options.toast('Could not save to browser storage', 'error');
     if (result.skippedScripts > 0) options.toast(`${plural(result.skippedScripts, 'script')} from the link did not run, so ${result.skippedScripts === 1 ? 'it was' : 'they were'} not saved`);
     if (result.reload) {
