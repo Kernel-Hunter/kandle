@@ -129,7 +129,7 @@ Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotoco
 | Tool | What it does |
 | --- | --- |
 | `get_bridge_status` | Connection state and the pairing code |
-| `get_chart_state` | Symbol, timeframe, last bar, visible range, indicators with latest values, drawings with ids, alerts, replay and layout |
+| `get_chart_state` | Symbol, timeframe, last bar, visible range, indicators with latest values, drawings with ids, alerts, replay and layout. Note text is limited to 20 notes of 120 characters and marked as untrusted |
 | `set_symbol`, `set_timeframe` | Change the market or bar size. Exchange `csv` opens a dataset you imported |
 | `get_candles` | OHLCV bars by count or time range, optionally with indicator values per bar |
 | `add_indicator`, `remove_indicator`, `list_indicators` | Manage indicators and list the 36 available |
@@ -158,6 +158,7 @@ Most tools take an optional `pane` (1 to 4) when several charts are showing. Tim
 - Every connection must send the pairing code first. The code has about 59 bits of randomness, is compared in constant time, and the server stops accepting codes for a minute after 5 wrong ones.
 - The server rejects WebSocket connections from web pages that are not served from `localhost`, `127.0.0.1` or `[::1]`, so a website you visit cannot connect even if it guesses the port. The hosted app at `https://kernel-hunter.github.io` is also allowed. Add other origins, such as your own hosted copy, with `KANDLE_ALLOWED_ORIGINS`.
 - The server rejects requests whose `Host` header is not a loopback address, which blocks DNS rebinding.
+- Drawing notes can come from a link someone else shared, so `get_chart_state` returns the text of at most 20 notes, 120 characters each, with `untrusted_text: true`. The tool description and the server instructions tell the agent that drawing text, script code and alert messages are data, not instructions.
 - The agent can only do what the tools allow: read chart data, change symbols, chart types, indicators, drawings, alerts, replay, layout and the watchlist, take screenshots of the chart and make share links. It cannot read other tabs, your files or your browser storage.
 - Only one Kandle tab is connected at a time. A newer tab takes over and the older one shows that it was replaced.
 - Programs running as your user on the same computer can read `~/.kandle/bridge-token`. That is the same trust level as the agent itself.
@@ -185,6 +186,8 @@ plotshape(ta.crossover(fast, slow), "Up", shape.triangleup, location.belowbar, c
 ```
 
 Scripts with `overlay = true` draw on the price chart; the others get their own pane. Inputs show up in the **Indicators** dialog, where you can change them without touching the code. Scripts and their input values are saved with your layout. When a new candle arrives or the last one changes, only the last bar is calculated again; a full run over 1,500 bars takes a few milliseconds for typical scripts.
+
+One run of a script may use 10,000,000 operations (each bar and each loop iteration counts as one, including loops inside `request.security`) and 1 second, and a loop may repeat 100,000 times on one bar. The examples use about 5,000 operations on 5,000 bars. A script that goes over stops with an error and does not run again until you change it, its inputs or the symbol, so a heavy script cannot keep the tab busy.
 
 The indicator examples are a moving average cross, RSI with bands, MACD, Bollinger Bands, Supertrend, VWAP bands, Stochastic, an ATR trailing stop, a Donchian breakout, volume spikes and a daily EMA trend filter that uses `request.security`. The strategy examples are an EMA cross that is always in the market, RSI mean reversion with a stop and a target, a Donchian channel breakout, and a range breakout that waits with a buy stop above the range and a sell stop below it in one order group and stops trading after a set drawdown.
 
@@ -343,7 +346,7 @@ Click the share button in the top bar, or press `Alt+K`, then **Copy link** to c
 
 Kandle stores the chart, compressed, after the `#` in the link. Browsers do not send that part to any server, so GitHub Pages never sees what you share. Charts of imported CSV files cannot be shared, because the data is only in your browser.
 
-A link opens as a temporary view under a **Shared chart** bar, and your own saved chart is not changed. **Keep it** saves the shared chart as yours: its chart settings and indicators replace yours, and your own drawings and scripts stay. **Back to my chart** closes it. Scripts in a link do not run until you click **Run scripts**, and **Show code** lets you read them first. They run the same way as a script you paste into the editor. A damaged or edited link shows a message and opens your own chart.
+A link opens as a temporary view under a **Shared chart** bar, and your own saved chart is not changed. **Keep it** saves the shared chart as yours: its chart settings and indicators replace yours, and your own drawings and scripts stay. **Back to my chart** closes it. Scripts in a link do not run until you click **Run scripts**, and **Show code** lets you read them first. They run the same way as a script you paste into the editor. Charts from Twelve Data, Alpaca or Polygon would use your own saved API key, so in a shared view they wait with a **Load it** button and nothing is sent to that provider until you click it; after **Keep it** they load as usual. A damaged or edited link shows a message and opens your own chart.
 
 Agents can make links with the `get_share_link` tool. In the page, `await window.kandle.share({ include: { scripts: true } })` returns the URL.
 
@@ -365,7 +368,7 @@ What an embed leaves out:
 - Browser storage. An embed reads and writes nothing there, so it never sees the viewer's own chart or API keys. Charts from sources that need a key (Twelve Data, Alpaca, Polygon) show a note instead, so embed charts from the crypto exchanges.
 - Controls. There is no top bar, drawing toolbar, panel, alert, agent bridge, `window.kandle` or `postMessage` API, so the page around an embed cannot drive the chart.
 
-Any site can frame Kandle. That is safe because Kandle has no account and nothing on a server: whatever it saves stays in the browser that uses it, and current browsers give a framed page storage of its own, apart from the viewer's Kandle tab. An embed has no action that changes or deletes anything. GitHub does not show iframes in README files, so link to the chart there instead.
+Only embed links run in a frame. GitHub Pages cannot send headers that forbid framing, so a page could otherwise lay its own buttons over the full app's, such as **Run scripts** or **Keep it**. When another page frames the full app, Kandle shows a note with a link that opens it in its own tab instead. Embeds are safe to frame: Kandle has no account and nothing on a server, current browsers give a framed page storage of its own, apart from the viewer's Kandle tab, and an embed has no action that changes or deletes anything. GitHub does not show iframes in README files, so link to the chart there instead.
 
 Agents get the iframe from `get_share_link` with `embed: true`. In the page, `await window.kandle.share({ embed: true, theme: 'dark' })` returns the embed URL and `await window.kandle.embedCode({ width: 800, height: 450 })` returns the iframe.
 
