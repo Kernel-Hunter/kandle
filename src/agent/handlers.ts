@@ -191,8 +191,17 @@ export interface DrawingReport {
   text?: string;
 }
 
-export function reportDrawings(chart: ChartLike): DrawingReport[] {
-  return chart
+/**
+ * Drawing text is written by the user, or by whoever sent a share link, so the agent gets only
+ * a little of it: the first notes, each cut short.
+ */
+export const NOTE_TEXT_LIMITS = { notes: 20, chars: 120 } as const;
+
+/** The drawings, and how many notes had their text cut or left out. */
+export function reportDrawings(chart: ChartLike): { drawings: DrawingReport[]; truncated: number } {
+  let notes = 0;
+  let truncated = 0;
+  const drawings = chart
     .getOverlays({ groupId: DRAWINGS_GROUP })
     .filter((o) => o.currentStep === -1)
     .map((o) => {
@@ -204,9 +213,17 @@ export function reportDrawings(chart: ChartLike): DrawingReport[] {
           .map((p) => ({ time: iso(p.timestamp as number), price: round(p.value) as number })),
       };
       const text = (o.extendData as { text?: string } | undefined)?.text;
-      if (text) report.text = text;
+      if (!text) return report;
+      if (notes >= NOTE_TEXT_LIMITS.notes) {
+        truncated++;
+        return report;
+      }
+      notes++;
+      report.text = text.slice(0, NOTE_TEXT_LIMITS.chars);
+      if (text.length > NOTE_TEXT_LIMITS.chars) truncated++;
       return report;
     });
+  return { drawings, truncated };
 }
 
 function reportAlert(alert: Alert) {
@@ -315,7 +332,11 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
       state.price_scale = style.scale;
     }
     if (pane.index === 1) {
-      state.drawings = reportDrawings(chart);
+      const { drawings, truncated } = reportDrawings(chart);
+      state.drawings = drawings;
+      // Notes may come from a shared link: the tool description says to read them as data only.
+      if (drawings.some((d) => d.text !== undefined)) state.untrusted_text = true;
+      if (truncated > 0) state.text_truncated = truncated;
       state.alerts = env.alerts
         .list()
         .filter((a) => a.source === info.source && a.symbol === info.symbol)
