@@ -5,7 +5,7 @@ import { compareVersions, mcpPackageUrl, type BridgeMethod } from './protocol.js
 import { TOOLS, prepareArgs, schemas, type ToolDef } from './tools.js';
 
 export const SERVER_NAME = 'kandle';
-export const SERVER_VERSION = '0.9.0';
+export const SERVER_VERSION = '0.10.0';
 
 /** The part of BridgeServer the MCP layer needs, so tests can pass a fake. */
 export interface BridgeLike {
