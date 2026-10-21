@@ -1,12 +1,68 @@
 import { describe, expect, it, vi } from 'vitest';
 import { defaultConfig, loadConfig, saveConfig } from '../src/layout/config';
-import { DEFAULT_INCLUDE, pickShared } from '../src/share/codec';
+import { DEFAULT_INCLUDE, SOFT_LINK_LIMIT, pickShared } from '../src/share/codec';
+import { applyRange, makeShareLink, readRange } from '../src/share';
 import { TemporaryStorage, isChartKey, openSharedView } from '../src/share/view';
 import { LayoutStore, MemoryStorage, type DrawingRecord, type Layout } from '../src/store/layout';
-import { ALL, ALL_DRAWINGS, T0, snapshot } from './shareFixtures';
+import { ALL, ALL_DRAWINGS, H, PAGE, T0, snapshot } from './shareFixtures';
 
 // The chart engine touches `window` on import; these modules only need the catalogs.
 vi.mock('klinecharts', () => ({ registerIndicator: vi.fn(), registerOverlay: vi.fn() }));
+
+describe('share links', () => {
+  it('stay short for a typical chart', async () => {
+    const link = await makeShareLink(snapshot(), DEFAULT_INCLUDE, PAGE);
+    expect(link.url.startsWith(`${PAGE}#s=z`)).toBe(true);
+    expect(link.url.length).toBeLessThan(1500);
+    expect(link.notes).toEqual([]);
+  });
+
+  it('warn when scripts make a link long', async () => {
+    // Random constants, so the code does not compress away.
+    let seed = 7;
+    const rand = () => ((seed = (seed * 48271) % 2147483647) / 2147483647).toFixed(9);
+    const big = Array.from({ length: 600 }, (_, i) => `v${i} = ta.sma(close, ${i + 2}) * ${rand()} + ${rand()}`).join('\n');
+    const link = await makeShareLink(snapshot({ scripts: [{ id: 'a', source: `indicator("Big")\n${big}\nplot(v1)`, inputs: {} }] }), { ...DEFAULT_INCLUDE, scripts: true }, PAGE);
+    expect(link.url.length).toBeGreaterThan(SOFT_LINK_LIMIT);
+    expect(link.notes.join(' ')).toMatch(/Leave scripts out/);
+  });
+
+});
+
+describe('share links: visible range', () => {
+  const bars = Array.from({ length: 500 }, (_, i) => ({ timestamp: T0 + i * H, open: 1, high: 1, low: 1, close: 1 }));
+  const fakeChart = (realTo: number) => ({
+    getDataList: () => bars,
+    getVisibleRange: () => ({ from: 0, to: Math.min(realTo, bars.length), realFrom: 0, realTo }),
+    getBarSpace: () => ({ bar: 9, halfBar: 4.5, gapBar: 7 }),
+  });
+
+  it('reads the right edge bar, or none when the latest bar is showing', () => {
+    expect(readRange(fakeChart(501) as never)).toEqual({ time: null, barSpace: 9 });
+    expect(readRange(fakeChart(400) as never)).toEqual({ time: bars[398].timestamp, barSpace: 9 });
+    expect(readRange({ ...fakeChart(0), getDataList: () => [] } as never)).toBeNull();
+  });
+
+  it('scrolls to the shared bar, loading older bars first when needed', async () => {
+    let data = bars.slice(300);
+    const calls: string[] = [];
+    const chart = {
+      getDataList: () => data,
+      setBarSpace: (n: number) => calls.push(`space ${n}`),
+      scrollToRealTime: () => calls.push('live'),
+      scrollToDataIndex: (i: number) => {
+        calls.push(`index ${i}`);
+        // The engine asks the loader for older bars when the first one shows.
+        setTimeout(() => (data = bars.slice(Math.max(0, bars.length - data.length - 100))), 10);
+      },
+      scrollToTimestamp: (t: number) => calls.push(`time ${t}`),
+    };
+    await applyRange(chart as never, { time: bars[150].timestamp, barSpace: 9 }, 500);
+    expect(calls).toEqual(['space 9', 'index 0', 'index 0', 'time ' + bars[150].timestamp]);
+    await applyRange(chart as never, { time: null, barSpace: 4 });
+    expect(calls.slice(-2)).toEqual(['space 4', 'live']);
+  });
+});
 
 describe('temporary view', () => {
   const own: Layout = {

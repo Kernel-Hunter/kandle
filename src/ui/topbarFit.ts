@@ -5,7 +5,7 @@ import { h } from './dom';
  * moves a button into the More menu; 'timeframes' swaps the row of timeframe buttons for a
  * dropdown. Hiding the button labels comes before all of them.
  */
-export const TOPBAR_STEPS = ['shortcuts', 'image', 'theme', 'data', 'agent', 'layout', 'replay', 'scripts', 'alerts', 'watchlist', 'timeframes', 'chartType', 'indicators'] as const;
+export const TOPBAR_STEPS = ['shortcuts', 'image', 'share', 'theme', 'data', 'agent', 'layout', 'replay', 'scripts', 'alerts', 'watchlist', 'timeframes', 'chartType', 'indicators'] as const;
 export type TopbarStep = (typeof TOPBAR_STEPS)[number];
 export type TopbarItemId = Exclude<TopbarStep, 'timeframes'>;
 

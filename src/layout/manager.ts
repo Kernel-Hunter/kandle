@@ -128,6 +128,12 @@ export class LayoutManager {
     return [this.options.main, ...this.panes];
   }
 
+  /** The layout and every pane's settings as they are now, for share links. */
+  currentConfig(): MultiChartConfig {
+    const config = this.syncedConfig();
+    return { ...config, sync: { ...config.sync }, panes: config.panes.map((p) => ({ ...p, indicators: p.indicators.map((i) => ({ ...i, params: [...i.params] })) })) };
+  }
+
   state(): LayoutState {
     return {
       charts: this.config.count,

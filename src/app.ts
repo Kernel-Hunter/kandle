@@ -26,6 +26,7 @@ import { ScriptManager, scriptApi } from './script/manager';
 import { symbolContext } from './script/render';
 import { scriptRows } from './ui/scriptInputs';
 import type { ScriptPanel } from './ui/scriptPanel';
+import type { SharedView } from './share/view';
 
 const DRAWINGS_GROUP = 'drawings';
 const CANDLE_PANE = 'candle_pane';
@@ -102,6 +103,8 @@ export class App {
   constructor(
     private readonly root: HTMLElement,
     private readonly storage: KeyValueStorage,
+    /** A chart opened from a share link; `storage` is then its temporary storage. */
+    private readonly shared: SharedView | null = null,
   ) {
     this.store = new LayoutStore(storage);
     this.layout = this.store.loadLayout();
@@ -150,7 +153,7 @@ export class App {
     this.meta = await this.lookupMeta(this.layout.source, this.layout.symbol);
     this.chart.setSymbol(this.symbolInfo());
     this.chart.setPeriod(getTimeframe(this.layout.timeframe)!.period);
-    this.features = createFeatures({ app: this, chart: this.chart, storage: this.storage, root: this.root, styles: chartStyles, topbar: this.topbar });
+    this.features = createFeatures({ app: this, chart: this.chart, storage: this.storage, root: this.root, styles: chartStyles, topbar: this.topbar, shared: this.shared });
     this.chart.setDataLoader(
       this.features.wrapLoader(createDataLoader({
         resolve: () => ({ source: getSource(this.layout.source), symbol: this.layout.symbol, timeframe: this.layout.timeframe }),
@@ -212,7 +215,7 @@ export class App {
       h('span', { html: ICONS.indicators }),
       h('span', { class: 'tb-label' }, 'Indicators'),
     );
-    const imageBtn = h('button', { class: 'icon-btn', title: 'Save chart image', 'aria-label': 'Save chart image', html: ICONS.camera, onclick: () => this.saveImage() });
+    const imageBtn = h('button', { class: 'icon-btn', dataset: { action: 'image' }, title: 'Save chart image', 'aria-label': 'Save chart image', html: ICONS.camera, onclick: () => this.saveImage() });
     const helpBtn = h('button', { class: 'icon-btn', title: 'Keyboard shortcuts (?)', 'aria-label': 'Keyboard shortcuts', html: ICONS.keyboard, onclick: () => this.helpModal.open() });
     const topbar = h(
       'header',
@@ -740,6 +743,7 @@ export class App {
       ['Esc', 'Cancel drawing or close dialog'],
       ['Alt+L', 'Light or dark theme'],
       ['Alt+W', 'Show or hide the watchlist'],
+      ['Alt+K', 'Share a link to this chart'],
       ['?', 'This list'],
     ];
     modal.body.append(

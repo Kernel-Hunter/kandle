@@ -1,0 +1,167 @@
+/* Share popover and the banner over a shared chart (src/share). */
+
+.popover.sh-menu {
+  position: fixed;
+  width: min(340px, calc(100vw - 16px));
+  overflow-y: auto;
+}
+
+.sh-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sh-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  cursor: pointer;
+}
+
+.sh-option:has(input:disabled) {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.sh-url {
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--muted);
+  font: 12px var(--mono);
+}
+
+.sh-url:focus {
+  outline: 0;
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.sh-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sh-length {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sh-length.sh-long {
+  color: var(--warn);
+}
+
+.sh-copy {
+  min-width: 96px;
+}
+
+.sh-notes:empty {
+  display: none;
+}
+
+.sh-note {
+  margin: 0;
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.sh-note + .sh-note {
+  margin-top: 4px;
+}
+
+.sh-note.sh-error {
+  color: var(--down);
+}
+
+.sh-privacy {
+  margin: 0;
+  font-size: 12px;
+}
+
+/* ---------------------------------------------------------------- banner */
+
+.shared-banner {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-soft);
+  flex-shrink: 0;
+}
+
+.sb-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 10px;
+}
+
+.sb-scripts {
+  border-top: 1px solid var(--border);
+}
+
+.sb-icon {
+  display: flex;
+  color: var(--accent);
+}
+
+.sb-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.sb-text {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+/* The buttons wrap together, under the text on a phone. */
+.sb-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.sb-row .btn {
+  white-space: nowrap;
+}
+
+.sb-code pre {
+  margin: 6px 0 12px;
+  padding: 10px;
+  max-height: 40vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font: 12px/1.5 var(--mono);
+  white-space: pre;
+}
+
+@media (max-width: 640px) {
+  .sb-row {
+    gap: 6px 8px;
+  }
+  .sb-text {
+    font-size: 12px;
+  }
+  .sb-row .btn {
+    height: 40px;
+  }
+  .sh-url {
+    height: 40px;
+    font-size: 16px;
+  }
+}

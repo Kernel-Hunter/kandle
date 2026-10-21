@@ -1,14 +1,43 @@
 import './styles.css';
 import { App } from './app';
 import { APP } from './config';
-import { browserStorage } from './store/layout';
+import { ShareError, decodeShareHash, isShareHash } from './share/codec';
+import { openSharedView, type SharedView } from './share/view';
+import { browserStorage, type KeyValueStorage } from './store/layout';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('Missing #app element');
 
-document.title = APP.name;
-const app = new App(root, browserStorage());
-app.start().catch((error: unknown) => {
-  console.error(error);
-  root.textContent = `${APP.name} failed to start: ${error instanceof Error ? error.message : String(error)}`;
+/**
+ * Opens a #s= share link as a temporary view over the saved chart. A link that cannot be read
+ * leaves the saved chart alone and says why.
+ */
+async function openLink(storage: KeyValueStorage): Promise<{ view: SharedView | null; error: string | null }> {
+  if (!isShareHash(window.location.hash)) return { view: null, error: null };
+  try {
+    const { chart, notes } = await decodeShareHash(window.location.hash);
+    return { view: openSharedView(storage, chart, notes), error: null };
+  } catch (error) {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    const detail = error instanceof ShareError ? error.message : 'The link could not be read.';
+    return { view: null, error: `Could not open the shared chart. ${detail} Your own chart is shown instead.` };
+  }
+}
+
+// A new link pasted into the address bar of an open tab only changes the hash.
+window.addEventListener('hashchange', () => {
+  if (isShareHash(window.location.hash)) window.location.reload();
 });
+
+document.title = APP.name;
+const storage = browserStorage();
+openLink(storage)
+  .then(async ({ view, error }) => {
+    const app = new App(root, view?.storage ?? storage, view);
+    await app.start();
+    if (error) app.toast(error, 'error');
+  })
+  .catch((error: unknown) => {
+    console.error(error);
+    root.textContent = `${APP.name} failed to start: ${error instanceof Error ? error.message : String(error)}`;
+  });

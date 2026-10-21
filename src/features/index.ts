@@ -15,8 +15,13 @@ import { LayoutManager } from '../layout/manager';
 import type { PaneHandle } from '../layout/pane';
 import { ReplayController } from '../replay/controller';
 import { SwitchingLoader } from '../replay/loader';
+import type { ScriptRecord } from '../script/persist';
+import { applyRange, createShareControl, createSharedBanner, readRange } from '../share';
+import type { ChartSnapshot } from '../share/codec';
+import type { SharedView } from '../share/view';
 import type { DrawingRecord, KeyValueStorage, Theme } from '../store/layout';
-import { h } from '../ui/dom';
+import { h, isTypingTarget } from '../ui/dom';
+import { topModal } from '../ui/modal';
 import type { ActiveIndicator } from '../ui/indicatorPanel';
 import type { TopbarFit } from '../ui/topbarFit';
 import { createWatchlist } from '../watchlist';
@@ -34,7 +39,7 @@ export interface FeatureApp {
 
 /** Shape of window.kandle as set up by App.exposeForAutomation (plus runScript when a script engine is present). */
 interface KandleApi {
-  getState(): { source: string; symbol: string; timeframe: TimeframeId; theme: Theme; drawings: DrawingRecord[] };
+  getState(): { source: string; symbol: string; timeframe: TimeframeId; theme: Theme; drawings: DrawingRecord[]; scripts?: ScriptRecord[] };
   listIndicators(): ActiveIndicator[];
   draw(name: string, points: Array<{ timestamp: number; value: number }>, text?: string): string | null | Array<string | null>;
   runScript?: (code: string, options?: string | { id?: string; inputs?: Record<string, unknown>; strategy?: Record<string, unknown> }) => unknown;
@@ -50,6 +55,8 @@ export interface FeatureDeps {
   styles: (theme: Theme) => DeepPartial<Styles>;
   /** Moves top bar buttons into the More menu on narrow screens. */
   topbar: Pick<TopbarFit, 'add'>;
+  /** A chart opened from a share link, shown until the user keeps it or goes back. */
+  shared?: SharedView | null;
 }
 
 export interface Features {
@@ -204,6 +211,28 @@ export function createFeatures(deps: FeatureDeps): Features {
     pendingIndicatorChecks.set(pane.index, entry);
   };
 
+  /** The banner over a shared chart, its notes, and its visible range once the bars are in. */
+  const showShared = (view: SharedView) => {
+    const banner = createSharedBanner({
+      view,
+      toast: (m, k) => deps.app.toast(m, k),
+      // The same path as the editor's Add to chart: ScriptManager.add with the link's inputs and settings.
+      runScript: async (script) => {
+        const run = api().runScript;
+        if (typeof run !== 'function') return 'this build of Kandle has no script engine';
+        const res = (await run(script.source, { inputs: script.inputs, ...(script.strategy ? { strategy: script.strategy } : {}) })) as { ok?: boolean; error?: string } | undefined;
+        return res?.ok ? null : (res?.error ?? 'unknown error');
+      },
+    });
+    deps.root.querySelector('.workspace')?.before(banner);
+    for (const note of view.notes) deps.app.toast(note);
+    const range = view.chart.range;
+    if (!range || !loader) return;
+    const apply = () => void applyRange(deps.chart, range);
+    if (deps.chart.getDataList().length > 0) apply();
+    else loader.nextLoad(30_000).then(apply, () => undefined);
+  };
+
   return {
     wrapLoader(live) {
       loader = new SwitchingLoader(live);
@@ -276,6 +305,35 @@ export function createFeatures(deps: FeatureDeps): Features {
       switching.onContext(() => watchlist.panel.refresh());
       deps.root.querySelector('.workspace')?.append(watchlist.panel.root);
       deps.root.querySelector('.drawbar')?.append(watchlist.panel.drawbarButton);
+
+      // ---------------------------------------------------------------- share links
+      /** What a link is made from: the main chart as it is now and the layout. */
+      const snapshot = (): ChartSnapshot => {
+        const state = api().getState();
+        return {
+          source: state.source,
+          symbol: state.symbol,
+          timeframe: state.timeframe,
+          style: app.chartStyle(),
+          range: readRange(chart),
+          indicators: api().listIndicators().map((i) => ({ name: i.name, params: [...i.params] })),
+          drawings: state.drawings,
+          scripts: state.scripts ?? [],
+          layout: layout.currentConfig(),
+        };
+      };
+      const share = createShareControl({
+        snapshot,
+        toast: (m, k) => app.toast(m, k),
+        // A button in the More menu has no box of its own; open under the menu button instead.
+        fallbackAnchor: () => deps.root.querySelector<HTMLElement>('.topbar .tb-more:not([hidden])') ?? deps.root.querySelector<HTMLElement>('.topbar'),
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyK' && !topModal() && !isTypingTarget(e.target)) {
+          e.preventDefault();
+          share.toggle();
+        }
+      });
 
       const env: HostEnv = {
         pane: (index) => layout.pane(index) as PaneLike | null,
@@ -357,7 +415,9 @@ export function createFeatures(deps: FeatureDeps): Features {
       if (topbar && spacer) {
         spacer.before(h('div', { class: 'feature-group' }, alertsPanel.button, replayBtn, layoutControl.el, watchlist.panel.button));
         (topbar.querySelector('.status') ?? spacer).after(agentPanel.button);
+        (topbar.querySelector('[data-action="image"]') ?? spacer).before(share.el);
         deps.topbar.add(
+          { id: 'share', el: share.button, run: (anchor) => share.toggle(anchor) },
           { id: 'alerts', el: alertsPanel.button },
           { id: 'replay', el: replayBtn },
           { id: 'layout', el: layoutControl.button, run: (anchor) => layoutControl.open(anchor) },
@@ -432,6 +492,7 @@ export function createFeatures(deps: FeatureDeps): Features {
       });
 
       void layout.init();
+      if (deps.shared) showShared(deps.shared);
     },
   };
 }
