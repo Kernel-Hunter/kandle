@@ -17,7 +17,7 @@ Claude Code、Codex、Cursor 或 Gemini CLI 可以读取图表、画出支撑位
 Claude Code 只需一行：
 
 ```sh
-claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.8.0/kandle-mcp-0.8.0.tgz kandle-mcp
+claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.9.0/kandle-mcp-0.9.0.tgz kandle-mcp
 ```
 
 然后打开 Kandle，点击顶部的 **Agent**，粘贴助手给你的配对码（它会调用 `get_bridge_status`，配对码也保存在 `~/.kandle/bridge-token`），再打开 **Agent bridge**。之后可以直接说：“在 BTC 上标出最近的波段高点和低点，并在两者之间画斐波那契回撤。”
@@ -27,7 +27,7 @@ Codex（`~/.codex/config.toml`）：
 ```toml
 [mcp_servers.kandle]
 command = "npx"
-args = ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.8.0/kandle-mcp-0.8.0.tgz", "kandle-mcp"]
+args = ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.9.0/kandle-mcp-0.9.0.tgz", "kandle-mcp"]
 ```
 
 Cursor（`~/.cursor/mcp.json`）和 Gemini CLI（`~/.gemini/settings.json`）：
@@ -37,13 +37,13 @@ Cursor（`~/.cursor/mcp.json`）和 Gemini CLI（`~/.gemini/settings.json`）：
   "mcpServers": {
     "kandle": {
       "command": "npx",
-      "args": ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.8.0/kandle-mcp-0.8.0.tgz", "kandle-mcp"]
+      "args": ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.9.0/kandle-mcp-0.9.0.tgz", "kandle-mcp"]
     }
   }
 }
 ```
 
-Claude Desktop：下载 [kandle-mcp-0.8.0.mcpb](https://github.com/Kernel-Hunter/kandle/releases/download/v0.8.0/kandle-mcp-0.8.0.mcpb) 并打开即可安装。Kandle 也已收录在 [MCP Registry](https://registry.modelcontextprotocol.io/)，名称为 `io.github.Kernel-Hunter/kandle`。
+Claude Desktop：下载 [kandle-mcp-0.9.0.mcpb](https://github.com/Kernel-Hunter/kandle/releases/download/v0.9.0/kandle-mcp-0.9.0.mcpb) 并打开即可安装。Kandle 也已收录在 [MCP Registry](https://registry.modelcontextprotocol.io/)，名称为 `io.github.Kernel-Hunter/kandle`。
 
 只需要 Node.js 22.12 或更高版本。使用在线版时，浏览器可能会询问该页面是否可以访问本地网络设备，请允许，这样页面才能连接到 `127.0.0.1` 上的 `kandle-mcp`。
 
