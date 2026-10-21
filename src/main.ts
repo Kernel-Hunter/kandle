@@ -2,6 +2,7 @@ import './styles.css';
 import { App } from './app';
 import { APP } from './config';
 import { ShareError, decodeShareHash, isShareHash } from './share/codec';
+import { parseEmbedParams } from './share/embed';
 import { openSharedView, type SharedView } from './share/view';
 import { browserStorage, type KeyValueStorage } from './store/layout';
 
@@ -29,15 +30,25 @@ window.addEventListener('hashchange', () => {
   if (isShareHash(window.location.hash)) window.location.reload();
 });
 
+const failed = (error: unknown) => {
+  console.error(error);
+  root.textContent = `${APP.name} failed to start: ${error instanceof Error ? error.message : String(error)}`;
+};
+
 document.title = APP.name;
-const storage = browserStorage();
-openLink(storage)
-  .then(async ({ view, error }) => {
-    const app = new App(root, view?.storage ?? storage, view);
-    await app.start();
-    if (error) app.toast(error, 'error');
-  })
-  .catch((error: unknown) => {
-    console.error(error);
-    root.textContent = `${APP.name} failed to start: ${error instanceof Error ? error.message : String(error)}`;
-  });
+const embed = parseEmbedParams(window.location.search);
+if (embed.embed) {
+  // An iframe on another site: the chart only, and nothing read from or written to browser storage.
+  import('./embed')
+    .then(({ startEmbed }) => startEmbed(root, embed))
+    .catch(failed);
+} else {
+  const storage = browserStorage();
+  openLink(storage)
+    .then(async ({ view, error }) => {
+      const app = new App(root, view?.storage ?? storage, view);
+      await app.start();
+      if (error) app.toast(error, 'error');
+    })
+    .catch(failed);
+}

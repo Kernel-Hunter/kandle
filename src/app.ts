@@ -34,7 +34,8 @@ const CANDLE_PANE = 'candle_pane';
 const UP = '#22ab94';
 const DOWN = '#f23645';
 
-function chartStyles(theme: Theme): DeepPartial<Styles> {
+/** Grid, candle and axis colors for a theme. Embed mode uses them too. */
+export function chartStyles(theme: Theme): DeepPartial<Styles> {
   const dark = theme === 'dark';
   const grid = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)';
   const text = dark ? '#8a929e' : '#5f6873';

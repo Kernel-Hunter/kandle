@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { csvStore, setCsvStore } from '../src/data/csv';
+import { keyStore, setKeyStore } from '../src/data/keys';
+import { getSource, hasKey } from '../src/data/sources';
+import { embedLayout, isolateStorage } from '../src/embed/state';
 import { EMBED_SCRIPTS_NOTE, makeEmbedLink } from '../src/share';
 import { DEFAULT_INCLUDE, SHARE_HASH, ShareError, decodeShareHash, pickShared } from '../src/share/codec';
 import { DEFAULT_EMBED_OPTIONS, appPage, embedTitle, embedUrl, escapeAttribute, iframeSnippet, openInAppUrl, parseEmbedOptions, parseEmbedParams } from '../src/share/embed';
@@ -84,5 +88,61 @@ describe('iframe snippet', () => {
     expect(() => parseEmbedOptions({ width: '50%' })).toThrow(/width/);
     expect(() => parseEmbedOptions({ height: 2.5 })).toThrow(/height/);
     expect(() => parseEmbedOptions({ height: '400" onload="x' })).toThrow(/height/);
+  });
+});
+
+describe('embed layout', () => {
+  it('shows only what the link carries', () => {
+    const { chart } = pickShared(snapshot(), { ...DEFAULT_INCLUDE, indicators: false, drawings: false });
+    const layout = embedLayout(chart);
+    expect(layout.count).toBe(1);
+    expect(layout.panes).toEqual([{ source: 'binance', symbol: 'ETHUSDT', timeframe: '4h', style: { type: 'heikin_ashi', scale: 'log' }, indicators: [], drawings: [], range: snapshot().range }]);
+  });
+
+  it('shows every chart of a shared layout', () => {
+    const { chart } = pickShared(snapshot(), ALL);
+    const layout = embedLayout(chart);
+    expect(layout.count).toBe(4);
+    expect(layout.sync.crosshair).toBe(true);
+    expect(layout.panes.map((p) => `${p.source}:${p.symbol}:${p.timeframe}`)).toEqual(['binance:ETHUSDT:4h', 'coinbase:BTC-USD:1D', 'kraken:XBT/USD:15m', 'twelvedata:EUR/USD:1h']);
+    expect(layout.panes[1]).toMatchObject({ style: { type: 'bars', scale: 'percent' }, indicators: [{ name: 'MACD', params: [12, 26, 9] }], drawings: [] });
+    expect(layout.panes[2].style).toEqual({ type: 'candles', scale: 'normal' });
+  });
+
+  it('fills panes a link leaves out with the defaults', () => {
+    const layout = embedLayout({ source: 'binance', symbol: 'BTCUSDT', timeframe: '1h', layout: { count: 2, sync: { crosshair: false, timeframe: false, symbol: false }, panes: [] } });
+    expect(layout.panes).toHaveLength(2);
+    expect(layout.panes[1].symbol).toBe('ETHUSDT');
+  });
+});
+
+describe('embed storage', () => {
+  const realWindow = (globalThis as { window?: unknown }).window;
+  afterEach(() => {
+    setKeyStore(null);
+    setCsvStore(null);
+    (globalThis as { window?: unknown }).window = realWindow;
+  });
+
+  it('never reads or writes browser storage', () => {
+    const local = { getItem: vi.fn(() => null), setItem: vi.fn(), removeItem: vi.fn() };
+    (globalThis as { window?: unknown }).window = { localStorage: local };
+    // Without isolation the shared stores go to localStorage.
+    keyStore().get('twelvedata');
+    expect(local.getItem).toHaveBeenCalled();
+    setKeyStore(null);
+    local.getItem.mockClear();
+    local.setItem.mockClear();
+    local.removeItem.mockClear();
+
+    const memory = isolateStorage();
+    keyStore().set('twelvedata', { apiKey: 'abc' });
+    expect(hasKey(getSource('twelvedata'))).toBe(true);
+    keyStore().clear('twelvedata');
+    expect(csvStore().list()).toEqual([]);
+    memory.setItem('kandle:layout', '{}');
+    expect(local.getItem).not.toHaveBeenCalled();
+    expect(local.setItem).not.toHaveBeenCalled();
+    expect(local.removeItem).not.toHaveBeenCalled();
   });
 });
