@@ -184,3 +184,10 @@
     max-width: 110px;
   }
 }
+
+@media (pointer: coarse), (max-width: 640px) {
+  .sp-resize {
+    top: -8px;
+    height: 16px;
+  }
+}

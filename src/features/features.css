@@ -496,6 +496,19 @@
   }
 }
 
+@media (pointer: coarse), (max-width: 640px) {
+  .lay-sync {
+    min-height: 40px;
+  }
+  .rp-btn {
+    width: 40px;
+    height: 40px;
+  }
+  .rp-speed {
+    height: 36px;
+  }
+}
+
 .al-note {
   margin: 0;
 }

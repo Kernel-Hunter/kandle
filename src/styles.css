@@ -904,6 +904,46 @@ kbd {
   }
 }
 
+/* Touch screens and phones: buttons at least 40px tall. Prefixed to win over the component stylesheets. */
+@media (pointer: coarse), (max-width: 640px) {
+  .topbar {
+    height: 52px;
+  }
+  .topbar .symbol-btn,
+  .topbar .tb-btn,
+  .topbar .cs-btn,
+  .topbar .tf-select {
+    height: 40px;
+  }
+  .topbar .tb-btn,
+  .topbar .cs-btn {
+    min-width: 40px;
+    justify-content: center;
+  }
+  .wl-panel .wl-head {
+    height: 46px;
+  }
+  .icon-btn,
+  .icon-btn.tiny {
+    width: 40px;
+    height: 40px;
+  }
+  .seg-btn {
+    height: 34px;
+  }
+  .drawbar {
+    width: 48px;
+  }
+  .tool-btn {
+    width: 40px;
+    height: 40px;
+  }
+  .cs-item,
+  .result {
+    min-height: 40px;
+  }
+}
+
 .search-input::placeholder {
   text-transform: none;
 }
