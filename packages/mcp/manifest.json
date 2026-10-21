@@ -78,7 +78,7 @@
     },
     {
       "name": "get_backtest",
-      "description": "Backtest results of a strategy script on the main chart: settings in use (and changedSettings, those that differ from the strategy() call), summary figures, the latest closed trades with entry and exit time, price, signal and profit, and open trades. Results follow live data."
+      "description": "Backtest results of a strategy script on the main chart: settings in use (and changedSettings, those that differ from the strategy() call; settings.risk lists the strategy.risk.* rules the script sets), riskStop (the risk rule that stopped trading and why, or null), summary figures, the latest closed trades with entry and exit time, price, signal and profit, and open trades. Results follow live data."
     },
     {
       "name": "screenshot",

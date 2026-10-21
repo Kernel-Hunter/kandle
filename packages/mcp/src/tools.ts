@@ -257,7 +257,7 @@ export const TOOLS: readonly ToolDef[] = [
     name: 'get_backtest',
     title: 'Get backtest',
     description:
-      'Backtest results of a strategy script on the main chart: settings in use (and changedSettings, those that differ from the strategy() call), summary figures, the latest closed trades with entry and exit time, price, signal and profit, and open trades. Results follow live data.',
+      'Backtest results of a strategy script on the main chart: settings in use (and changedSettings, those that differ from the strategy() call; settings.risk lists the strategy.risk.* rules the script sets), riskStop (the risk rule that stopped trading and why, or null), summary figures, the latest closed trades with entry and exit time, price, signal and profit, and open trades. Results follow live data.',
     method: 'get_backtest',
     readOnly: true,
   },

@@ -120,6 +120,15 @@
   color: var(--down);
 }
 
+.st-note {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--down);
+}
+
 .st-main {
   flex: 1;
   min-height: 0;

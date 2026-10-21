@@ -3,7 +3,7 @@
  * an overview with the main figures and the equity curve, and the list of trades.
  */
 import type { ScriptManager } from '../script/manager';
-import type { ClosedTrade, OpenTradeReport, StrategyReport } from '../script/strategy';
+import { RISK_RULE_LABELS, type ClosedTrade, type OpenTradeReport, type StrategyReport } from '../script/strategy';
 import { h } from './dom';
 import './strategyView.css';
 
@@ -84,7 +84,8 @@ export function createStrategyView(opts: StrategyViewOptions): StrategyView {
   );
   const chartBox = h('div', { class: 'st-chart' }, legend, canvas);
   const stats = h('table', { class: 'st-stats' });
-  const overview = h('div', { class: 'st-overview' }, kpis, h('div', { class: 'st-main' }, chartBox, h('div', { class: 'st-aside' }, stats)));
+  const note = h('div', { class: 'st-note', role: 'status', hidden: true });
+  const overview = h('div', { class: 'st-overview' }, kpis, note, h('div', { class: 'st-main' }, chartBox, h('div', { class: 'st-aside' }, stats)));
   const tradesBody = h('tbody');
   const tradesTable = h(
     'table',
@@ -140,6 +141,7 @@ export function createStrategyView(opts: StrategyViewOptions): StrategyView {
     if (!report || !visible) return;
     if (tab === 'overview') {
       renderKpis(kpis, report);
+      renderStopNote(note, report);
       renderStats(stats, report);
       drawEquity(canvas, report, null);
       readout.textContent = '';
@@ -261,8 +263,38 @@ function renderStats(el: HTMLElement, r: StrategyReport): void {
     ['Commission paid', fmt(s.commissionPaid)],
     ['Order size', qty],
     ['Commission, slippage', `${commission}, ${c.slippage} ticks`],
+    ...riskRows(r),
   ];
   el.replaceChildren(h('tbody', {}, ...rows.map(([k, v, t]) => h('tr', {}, h('th', {}, k), h('td', { class: t ?? '' }, v)))));
+}
+
+/** Says which risk rule stopped trading, when one did. */
+function renderStopNote(el: HTMLElement, r: StrategyReport): void {
+  const stop = r.stoppedBy;
+  el.hidden = stop === null;
+  if (!stop) return;
+  el.textContent = `Trading stopped on ${formatTime(stop.time)} by strategy.risk.${stop.rule}: ${stop.detail}. The position was closed and later orders were ignored.`;
+}
+
+/** Rows for the strategy.risk.* rules the script set. */
+function riskRows(r: StrategyReport): Array<[string, string, string?]> {
+  const k = r.risk;
+  const amount = (a: { value: number; type: string }) => (a.type === 'cash' ? fmt(a.value) : `${a.value}% of equity`);
+  const rows: Array<[string, string, string?]> = [];
+  if (k.allowEntryIn !== null) rows.push(['Entries allowed', k.allowEntryIn === 'all' ? 'long and short' : `${k.allowEntryIn} only`]);
+  if (k.maxPositionSize !== null) rows.push(['Max position size', formatQty(k.maxPositionSize)]);
+  if (k.maxDrawdown) rows.push(['Max drawdown allowed', amount(k.maxDrawdown)]);
+  if (k.maxIntradayLoss) rows.push(['Max loss per day', amount(k.maxIntradayLoss)]);
+  if (k.maxIntradayFilledOrders !== null) rows.push(['Max orders per day', String(k.maxIntradayFilledOrders)]);
+  if (k.maxConsLossDays !== null) rows.push(['Max losing days in a row', String(k.maxConsLossDays)]);
+  if (k.maxIntradayLoss || k.maxIntradayFilledOrders !== null) {
+    const halts = r.riskEvents.filter((e) => !e.final).length;
+    rows.push(['Days halted', String(halts), halts ? 'st-down' : '']);
+  }
+  if (k.maxDrawdown || k.maxConsLossDays !== null) {
+    rows.push(['Trading stopped', r.stoppedBy ? RISK_RULE_LABELS[r.stoppedBy.rule] : 'no', r.stoppedBy ? 'st-down' : '']);
+  }
+  return rows;
 }
 
 /** `#rrggbb` with an alpha, as rgba(); other color strings are returned unchanged. */
@@ -419,6 +451,24 @@ function drawEquity(canvas: HTMLCanvasElement, r: StrategyReport, hoverX: number
   ctx.lineWidth = 1.5;
   ctx.lineJoin = 'round';
   ctx.stroke(path);
+
+  // Where a risk rule stopped trading.
+  const stop = r.stoppedBy;
+  if (stop && stop.bar >= 0 && stop.bar < n) {
+    const sx = Math.round(x(stop.bar)) + 0.5;
+    ctx.strokeStyle = down;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(sx, top);
+    ctx.lineTo(sx, bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = down;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = sx > (left + right) / 2 ? 'right' : 'left';
+    ctx.fillText('Stopped', sx + (ctx.textAlign === 'right' ? -4 : 4), top + 2);
+  }
 
   if (hoverX === null || hoverX < left || hoverX > right) return null;
   const i = Math.max(0, Math.min(n - 1, Math.round(((hoverX - left) / (right - left)) * (n - 1))));
