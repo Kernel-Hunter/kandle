@@ -29,8 +29,11 @@ export interface ChartStyleControlOptions {
 
 export interface ChartStyleControl {
   el: HTMLElement;
+  button: HTMLButtonElement;
   /** Updates the icon and the checked items after the style changed elsewhere. */
   refresh(): void;
+  /** Opens the menu under anchor, the button by default. */
+  open(anchor?: HTMLElement): void;
 }
 
 /**
@@ -85,7 +88,8 @@ export function createChartStyleControl(options: ChartStyleControlOptions): Char
     }
   };
 
-  const onDown = (e: MouseEvent) => {
+  // Pointer events, so a tap on the chart closes the menu too.
+  const onDown = (e: PointerEvent) => {
     if (!wrap.contains(e.target as Node)) close();
   };
   const onKey = (e: KeyboardEvent) => {
@@ -97,19 +101,19 @@ export function createChartStyleControl(options: ChartStyleControlOptions): Char
   const close = () => {
     menu.hidden = true;
     button.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('mousedown', onDown);
+    document.removeEventListener('pointerdown', onDown);
     document.removeEventListener('keydown', onKey, true);
   };
-  const open = () => {
+  const open = (anchor: HTMLElement = button) => {
     refresh();
     menu.hidden = false;
     button.setAttribute('aria-expanded', 'true');
     // Keep the menu inside the window on narrow screens.
-    const r = button.getBoundingClientRect();
+    const r = anchor.getBoundingClientRect();
     const width = menu.offsetWidth;
     menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - width - 8))}px`;
     menu.style.top = `${r.bottom + 6}px`;
-    document.addEventListener('mousedown', onDown);
+    document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey, true);
   };
   const choose = (change: Partial<ChartStyle>) => {
@@ -124,5 +128,5 @@ export function createChartStyleControl(options: ChartStyleControlOptions): Char
     else close();
   });
   refresh();
-  return { el: wrap, refresh };
+  return { el: wrap, button, refresh, open: (anchor) => (menu.hidden ? open(anchor) : close()) };
 }

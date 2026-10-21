@@ -312,8 +312,8 @@ export class LayoutManager {
     }
   }
 
-  /** Topbar control: a button that opens a small menu with layouts and sync switches. */
-  createControl(): HTMLElement {
+  /** Topbar control: a button that opens a small menu with layouts and sync switches. open() can show the menu under another element. */
+  createControl(): { el: HTMLElement; button: HTMLButtonElement; open(anchor?: HTMLElement): void } {
     const icon = h('span', { html: LAYOUT_ICONS[this.config.count] });
     const button = h(
       'button',
@@ -354,18 +354,27 @@ export class LayoutManager {
       menu.hidden = true;
       button.setAttribute('aria-expanded', 'false');
     };
+    const open = (anchor: HTMLElement = button) => {
+      menu.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+      // Fixed to the window, so it can open under the More button and stay on screen.
+      const r = anchor.getBoundingClientRect();
+      menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - menu.offsetWidth - 8))}px`;
+      menu.style.top = `${r.bottom + 6}px`;
+    };
     button.addEventListener('click', (e) => {
       e.stopPropagation();
-      menu.hidden = !menu.hidden;
-      button.setAttribute('aria-expanded', String(!menu.hidden));
+      if (menu.hidden) open();
+      else close();
     });
-    document.addEventListener('mousedown', (e) => {
+    // Pointer events, so a tap on the chart closes the menu too.
+    document.addEventListener('pointerdown', (e) => {
       if (!menu.hidden && !wrap.contains(e.target as Node)) close();
     });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !menu.hidden) close();
     });
     const wrap = h('div', { class: 'popover-wrap' }, button, menu);
-    return wrap;
+    return { el: wrap, button, open: (anchor) => (menu.hidden ? open(anchor) : close()) };
   }
 }

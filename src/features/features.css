@@ -46,6 +46,10 @@
   color: var(--muted);
 }
 
+.popover.lay-menu {
+  position: fixed;
+}
+
 .lay-choices {
   align-self: flex-start;
 }
@@ -483,12 +487,6 @@
 
 .agent-failed {
   color: var(--down);
-}
-
-@media (max-width: 1100px) {
-  .feature-group {
-    gap: 6px;
-  }
 }
 
 @media (max-width: 640px) {

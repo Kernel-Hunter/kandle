@@ -118,7 +118,14 @@ button:disabled {
   background: var(--hover);
 }
 
+.symbol-btn {
+  min-width: 0;
+}
+
 .symbol-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 650;
 }
 
@@ -174,6 +181,90 @@ button:disabled {
   cursor: not-allowed;
   background: transparent;
   color: var(--muted);
+}
+
+.tf-select {
+  display: none;
+  height: 32px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--accent);
+  font: 600 13px var(--font);
+  flex-shrink: 0;
+}
+
+/* Set by src/ui/topbarFit.ts when the bar is short of room. */
+
+.topbar.tb-icons .tb-label,
+.topbar.tb-icons .symbol-source,
+.topbar.tb-tf-compact .timeframes,
+.topbar .tb-in-menu,
+.topbar .tb-more[hidden] {
+  display: none;
+}
+
+.topbar.tb-tf-compact .tf-select {
+  display: block;
+}
+
+/* While measuring, nothing shrinks, so every item shows its full width. */
+.topbar.tb-measure > *,
+.topbar.tb-measure .popover-wrap > * {
+  flex-shrink: 0;
+}
+
+.topbar.tb-measure .spacer,
+.topbar.tb-measure .tb-more {
+  display: none;
+}
+
+/* Groups and popover menus (fixed to the window) let their buttons sit in the bar directly,
+   so a button moved to the More menu leaves no gap behind. */
+.topbar .feature-group,
+.topbar .popover-wrap {
+  display: contents;
+}
+
+.popover.tb-menu {
+  position: fixed;
+  min-width: 210px;
+  padding: 6px;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.tb-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tb-menu-item:hover {
+  background: var(--hover);
+}
+
+.tb-menu-item.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tb-menu-item > :first-child {
+  display: flex;
+  color: inherit;
+}
+
+.tb-menu-item .tb-label {
+  flex: 1;
 }
 
 .spacer {
@@ -761,17 +852,9 @@ kbd {
 
 /* ---------------------------------------------------------------- responsive */
 
-@media (max-width: 1100px) {
-  .tb-label,
-  .symbol-source {
-    display: none;
-  }
-}
-
 @media (max-width: 900px) {
   .brand-name,
-  .status-label,
-  .price-change {
+  .status-label {
     display: none;
   }
   .topbar {
@@ -792,15 +875,32 @@ kbd {
   }
 }
 
+/* Phones: the price and its change sit on two lines. */
 @media (max-width: 640px) {
   .price {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0;
+    line-height: 1.2;
+  }
+  .price-last {
+    font-size: 13px;
+  }
+  .price-change {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand {
     display: none;
   }
-  .drawbar {
-    width: 40px;
+  .topbar {
+    gap: 4px;
+    padding: 0 8px;
   }
-  .tool-btn {
-    width: 32px;
+  .symbol-btn {
+    padding: 0 8px;
   }
 }
 

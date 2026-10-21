@@ -18,6 +18,7 @@ import { SwitchingLoader } from '../replay/loader';
 import type { DrawingRecord, KeyValueStorage, Theme } from '../store/layout';
 import { h } from '../ui/dom';
 import type { ActiveIndicator } from '../ui/indicatorPanel';
+import type { TopbarFit } from '../ui/topbarFit';
 import { createWatchlist } from '../watchlist';
 
 /** The public parts of App these features use. */
@@ -47,6 +48,8 @@ export interface FeatureDeps {
   storage: KeyValueStorage;
   root: HTMLElement;
   styles: (theme: Theme) => DeepPartial<Styles>;
+  /** Moves top bar buttons into the More menu on narrow screens. */
+  topbar: Pick<TopbarFit, 'add'>;
 }
 
 export interface Features {
@@ -348,11 +351,19 @@ export function createFeatures(deps: FeatureDeps): Features {
       replay.onChange(() => replayBtn.classList.toggle('active', replay!.active || replay!.state().picking));
       const agentPanel = createAgentPanel({ storage: deps.storage, onChange: (s) => applyBridge(s) });
 
+      const layoutControl = layout.createControl();
       const topbar = deps.root.querySelector('.topbar');
       const spacer = topbar?.querySelector('.spacer');
       if (topbar && spacer) {
-        spacer.before(h('div', { class: 'feature-group' }, alertsPanel.button, replayBtn, layout.createControl(), watchlist.panel.button));
+        spacer.before(h('div', { class: 'feature-group' }, alertsPanel.button, replayBtn, layoutControl.el, watchlist.panel.button));
         (topbar.querySelector('.status') ?? spacer).after(agentPanel.button);
+        deps.topbar.add(
+          { id: 'alerts', el: alertsPanel.button },
+          { id: 'replay', el: replayBtn },
+          { id: 'layout', el: layoutControl.button, run: (anchor) => layoutControl.open(anchor) },
+          { id: 'watchlist', el: watchlist.panel.button },
+          { id: 'agent', el: agentPanel.button },
+        );
       }
 
       // ---------------------------------------------------------------- agent bridge

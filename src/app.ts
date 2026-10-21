@@ -17,6 +17,7 @@ import { createModal, promptText, topModal } from './ui/modal';
 import { createSymbolSearch } from './ui/symbolSearch';
 import { createIndicatorPanel, type ActiveIndicator } from './ui/indicatorPanel';
 import { createChartStyleControl } from './ui/chartStyleMenu';
+import { createTopbarFit, type TopbarFit } from './ui/topbarFit';
 import { createFeatures, type Features } from './features';
 import { displayName } from './data/search';
 import { keyStore } from './data/keys';
@@ -81,6 +82,8 @@ export class App {
   private readonly el = {
     symbolBtn: h('button', { class: 'symbol-btn', title: 'Search symbol (start typing anywhere)' }),
     timeframes: h('div', { class: 'seg timeframes', role: 'group', 'aria-label': 'Timeframe' }),
+    // Replaces the row of timeframe buttons when the top bar is short of room.
+    timeframeSelect: h('select', { class: 'tf-select', title: 'Timeframe (Alt+1 to Alt+7)', 'aria-label': 'Timeframe' }),
     price: h('span', { class: 'price' }),
     status: h('span', { class: 'status', title: 'Live data connection' }),
     themeBtn: h('button', { class: 'icon-btn', title: 'Toggle theme (Alt+L)', 'aria-label': 'Toggle theme' }),
@@ -94,6 +97,7 @@ export class App {
   private readonly indicatorPanel;
   private readonly helpModal;
   private readonly styleControl;
+  private topbar!: TopbarFit;
 
   constructor(
     private readonly root: HTMLElement,
@@ -146,7 +150,7 @@ export class App {
     this.meta = await this.lookupMeta(this.layout.source, this.layout.symbol);
     this.chart.setSymbol(this.symbolInfo());
     this.chart.setPeriod(getTimeframe(this.layout.timeframe)!.period);
-    this.features = createFeatures({ app: this, chart: this.chart, storage: this.storage, root: this.root, styles: chartStyles });
+    this.features = createFeatures({ app: this, chart: this.chart, storage: this.storage, root: this.root, styles: chartStyles, topbar: this.topbar });
     this.chart.setDataLoader(
       this.features.wrapLoader(createDataLoader({
         resolve: () => ({ source: getSource(this.layout.source), symbol: this.layout.symbol, timeframe: this.layout.timeframe }),
@@ -192,28 +196,48 @@ export class App {
       ),
     );
     this.el.timeframes.append(...tfButtons);
+    const select = this.el.timeframeSelect;
+    select.append(...TIMEFRAMES.map((tf) => h('option', { value: tf.id }, tf.label)));
+    select.addEventListener('change', () => {
+      this.setTimeframe(select.value as TimeframeId);
+      // Back to the current one if the symbol does not have it.
+      select.value = this.layout.timeframe;
+    });
     this.el.symbolBtn.addEventListener('click', () => this.symbolSearch.open());
     this.el.themeBtn.addEventListener('click', () => this.toggleTheme());
 
+    const indicatorsBtn = h(
+      'button',
+      { class: 'tb-btn', title: 'Indicators (/)', onclick: () => this.indicatorPanel.open() },
+      h('span', { html: ICONS.indicators }),
+      h('span', { class: 'tb-label' }, 'Indicators'),
+    );
+    const imageBtn = h('button', { class: 'icon-btn', title: 'Save chart image', 'aria-label': 'Save chart image', html: ICONS.camera, onclick: () => this.saveImage() });
+    const helpBtn = h('button', { class: 'icon-btn', title: 'Keyboard shortcuts (?)', 'aria-label': 'Keyboard shortcuts', html: ICONS.keyboard, onclick: () => this.helpModal.open() });
     const topbar = h(
       'header',
       { class: 'topbar' },
       h('div', { class: 'brand', title: APP.tagline }, h('span', { html: ICONS.logo }), h('span', { class: 'brand-name' }, APP.name)),
       this.el.symbolBtn,
       this.el.timeframes,
+      this.el.timeframeSelect,
       this.styleControl.el,
-      h(
-        'button',
-        { class: 'tb-btn', title: 'Indicators (/)', onclick: () => this.indicatorPanel.open() },
-        h('span', { html: ICONS.indicators }),
-        h('span', { class: 'tb-label' }, 'Indicators'),
-      ),
+      indicatorsBtn,
       h('div', { class: 'spacer' }),
       this.el.price,
       this.el.status,
-      h('button', { class: 'icon-btn', title: 'Save chart image', 'aria-label': 'Save chart image', html: ICONS.camera, onclick: () => this.saveImage() }),
-      h('button', { class: 'icon-btn', title: 'Keyboard shortcuts (?)', 'aria-label': 'Keyboard shortcuts', html: ICONS.keyboard, onclick: () => this.helpModal.open() }),
+      imageBtn,
+      helpBtn,
       this.el.themeBtn,
+    );
+    this.topbar = createTopbarFit({ bar: topbar, timeframes: this.el.timeframes, timeframeSelect: select, watch: [this.el.price] });
+    topbar.append(this.topbar.more);
+    this.topbar.add(
+      { id: 'chartType', el: this.styleControl.button, run: (anchor) => this.styleControl.open(anchor) },
+      { id: 'indicators', el: indicatorsBtn },
+      { id: 'image', el: imageBtn },
+      { id: 'shortcuts', el: helpBtn },
+      { id: 'theme', el: this.el.themeBtn },
     );
 
     this.renderDrawbar();
@@ -273,6 +297,10 @@ export class App {
       b.setAttribute('aria-pressed', String(on));
       b.disabled = !allowed.includes(b.dataset.tf as TimeframeId);
     });
+    for (const option of this.el.timeframeSelect.options) option.disabled = !allowed.includes(option.value as TimeframeId);
+    this.el.timeframeSelect.value = this.layout.timeframe;
+    // The symbol button may be squeezed, so a longer name does not always resize it.
+    this.topbar.schedule();
     document.title = `${this.layout.symbol} ${getTimeframe(this.layout.timeframe)?.label ?? ''} - ${APP.name}`;
   }
 
@@ -791,6 +819,7 @@ export class App {
     this.scriptsBtn.addEventListener('click', () => void this.toggleScriptEditor());
     const indicatorsBtn = this.root.querySelector('.topbar .tb-btn');
     if (indicatorsBtn) indicatorsBtn.after(this.scriptsBtn);
+    this.topbar.add({ id: 'scripts', el: this.scriptsBtn });
     document.addEventListener('keydown', (e) => {
       if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyS' && !topModal()) {
         e.preventDefault();
@@ -863,7 +892,9 @@ export class App {
   /** Adds the Data sources button and reloads the main chart when its source's key changes. */
   private initDataSources(): void {
     const status = this.root.querySelector('.topbar .status');
-    status?.before(createDataSourcesButton());
+    const button = createDataSourcesButton();
+    status?.before(button);
+    this.topbar.add({ id: 'data', el: button });
     keyStore().onChange((sourceId) => {
       if (sourceId === this.layout.source) this.chart.resetData();
     });
