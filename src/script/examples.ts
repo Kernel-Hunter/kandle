@@ -277,6 +277,36 @@ pos = strategy.position_size
 plot(pos > 0 ? exitLow : pos < 0 ? exitHigh : na, "Exit level", color.orange, 1, plot.style_linebr)
 `,
   },
+  {
+    name: 'Range breakout bracket strategy',
+    source: `//@version=5
+strategy("Range Breakout Bracket", shorttitle = "Bracket", overlay = true, initial_capital = 10000, default_qty_type = strategy.percent_of_equity, default_qty_value = 50, commission_value = 0.05)
+len = input.int(24, "Range length", minval = 2)
+rr = input.float(2.0, "Target / risk", minval = 0.5, step = 0.5)
+maxDd = input.float(20, "Stop trading after a drawdown of (%)", minval = 0.1)
+
+// Close everything and stop for good once equity falls this far below its peak.
+strategy.risk.max_drawdown(maxDd, strategy.percent_of_equity)
+
+top = ta.highest(high, len)
+bottom = ta.lowest(low, len)
+mid = (top + bottom) / 2
+
+// While flat: a buy stop above the range and a sell stop below it, in one order group.
+// The first one to fill cancels the other. Each gets a stop at the middle of the range
+// and a target rr times that distance away.
+if strategy.position_size == 0 and not na(top)
+    strategy.entry("Long", strategy.long, stop = top + syminfo.mintick, oca_name = "Bracket", oca_type = strategy.oca.cancel)
+    strategy.entry("Short", strategy.short, stop = bottom - syminfo.mintick, oca_name = "Bracket", oca_type = strategy.oca.cancel)
+    strategy.exit("Long exit", "Long", stop = mid, limit = top + (top - mid) * rr)
+    strategy.exit("Short exit", "Short", stop = mid, limit = bottom - (mid - bottom) * rr)
+
+flat = strategy.position_size == 0
+plot(flat ? top : na, "Buy stop", color.green, 1, plot.style_linebr)
+plot(flat ? bottom : na, "Sell stop", color.red, 1, plot.style_linebr)
+plot(mid, "Middle", color.gray)
+`,
+  },
 ];
 
 /** What a new, empty script starts with. */
