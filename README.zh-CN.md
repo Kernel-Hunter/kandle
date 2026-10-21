@@ -86,7 +86,7 @@ plotshape(ta.crossover(fast, slow), "Up", shape.triangleup, location.belowbar, c
 
 ### 策略回测
 
-把 `indicator()` 换成 `strategy()`，脚本就会在图表已加载的 K 线上回测：用 `strategy.entry`、`strategy.exit`（止损、止盈、移动止损）、`strategy.close` 下单，成交以箭头标在 K 线图上，图表下方的 **Strategy** 标签页显示净利润、胜率、盈亏比、最大回撤、夏普比率、资金曲线和逐笔交易列表。订单在下一根 K 线成交：市价单按开盘价，限价单和止损单在价格触及时成交；同一根 K 线同时触及止损和止盈时，假设价格先走向离开盘价较近的高点或低点。在 **Indicators** 对话框里可以直接修改策略的回测设置（初始资金、下单数量、手续费、滑点、加仓次数、按收盘价成交），不用改代码，修改会随布局保存，**Reset** 恢复脚本里的设置。AI 助手通过 `run_script` 和 `get_backtest` 也能拿到同样的结果，`run_script` 的 `strategy` 参数也可以修改这些设置。完整说明见 [English README](README.md#strategies-and-backtesting)。
+把 `indicator()` 换成 `strategy()`，脚本就会在图表已加载的 K 线上回测：用 `strategy.entry`、`strategy.exit`（止损、止盈、移动止损）、`strategy.close` 下单，成交以箭头标在 K 线图上，图表下方的 **Strategy** 标签页显示净利润、胜率、盈亏比、最大回撤、夏普比率、资金曲线和逐笔交易列表。订单在下一根 K 线成交：市价单按开盘价，限价单和止损单在价格触及时成交；同一根 K 线同时触及止损和止盈时，假设价格先走向离开盘价较近的高点或低点。在 **Indicators** 对话框里可以直接修改策略的回测设置（初始资金、下单数量、手续费、滑点、加仓次数、按收盘价成交），不用改代码，修改会随布局保存，**Reset** 恢复脚本里的设置。订单可以用 `oca_name` 和 `oca_type` 组成 OCA 订单组，`strategy.risk.*` 可以设置最大回撤、每日最大亏损等风控规则，触发后平仓并停止交易。AI 助手通过 `run_script` 和 `get_backtest` 也能拿到同样的结果，`run_script` 的 `strategy` 参数也可以修改这些设置。完整说明见 [English README](README.md#strategies-and-backtesting)。
 
 ### 其他品种和周期
 
