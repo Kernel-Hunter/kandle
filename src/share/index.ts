@@ -4,6 +4,7 @@
  * that keeps a shared chart from overwriting the user's own lives in src/share/view.ts.
  */
 import type { Chart } from 'klinecharts';
+import { APP } from '../config';
 import { getSource } from '../data/sources';
 import { getTimeframe } from '../data/timeframes';
 import { h } from '../ui/dom';
@@ -20,6 +21,7 @@ import {
   type SharedRange,
   type SharedScript,
 } from './codec';
+import { DEFAULT_EMBED_OPTIONS, appPage, embedTitle, embedUrl, iframeSnippet, type EmbedOptions } from './embed';
 import type { SharedView } from './view';
 import './share.css';
 
@@ -46,6 +48,31 @@ export async function makeShareLink(snapshot: ChartSnapshot, include: ShareInclu
     notes.push(`The link is ${url.length.toLocaleString('en-US')} characters; chat apps and some browsers cut links over ${SOFT_LINK_LIMIT.toLocaleString('en-US')}.${chart.scripts?.length ? ' Leave scripts out to make it shorter.' : ''}`);
   }
   return { url, include, notes };
+}
+
+export interface EmbedLink extends ShareLink {
+  /** The normal share link for the same chart, which the embed's Open in Kandle link opens. */
+  openUrl: string;
+  /** The iframe to paste into a page. */
+  html: string;
+}
+
+export const EMBED_SCRIPTS_NOTE = 'Scripts are never included in embeds, so they were left out.';
+
+/**
+ * Builds an embed link and its iframe. Scripts are always left out: an embed has nobody to
+ * ask before running them. Throws ShareError for charts that cannot be shared.
+ */
+export async function makeEmbedLink(snapshot: ChartSnapshot, include: ShareInclude, options: EmbedOptions = DEFAULT_EMBED_OPTIONS, page: string = currentPage()): Promise<EmbedLink> {
+  const used = { ...include, scripts: false };
+  const { chart, notes } = pickShared(snapshot, used);
+  if (include.scripts && snapshot.scripts.length > 0) notes.push(EMBED_SCRIPTS_NOTE);
+  const keyed = new Set([chart.source, ...(chart.layout?.panes.map((p) => p.source) ?? [])].map(getSource).filter((s) => s.auth).map((s) => s.name));
+  if (keyed.size > 0) notes.push(`Charts from ${[...keyed].join(' and ')} need the viewer's own API key, so the embed shows a note with a link to ${APP.name} in their place.`);
+  const payload = await encodeShared(chart);
+  const url = embedUrl(page, payload, options.theme);
+  const html = iframeSnippet({ url, title: embedTitle(chart), width: options.width, height: options.height });
+  return { url, include: used, notes, openUrl: shareUrl(appPage(page), payload), html };
 }
 
 // ---------------------------------------------------------------- visible range
