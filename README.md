@@ -40,6 +40,7 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 - Dark and light themes.
 - Keyboard shortcuts for most actions. Press `?` in the app to see them all.
 - Export the chart as a PNG image.
+- Share a chart as a link: symbol, timeframe, chart type, indicators and drawings, plus scripts and the multi-chart layout if you choose. The link carries the chart itself. See [Share a chart](#share-a-chart).
 - Scripts: write your own indicators in Kandle Script, with an editor under the chart and 14 example scripts. Scripts can read other timeframes and other symbols with `request.security`.
 - Strategy backtests: write a strategy script, see its trades on the chart, and get net profit, drawdown, win rate, an equity curve and the list of trades.
 - Alerts on price levels, drawn lines and indicator values, with browser notifications.
@@ -74,6 +75,7 @@ Then open Kandle, click **Agent**, paste the pairing code your agent gives you a
 | `Esc` | Cancel the current drawing or close a dialog |
 | `Alt+L` | Switch between light and dark |
 | `Alt+W` | Show or hide the watchlist |
+| `Alt+K` | Share a link to this chart |
 
 ## Use it with your AI agent
 
@@ -141,6 +143,7 @@ Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotoco
 | `get_watchlist`, `add_to_watchlist`, `remove_from_watchlist` | Watchlist symbols with last price, change and change percent, and adding or removing them |
 | `run_script` | Adds a Kandle script to the main chart and returns its id, input values and latest plot values, or the error with line and column. `inputs` sets input values by title and `id` replaces a script added earlier. For a strategy it also returns the backtest summary and the last 20 trades, and `strategy` changes its backtest settings |
 | `get_backtest` | Settings (and which ones differ from the script), summary and up to 500 trades of a strategy script on the chart |
+| `get_share_link` | A link that opens the main chart for anyone. `include` picks what it carries besides the exchange, symbol and timeframe |
 
 Most tools take an optional `pane` (1 to 4) when several charts are showing. Times can be ISO 8601 dates or Unix times in seconds or milliseconds. Inputs are validated and errors say what to fix.
 
@@ -155,7 +158,7 @@ Most tools take an optional `pane` (1 to 4) when several charts are showing. Tim
 - Every connection must send the pairing code first. The code has about 59 bits of randomness, is compared in constant time, and the server stops accepting codes for a minute after 5 wrong ones.
 - The server rejects WebSocket connections from web pages that are not served from `localhost`, `127.0.0.1` or `[::1]`, so a website you visit cannot connect even if it guesses the port. The hosted app at `https://kernel-hunter.github.io` is also allowed. Add other origins, such as your own hosted copy, with `KANDLE_ALLOWED_ORIGINS`.
 - The server rejects requests whose `Host` header is not a loopback address, which blocks DNS rebinding.
-- The agent can only do what the tools allow: read chart data, change symbols, chart types, indicators, drawings, alerts, replay, layout and the watchlist, and take screenshots of the chart. It cannot read other tabs, your files or your browser storage.
+- The agent can only do what the tools allow: read chart data, change symbols, chart types, indicators, drawings, alerts, replay, layout and the watchlist, take screenshots of the chart and make share links. It cannot read other tabs, your files or your browser storage.
 - Only one Kandle tab is connected at a time. A newer tab takes over and the older one shows that it was replaced.
 - Programs running as your user on the same computer can read `~/.kandle/bridge-token`. That is the same trust level as the agent itself.
 
@@ -334,6 +337,16 @@ Each row keeps its own data source, and the change it shows depends on that sour
 
 Prices only update while the watchlist is showing. When you hide it, or leave the tab in the background for a minute, Kandle closes the connections and opens them again when you come back. On a phone the list opens over the chart from the list button at the bottom of the drawing toolbar. The list and whether it is showing are saved in your browser.
 
+## Share a chart
+
+Click the share button in the top bar, or press `Alt+K`, then **Copy link** to copy a link to the main chart. The exchange, symbol and timeframe are always in it. You pick the rest: chart type, price scale and visible range, indicators, drawings, scripts (with their input values and strategy settings) and the other charts of a layout. Scripts are off by default because they make links long. The popover shows how long the link is and warns when it passes 8,000 characters, which some chat apps cut.
+
+Kandle stores the chart, compressed, after the `#` in the link. Browsers do not send that part to any server, so GitHub Pages never sees what you share. Charts of imported CSV files cannot be shared, because the data is only in your browser.
+
+A link opens as a temporary view under a **Shared chart** bar, and your own saved chart is not changed. **Keep it** saves the shared chart as yours: its chart settings and indicators replace yours, and your own drawings and scripts stay. **Back to my chart** closes it. Scripts in a link do not run until you click **Run scripts**, and **Show code** lets you read them first. They run the same way as a script you paste into the editor. A damaged or edited link shows a message and opens your own chart.
+
+Agents can make links with the `get_share_link` tool. In the page, `await window.kandle.share({ include: { scripts: true } })` returns the URL.
+
 ## Roadmap
 
 - Desktop app for macOS, Windows, and Linux.
@@ -380,6 +393,7 @@ src/
   replay/            bar replay and the data loader it sits behind
   layout/            multi-chart layouts
   watchlist/         watchlist panel, quotes and their persistence
+  share/             share links: encoding, the Share popover and the shared chart view
   features/          connects the above to the app
 packages/mcp/        kandle-mcp, the MCP server
 skills/kandle/       agent skill for chart analysis
