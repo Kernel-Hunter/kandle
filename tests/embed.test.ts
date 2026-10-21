@@ -5,7 +5,7 @@ import { getSource, hasKey } from '../src/data/sources';
 import { embedLayout, isolateStorage } from '../src/embed/state';
 import { EMBED_SCRIPTS_NOTE, makeEmbedLink } from '../src/share';
 import { DEFAULT_INCLUDE, SHARE_HASH, ShareError, decodeShareHash, pickShared } from '../src/share/codec';
-import { DEFAULT_EMBED_OPTIONS, appPage, embedTitle, embedUrl, escapeAttribute, iframeSnippet, openInAppUrl, parseEmbedOptions, parseEmbedParams } from '../src/share/embed';
+import { DEFAULT_EMBED_OPTIONS, appPage, embedTitle, embedUrl, escapeAttribute, iframeSnippet, isFramed, openInAppUrl, parseEmbedOptions, parseEmbedParams } from '../src/share/embed';
 import { ALL, PAGE, snapshot } from './shareFixtures';
 
 // The chart engine touches `window` on import; these modules only need the catalogs.
@@ -54,6 +54,22 @@ describe('embed URLs', () => {
     const layout = await makeEmbedLink(snapshot(), { ...DEFAULT_INCLUDE, layout: true }, DEFAULT_EMBED_OPTIONS, PAGE);
     expect(layout.notes.join(' ')).toMatch(/Charts from Twelve Data need/);
     await expect(makeEmbedLink(snapshot({ source: 'csv', symbol: 'MY-DATA' }), DEFAULT_INCLUDE, DEFAULT_EMBED_OPTIONS, PAGE)).rejects.toBeInstanceOf(ShareError);
+  });
+});
+
+describe('framing', () => {
+  it('tells a frame from a tab of its own, and counts a blocked top as a frame', () => {
+    const self = {};
+    expect(isFramed({ top: self, self })).toBe(false);
+    expect(isFramed({ top: {}, self })).toBe(true);
+    expect(isFramed({ top: null, self })).toBe(true);
+    const blocked = {
+      self,
+      get top(): unknown {
+        throw new Error('Blocked a frame from accessing a cross-origin frame');
+      },
+    };
+    expect(isFramed(blocked)).toBe(true);
   });
 });
 

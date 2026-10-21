@@ -29,6 +29,20 @@ export function parseEmbedParams(search: string): EmbedParams {
   return { embed: params.get(EMBED_PARAM) === '1', theme: theme === 'light' || theme === 'dark' ? theme : null };
 }
 
+/**
+ * True when the page runs inside a frame. The full app refuses to run there: GitHub Pages
+ * cannot send headers that forbid framing, so another site could lay its own page over
+ * buttons such as Run scripts or Keep it. Reading `top` across origins can throw, which
+ * counts as framed.
+ */
+export function isFramed(win: { readonly top: unknown; readonly self: unknown } = window): boolean {
+  try {
+    return win.top !== win.self;
+  } catch {
+    return true;
+  }
+}
+
 /** The app's address: `page` without its query and fragment. */
 export function appPage(page: string): string {
   return page.split('#')[0].split('?')[0];

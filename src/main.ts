@@ -2,10 +2,11 @@ import './styles.css';
 import { App } from './app';
 import { APP } from './config';
 import { ShareError, decodeShareHash, isShareHash } from './share/codec';
-import { parseEmbedParams } from './share/embed';
+import { EMBED_PARAM, isFramed, parseEmbedParams } from './share/embed';
 import { keyGate, keyedSources } from './share/keyGate';
 import { openSharedView, type SharedView } from './share/view';
 import { browserStorage, type KeyValueStorage } from './store/layout';
+import { h } from './ui/dom';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('Missing #app element');
@@ -38,6 +39,19 @@ const failed = (error: unknown) => {
   root.textContent = `${APP.name} failed to start: ${error instanceof Error ? error.message : String(error)}`;
 };
 
+/** In a frame the full app does not start; it offers itself in a tab of its own instead. */
+function showFramed(el: HTMLElement): void {
+  el.replaceChildren(
+    h(
+      'div',
+      { class: 'framed' },
+      h('p', { class: 'framed-title' }, `${APP.name} opens in its own tab.`),
+      h('a', { class: 'btn btn-primary', href: window.location.href, target: '_blank', rel: 'noopener' }, `Open ${APP.name}`),
+      h('p', { class: 'muted' }, `To show a chart on another page, use an embed link (?${EMBED_PARAM}=1) from Share, then Embed. Those are made for pages.`),
+    ),
+  );
+}
+
 document.title = APP.name;
 const embed = parseEmbedParams(window.location.search);
 if (embed.embed) {
@@ -45,6 +59,8 @@ if (embed.embed) {
   import('./embed')
     .then(({ startEmbed }) => startEmbed(root, embed))
     .catch(failed);
+} else if (isFramed()) {
+  showFramed(root);
 } else {
   const storage = browserStorage();
   openLink(storage)

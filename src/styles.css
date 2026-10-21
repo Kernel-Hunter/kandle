@@ -531,6 +531,34 @@ button:disabled {
   background: #2a72d4;
 }
 
+/* Shown instead of the app inside a frame (src/main.ts). */
+.framed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.framed p {
+  max-width: 420px;
+  margin: 0;
+}
+
+.framed-title {
+  font-size: 15px;
+}
+
+.framed .btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .btn-ghost {
   border-style: dashed;
   background: transparent;
