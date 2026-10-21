@@ -171,16 +171,26 @@ const index = (a: ScriptArray, i: unknown): number => {
   return k;
 };
 const numbers = (a: ScriptArray) => a.items.map(num).filter((x) => x === x);
+/** Largest array a script may build. Keeps one call from taking all of the tab's memory. */
+export const MAX_ARRAY_SIZE = 100_000;
+const checkSize = (n: number, name: string): number => {
+  if (n > MAX_ARRAY_SIZE) throw new BuiltinError(`${name}: an array can hold at most ${MAX_ARRAY_SIZE.toLocaleString('en-US')} elements`);
+  return n;
+};
+const grow = (a: ScriptArray, name: string): ScriptArray => {
+  checkSize(a.items.length + 1, name);
+  return a;
+};
 
 for (const t of ['float', 'int', 'bool', 'string', 'color']) {
   fn(`array.new_${t}`, ['size', 'initial_value'], 0, ([size, init]) => {
-    const n = size === undefined ? 0 : Math.max(0, Math.floor(num(size)));
+    const n = checkSize(size === undefined ? 0 : Math.max(0, Math.floor(num(size))), `array.new_${t}`);
     const fill = init === undefined ? (t === 'float' || t === 'int' ? NaN : t === 'bool' ? false : null) : init;
     return new ScriptArray(new Array(n).fill(fill));
   });
 }
 fn('array.new', ['size', 'initial_value'], 0, ([size, init]) => {
-  const n = size === undefined ? 0 : Math.max(0, Math.floor(num(size)));
+  const n = checkSize(size === undefined ? 0 : Math.max(0, Math.floor(num(size))), 'array.new');
   return new ScriptArray(new Array(n).fill(init === undefined ? NaN : init));
 });
 fn('array.from', ['arg0'], 0, (args) => new ScriptArray([...args]), { variadic: true });
@@ -194,13 +204,13 @@ fn('array.set', ['id', 'index', 'value'], 3, ([a, i, v]) => {
   x.items[index(x, i)] = v;
 }, { mutates: true });
 fn('array.push', ['id', 'value'], 2, ([a, v]) => {
-  arr(a, 'array.push').items.push(v);
+  grow(arr(a, 'array.push'), 'array.push').items.push(v);
 }, { mutates: true });
 fn('array.unshift', ['id', 'value'], 2, ([a, v]) => {
-  arr(a, 'array.unshift').items.unshift(v);
+  grow(arr(a, 'array.unshift'), 'array.unshift').items.unshift(v);
 }, { mutates: true });
 fn('array.insert', ['id', 'index', 'value'], 3, ([a, i, v]) => {
-  arr(a, 'array.insert').items.splice(Math.floor(num(i)), 0, v);
+  grow(arr(a, 'array.insert'), 'array.insert').items.splice(Math.floor(num(i)), 0, v);
 }, { mutates: true });
 fn('array.pop', ['id'], 1, ([a]) => {
   const x = arr(a, 'array.pop');
@@ -245,11 +255,11 @@ fn('array.avg', ['id'], 1, ([a]) => {
 });
 fn('array.max', ['id'], 1, ([a]) => {
   const xs = numbers(arr(a, 'array.max'));
-  return xs.length ? Math.max(...xs) : NaN;
+  return xs.length ? xs.reduce((m, x) => (x > m ? x : m), -Infinity) : NaN;
 });
 fn('array.min', ['id'], 1, ([a]) => {
   const xs = numbers(arr(a, 'array.min'));
-  return xs.length ? Math.min(...xs) : NaN;
+  return xs.length ? xs.reduce((m, x) => (x < m ? x : m), Infinity) : NaN;
 });
 fn('array.stdev', ['id', 'biased'], 1, ([a, biased]) => {
   const xs = numbers(arr(a, 'array.stdev'));
