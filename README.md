@@ -175,7 +175,7 @@ Settings: `--port` or `KANDLE_PORT` (default 7457, change the port in the Agent 
 
 ### Let an agent mark up the chart
 
-Ask for levels and the agent draws them on your chart, with a note that explains what it did.
+Ask for levels and the agent draws them on your chart: here the 120-bar high and a Fibonacci retracement from it down to the 120-bar low.
 
 <img src="docs/screenshot-agent.png" alt="An agent marked up BTC/USDT with the 120-bar high and low, a Fibonacci retracement and a note" width="900">
 
