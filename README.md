@@ -1,74 +1,72 @@
-<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/banner-dark.png">
+  <img alt="Kandle: free, open source charts in your browser that your AI agent can read and draw on" src="docs/readme/banner-light.png">
+</picture>
 
-<img src="docs/icon.png" alt="Kandle" width="112" height="112">
+<p align="center">
+  <a href="https://kernel-hunter.github.io/kandle/"><b>Open the app</b></a> ·
+  <a href="#use-it-with-your-ai-agent">Connect your agent</a> ·
+  <a href="#scripts">Script docs</a> ·
+  <a href="https://github.com/Kernel-Hunter/kandle/releases">Releases</a> ·
+  <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-# Kandle
+<p align="center">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/Kernel-Hunter/kandle?color=22ab94"></a>
+  <a href="https://github.com/Kernel-Hunter/kandle/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Kernel-Hunter/kandle?color=22ab94"></a>
+</p>
 
-**Free, open-source charts for crypto, stocks and forex, and your AI agent can drive them.**<br>
-Indicators, drawing tools, your own scripts and strategy backtests, alerts, bar replay and up to four charts on screen. It runs in your browser and keeps everything on your machine.
-
-[![Web app](https://img.shields.io/badge/web_app-live-22ab94?style=for-the-badge&logo=googlechrome&logoColor=white&labelColor=0d1117)](https://kernel-hunter.github.io/kandle/)
-[![kandle-mcp](https://img.shields.io/github/v/release/Kernel-Hunter/kandle?style=for-the-badge&label=kandle-mcp&logo=modelcontextprotocol&logoColor=white&labelColor=0d1117&color=22ab94)](https://github.com/Kernel-Hunter/kandle/releases/latest)
-[![Stars](https://img.shields.io/github/stars/Kernel-Hunter/kandle?style=for-the-badge&logo=github&logoColor=white&labelColor=0d1117&color=22ab94)](https://github.com/Kernel-Hunter/kandle/stargazers)
-[![License](https://img.shields.io/badge/license-MIT-22ab94?style=for-the-badge&labelColor=0d1117)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/Kernel-Hunter/kandle/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white&labelColor=0d1117)](https://github.com/Kernel-Hunter/kandle/actions/workflows/ci.yml)
-[![No account](https://img.shields.io/badge/no_account-22ab94?style=for-the-badge&labelColor=0d1117)](https://kernel-hunter.github.io/kandle/)
-
-[Open the app](https://kernel-hunter.github.io/kandle/) &nbsp;·&nbsp;
-[Docs](#scripts) &nbsp;·&nbsp;
-[Connect your agent](#use-it-with-your-ai-agent) &nbsp;·&nbsp;
-[Report a bug](https://github.com/Kernel-Hunter/kandle/issues/new/choose)
-
-[English](README.md) · [简体中文](README.zh-CN.md)
-
-<br>
-
-<img src="docs/hero.png" alt="Kandle with support and resistance levels, a support zone, an EMA cross script and RSI on BTC/USDT 4H" width="900">
-
-</div>
-
-<br>
-
-Many charting sites put indicators, alerts and backtests behind an account and a monthly plan. Kandle gives you all of them for free, with no account, no paywall and no limit on indicators. It has no server: market data goes from each provider's API straight to your browser, and your charts, scripts and API keys stay in local storage. It also ships an MCP server, so Claude Code, Codex, Cursor or Gemini CLI can read the chart, draw support and resistance, add indicators, write scripts and set alerts while you watch.
-
-## Get started
-
-Open **[kernel-hunter.github.io/kandle](https://kernel-hunter.github.io/kandle/)**. Nothing to install, and live crypto data from five exchanges works without a key. Type any letter to search for a symbol, press `/` for indicators and `Alt+S` for the script editor.
-
-To run your own copy, see [Run it locally](#run-it-locally).
-
-## Use it with your AI agent
-
-Kandle ships an MCP server, `kandle-mcp`. Your agent starts it, and the Kandle tab in your browser connects to it over a WebSocket on `127.0.0.1`. The agent can then read the chart and change it while you watch.
-
-```sh
-claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.10.1/kandle-mcp-0.10.1.tgz kandle-mcp
-```
-
-Then open Kandle, click **Agent**, paste the pairing code your agent gives you and turn on **Agent bridge**. Ask it something like "mark the last swing high and low on BTC and draw a Fibonacci retracement between them". Setup for Codex, Cursor, Gemini CLI and Claude Desktop is [below](#set-up).
+**Kandle** is a free, open source charting app for crypto, stocks and forex that runs in your browser. You don't need an account, and Kandle has no server of its own: market data goes from each provider straight to your browser, and your charts, scripts and API keys stay in local storage. It also ships an MCP server, so Claude Code, Codex, Cursor or Gemini CLI can read the chart, draw levels, add indicators and run scripts while you watch.
 
 <p align="center">
   <img src="docs/demo.gif" alt="An agent reads BTC/USDT, marks resistance and a support zone, adds RSI and runs an EMA cross script" width="900">
 </p>
 
+<p align="center"><sub>An agent connected over MCP marks resistance and a support zone, adds RSI and runs an EMA cross script.</sub></p>
+
+## Get started
+
+Open **[kernel-hunter.github.io/kandle](https://kernel-hunter.github.io/kandle/)**. There is nothing to install, and live crypto data from five exchanges works without a key. Type any letter to search for a symbol, press `/` for indicators and `Alt+S` for the script editor.
+
+To run your own copy, see [Run it locally](#run-it-locally).
+
+## Use it with your AI agent
+
+Kandle ships an MCP server, `kandle-mcp`. Your agent starts it, and the Kandle tab in your browser connects to it over a WebSocket on `127.0.0.1`. You need Node.js 22.12 or newer.
+
+For Claude Code:
+
+```sh
+claude mcp add kandle -- npx -y \
+  --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.10.1/kandle-mcp-0.10.1.tgz \
+  kandle-mcp
+```
+
+Other agents are below. Then ask something like "mark the last swing high and low on BTC and draw a Fibonacci retracement between them".
+
 ### Set up
 
-1. Add the server to your agent (the snippets are below).
-2. Ask the agent for the Kandle pairing code. It calls `get_bridge_status` and shows a code like `K7QD-9MXR-2HPA`. The code is also saved in `~/.kandle/bridge-token`.
-3. In Kandle, click **Agent** in the top bar, paste the code, and turn on **Agent bridge**. The dot on the button turns green when the agent is connected.
+1. Add the server to your agent (the command above, or a snippet below).
+2. Ask the agent for the Kandle pairing code. It calls `get_bridge_status` and shows a code like `K7QD-9MXR-2HPA`.
+3. In Kandle, click **Agent** in the top bar, paste the code and turn on **Agent bridge**. The dot on the button turns green when the agent is connected.
 
-The code is saved in your browser and in `~/.kandle/bridge-token`, so you only pair once.
-
-This works with the [hosted app](https://kernel-hunter.github.io/kandle/) and with a copy you run yourself. With the hosted app, your browser may ask whether the page can reach devices on your local network; allow it so the page can talk to `kandle-mcp` on `127.0.0.1`.
-
-`npx` runs `kandle-mcp` from a GitHub release, so you only need Node.js 22.12 or newer. When a new version of Kandle comes out, change the version in the URL; `get_bridge_status` tells your agent when the app is newer than its server. To run it from a clone instead, use `pnpm install && pnpm build` and point your agent at `node /path/to/kandle/packages/mcp/bin/kandle-mcp.js`.
+The code is saved in your browser and in `~/.kandle/bridge-token`, so you only pair once. This works with the [hosted app](https://kernel-hunter.github.io/kandle/) and with a copy you run yourself. With the hosted app, your browser may ask whether the page can reach devices on your local network; allow it so the page can talk to `kandle-mcp` on `127.0.0.1`.
 
 <details>
-<summary><b>Codex, Cursor, Gemini CLI and Claude Desktop</b></summary>
+<summary><b>Claude Desktop</b></summary>
 
 <br>
 
-Codex (`~/.codex/config.toml`):
+Download [kandle-mcp-0.10.1.mcpb](https://github.com/Kernel-Hunter/kandle/releases/download/v0.10.1/kandle-mcp-0.10.1.mcpb) and open it to install the server.
+
+</details>
+
+<details>
+<summary><b>Codex</b></summary>
+
+<br>
+
+In `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.kandle]
@@ -76,7 +74,14 @@ command = "npx"
 args = ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.10.1/kandle-mcp-0.10.1.tgz", "kandle-mcp"]
 ```
 
-Cursor (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project) and Gemini CLI (`~/.gemini/settings.json`):
+</details>
+
+<details>
+<summary><b>Cursor and Gemini CLI</b></summary>
+
+<br>
+
+In `~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project) for Cursor, and `~/.gemini/settings.json` for Gemini CLI:
 
 ```json
 {
@@ -89,9 +94,18 @@ Cursor (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project) and Gemini CLI 
 }
 ```
 
-Claude Desktop: download [kandle-mcp-0.10.1.mcpb](https://github.com/Kernel-Hunter/kandle/releases/download/v0.10.1/kandle-mcp-0.10.1.mcpb) and open it to install the server.
+</details>
 
-Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotocol.io/) as `io.github.Kernel-Hunter/kandle`, so clients that browse the registry can find it.
+<details>
+<summary><b>Other clients, updates and running from a clone</b></summary>
+
+<br>
+
+Kandle is listed in the [MCP Registry](https://registry.modelcontextprotocol.io/) as `io.github.Kernel-Hunter/kandle`, so clients that browse the registry can find it.
+
+`npx` runs `kandle-mcp` from a GitHub release. When a new version of Kandle comes out, change the version in the URL; `get_bridge_status` tells your agent when the app is newer than its server.
+
+To run it from a clone instead, use `pnpm install && pnpm build` and point your agent at `node /path/to/kandle/packages/mcp/bin/kandle-mcp.js`.
 
 </details>
 
@@ -125,10 +139,6 @@ Most tools take an optional `pane` (1 to 4) when several charts are showing. Tim
 
 [`skills/kandle/SKILL.md`](skills/kandle/SKILL.md) is an agent skill with chart analysis workflows: support and resistance, trend, indicator confluence, and annotating a chart with an explanation. Copy it into your agent's skills folder (for Claude Code, `~/.claude/skills/kandle/`).
 
-<p align="center">
-  <img src="docs/screenshot-agent.png" alt="An agent marked up BTC/USDT with the 120-bar high and low, a Fibonacci retracement and a note" width="900">
-</p>
-
 ### Security model
 
 The bridge is off until you turn it on, only listens on `127.0.0.1`, and needs the pairing code on every connection.
@@ -154,47 +164,42 @@ Settings: `--port` or `KANDLE_PORT` (default 7457, change the port in the Agent 
 
 ## Features
 
-<table>
-  <tr>
-    <td width="33%" valign="top"><b>Live crypto, no key</b><br>Binance, Coinbase, Bybit, OKX and Kraken. History over REST, updates over websockets.</td>
-    <td width="33%" valign="top"><b>Stocks, ETFs and forex</b><br>Twelve Data, Alpaca or Polygon with your own free API key. <a href="#data-sources">Data sources</a></td>
-    <td width="33%" valign="top"><b>Your own CSV data</b><br>Import OHLCV files. They are read and kept in your browser. <a href="#csv-import">CSV import</a></td>
-  </tr>
-  <tr>
-    <td valign="top"><b>36 indicators</b><br>As many on the chart as you like, every parameter editable. Includes Ichimoku Cloud and a volume profile.</td>
-    <td valign="top"><b>Drawing tools</b><br>Trend lines, rays, channels, rectangles, Fibonacci retracement, price ranges, notes, with an optional magnet.</td>
-    <td valign="top"><b>Kandle Script</b><br>Write your own indicators in an editor under the chart, with 15 examples and <code>request.security</code>. <a href="#scripts">Scripts</a></td>
-  </tr>
-  <tr>
-    <td valign="top"><b>Strategy backtests</b><br>Trades on the chart, net profit, drawdown, win rate, an equity curve and every trade. <a href="#strategies-and-backtesting">Strategies</a></td>
-    <td valign="top"><b>Alerts</b><br>On price levels, drawn lines and indicator values, with browser notifications. <a href="#alerts">Alerts</a></td>
-    <td valign="top"><b>Bar replay</b><br>Hide every bar after a point you pick, then step forward one candle at a time. <a href="#bar-replay">Bar replay</a></td>
-  </tr>
-  <tr>
-    <td valign="top"><b>Up to 4 charts</b><br>Each with its own symbol, timeframe and indicators, with optional sync. <a href="#layouts">Layouts</a></td>
-    <td valign="top"><b>Share links and embeds</b><br>The link carries the chart itself, and an iframe puts a live chart on any page. <a href="#share-a-chart">Share</a></td>
-    <td valign="top"><b>Agent bridge</b><br>An MCP server so agents can read the chart, draw, set alerts and take screenshots. <a href="#use-it-with-your-ai-agent">Agents</a></td>
-  </tr>
-</table>
+- **Live crypto with no key.** Binance, Coinbase, Bybit, OKX and Kraken, with history over REST and updates over websockets.
+- **Stocks, ETFs and forex.** Twelve Data, Alpaca or Polygon with your own free API key, or your own [CSV files](#csv-import).
+- **36 indicators and the usual drawing tools.** Ichimoku Cloud, a volume profile, trend lines, channels, Fibonacci retracement, price ranges and notes.
+- **Your own scripts.** Write indicators in Kandle Script in an editor under the chart, with 15 examples and `request.security`. See [Scripts](#scripts).
+- **Strategy backtests.** Trades on the chart, net profit, drawdown, win rate, an equity curve and every trade. See [Strategies](#strategies-and-backtesting).
+- **Alerts, bar replay and up to 4 charts.** See [Alerts](#alerts), [Bar replay](#bar-replay) and [Layouts](#layouts).
+- **Share links and embeds.** The link carries the chart itself, and an iframe puts a live chart on any page. See [Share a chart](#share-a-chart).
+- **An agent bridge.** 26 MCP tools to read the chart, draw, set alerts, run scripts and take screenshots. See [above](#use-it-with-your-ai-agent).
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshot-scripts.png" alt="The script editor with an RSI script, and Supertrend and Bollinger Bands scripts on the chart"></td>
-    <td width="50%"><img src="docs/screenshot-strategy.png" alt="A Donchian breakout strategy on BTC/USDT with its trades on the chart and the Strategy tab open"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub><b>Scripts</b>: write an indicator, press Ctrl+Enter</sub></td>
-    <td align="center"><sub><b>Backtests</b>: trades on the chart and the Strategy tab</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="docs/screenshot-ichimoku.png" alt="BTC/USDT 4H with the Ichimoku Cloud and a volume profile of the visible bars"></td>
-    <td width="50%"><img src="docs/screenshot-sources.png" alt="The Data sources dialog over an OKX chart"></td>
-  </tr>
-  <tr>
-    <td align="center"><sub><b>Ichimoku and volume profile</b> of the visible bars</sub></td>
-    <td align="center"><sub><b>Data sources</b>: keys stay in your browser</sub></td>
-  </tr>
-</table>
+### Let an agent mark up the chart
+
+Ask for levels and the agent draws them on your chart, with a note that explains what it did.
+
+<img src="docs/screenshot-agent.png" alt="An agent marked up BTC/USDT with the 120-bar high and low, a Fibonacci retracement and a note" width="900">
+
+### Write an indicator, press Ctrl+Enter
+
+<img src="docs/screenshot-scripts.png" alt="The script editor with an RSI script, and Supertrend and Bollinger Bands scripts on the chart" width="800">
+
+### Backtest a strategy
+
+Fills show as arrows on the chart, and the **Strategy** tab has the numbers and the list of trades.
+
+<img src="docs/screenshot-strategy.png" alt="A Donchian breakout strategy on BTC/USDT with its trades on the chart and the Strategy tab open" width="900">
+
+### Ichimoku and a volume profile
+
+The volume profile covers the bars on screen and updates as you scroll and zoom.
+
+<img src="docs/screenshot-ichimoku.png" alt="BTC/USDT 4H with the Ichimoku Cloud and a volume profile of the visible bars" width="900">
+
+### Pick a data source
+
+Keys stay in your browser and only go to that provider's API.
+
+<img src="docs/screenshot-sources.png" alt="The Data sources dialog over an OKX chart" width="800">
 
 <details>
 <summary><b>The full feature list</b></summary>
@@ -741,17 +746,4 @@ MIT. See [LICENSE](LICENSE).
 
 Charts are drawn with [KLineChart](https://github.com/klinecharts/KLineChart), licensed under Apache-2.0. The script editor uses [CodeMirror](https://codemirror.net), licensed under MIT. Their notices are in `public/third-party-notices.txt`.
 
-## Star history
-
-<a href="https://star-history.com/#kernel-hunter/kandle&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=kernel-hunter/kandle&type=Date&theme=dark">
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=kernel-hunter/kandle&type=Date">
-    <img alt="Star history chart for Kandle" src="https://api.star-history.com/svg?repos=kernel-hunter/kandle&type=Date" width="600">
-  </picture>
-</a>
-
-<div align="center">
-<br>
-Built by <a href="https://github.com/Kernel-Hunter">Karim Masmoudi</a>. If Kandle is useful to you, a star helps other people find it.
-</div>
+Built by [Karim Masmoudi](https://github.com/Kernel-Hunter). If Kandle is useful to you, a star helps other people find it.

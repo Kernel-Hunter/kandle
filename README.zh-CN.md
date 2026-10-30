@@ -1,4 +1,20 @@
-# Kandle
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/banner-dark.png">
+  <img alt="Kandle：免费、开源的浏览器图表工具，你的 AI 助手可以直接读取和画线" src="docs/readme/banner-light.png">
+</picture>
+
+<p align="center">
+  <a href="https://kernel-hunter.github.io/kandle/"><b>打开应用</b></a> ·
+  <a href="#连接-ai-助手">连接 AI 助手</a> ·
+  <a href="#脚本">脚本说明</a> ·
+  <a href="https://github.com/Kernel-Hunter/kandle/releases">版本发布</a> ·
+  <a href="README.md">English</a>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/Kernel-Hunter/kandle?color=22ab94"></a>
+  <a href="https://github.com/Kernel-Hunter/kandle/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Kernel-Hunter/kandle?color=22ab94"></a>
+</p>
 
 **免费、开源的加密货币、股票和外汇图表工具，并且可以让你的 AI 助手直接操作。**
 
@@ -6,11 +22,9 @@
 
 Claude Code、Codex、Cursor 或 Gemini CLI 可以读取图表、画出支撑位和阻力位、添加指标、编写脚本、设置提醒，你可以在旁边实时看到每一步。
 
-**[在浏览器中打开 Kandle](https://kernel-hunter.github.io/kandle/)** · [连接 AI 助手](#连接-ai-助手) · [编写脚本](#脚本)
-
-[English](README.md) · [简体中文](README.zh-CN.md)
-
-![Kandle 在 BTC/USDT 4 小时图上显示阻力位、支撑区、EMA 交叉脚本和 RSI](docs/hero.png)
+<p align="center">
+  <img src="docs/demo.gif" alt="AI 助手读取 BTC/USDT，标出阻力位和支撑区，添加 RSI 并运行 EMA 交叉脚本" width="900">
+</p>
 
 ## 连接 AI 助手
 
