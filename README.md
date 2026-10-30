@@ -1,85 +1,55 @@
+<div align="center">
+
+<img src="docs/icon.png" alt="Kandle" width="112" height="112">
+
 # Kandle
 
-**Free, open-source charts for crypto, stocks and forex, and your AI agent can drive them.**
+**Free, open-source charts for crypto, stocks and forex, and your AI agent can drive them.**<br>
+Indicators, drawing tools, your own scripts and strategy backtests, alerts, bar replay and up to four charts on screen. It runs in your browser and keeps everything on your machine.
 
-Indicators, drawing tools, your own scripts and strategy backtests, alerts, bar replay and up to four charts on screen. No account, no paywall, no limit on indicators. It runs in your browser and keeps everything on your machine.
+[![Web app](https://img.shields.io/badge/web_app-live-22ab94?style=for-the-badge&logo=googlechrome&logoColor=white&labelColor=0d1117)](https://kernel-hunter.github.io/kandle/)
+[![kandle-mcp](https://img.shields.io/github/v/release/Kernel-Hunter/kandle?style=for-the-badge&label=kandle-mcp&logo=modelcontextprotocol&logoColor=white&labelColor=0d1117&color=22ab94)](https://github.com/Kernel-Hunter/kandle/releases/latest)
+[![Stars](https://img.shields.io/github/stars/Kernel-Hunter/kandle?style=for-the-badge&logo=github&logoColor=white&labelColor=0d1117&color=22ab94)](https://github.com/Kernel-Hunter/kandle/stargazers)
+[![License](https://img.shields.io/badge/license-MIT-22ab94?style=for-the-badge&labelColor=0d1117)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/Kernel-Hunter/kandle/ci.yml?branch=main&style=for-the-badge&label=CI&logo=githubactions&logoColor=white&labelColor=0d1117)](https://github.com/Kernel-Hunter/kandle/actions/workflows/ci.yml)
+[![No account](https://img.shields.io/badge/no_account-22ab94?style=for-the-badge&labelColor=0d1117)](https://kernel-hunter.github.io/kandle/)
 
-Claude Code, Codex, Cursor or Gemini CLI can read the chart, draw support and resistance, add indicators, write scripts and set alerts while you watch.
-
-**[Open Kandle in your browser](https://kernel-hunter.github.io/kandle/)** · [Connect your agent](#use-it-with-your-ai-agent) · [Write a script](#scripts)
-
-[![CI](https://github.com/Kernel-Hunter/kandle/actions/workflows/ci.yml/badge.svg)](https://github.com/Kernel-Hunter/kandle/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[Open the app](https://kernel-hunter.github.io/kandle/) &nbsp;·&nbsp;
+[Docs](#scripts) &nbsp;·&nbsp;
+[Connect your agent](#use-it-with-your-ai-agent) &nbsp;·&nbsp;
+[Report a bug](https://github.com/Kernel-Hunter/kandle/issues/new/choose)
 
 [English](README.md) · [简体中文](README.zh-CN.md)
 
-![Kandle with support and resistance levels, a support zone, an EMA cross script and RSI on BTC/USDT 4H](docs/hero.png)
+<br>
 
-## Connect your agent in one line
+<img src="docs/hero.png" alt="Kandle with support and resistance levels, a support zone, an EMA cross script and RSI on BTC/USDT 4H" width="900">
+
+</div>
+
+<br>
+
+Many charting sites put indicators, alerts and backtests behind an account and a monthly plan. Kandle gives you all of them for free, with no account, no paywall and no limit on indicators. It has no server: market data goes from each provider's API straight to your browser, and your charts, scripts and API keys stay in local storage. It also ships an MCP server, so Claude Code, Codex, Cursor or Gemini CLI can read the chart, draw support and resistance, add indicators, write scripts and set alerts while you watch.
+
+## Get started
+
+Open **[kernel-hunter.github.io/kandle](https://kernel-hunter.github.io/kandle/)**. Nothing to install, and live crypto data from five exchanges works without a key. Type any letter to search for a symbol, press `/` for indicators and `Alt+S` for the script editor.
+
+To run your own copy, see [Run it locally](#run-it-locally).
+
+## Use it with your AI agent
+
+Kandle ships an MCP server, `kandle-mcp`. Your agent starts it, and the Kandle tab in your browser connects to it over a WebSocket on `127.0.0.1`. The agent can then read the chart and change it while you watch.
 
 ```sh
 claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.10.1/kandle-mcp-0.10.1.tgz kandle-mcp
 ```
 
-Then open Kandle, click **Agent**, paste the pairing code your agent gives you and turn on **Agent bridge**. Ask it something like "mark the last swing high and low on BTC and draw a Fibonacci retracement between them". Setup for other agents is [below](#use-it-with-your-ai-agent).
+Then open Kandle, click **Agent**, paste the pairing code your agent gives you and turn on **Agent bridge**. Ask it something like "mark the last swing high and low on BTC and draw a Fibonacci retracement between them". Setup for Codex, Cursor, Gemini CLI and Claude Desktop is [below](#set-up).
 
-![An agent reads BTC/USDT, marks resistance and a support zone, adds RSI and runs an EMA cross script](docs/demo.gif)
-
-## Features
-
-- Live crypto candles from Binance, Coinbase, Bybit, OKX and Kraken public market data, with no key. History loads over REST and updates stream over websockets.
-- US and global stocks, ETFs and forex from Twelve Data, Alpaca or Polygon with your own free API key. See [Data sources](#data-sources).
-- Your own OHLCV data from a CSV file, kept in your browser. See [CSV import](#csv-import).
-- Symbol search for the chosen source, with Crypto, Stock, ETF, Forex, Index and CSV badges.
-- Timeframes: 1m, 5m, 15m, 1H, 4H, 1D, 1W. Scroll left to load older history.
-- Chart types: candles, hollow candles, bars (OHLC), line, area and Heikin Ashi, with a normal, logarithmic or percent price scale. Each chart in a layout keeps its own. Heikin Ashi only changes how bars are drawn: indicators, scripts, backtests, alerts and the agent tools keep using the real prices, and the legend shows the Heikin Ashi values on their own line.
-- 36 indicators, with as many on the chart as you like: MA, EMA, SMA, WMA, HMA, Bollinger Bands, Donchian Channel, VWAP, Supertrend, Parabolic SAR, Ichimoku Cloud, Volume Profile, Volume, MACD, RSI, Stochastic RSI, KDJ, ATR, OBV, CCI, DMI/ADX, Williams %R, ROC, Momentum, TRIX, Awesome Oscillator and more. Every parameter can be edited.
-- Ichimoku Cloud with the cloud drawn ahead of the last candle, and a volume profile of the bars on screen that marks the point of control and the value area. The profile updates as you scroll and zoom.
-- Drawing tools: trend line, ray, extended line, horizontal line and ray, vertical line, parallel channel, rectangle, Fibonacci retracement, price range, text notes and price labels. Select a drawing to move it or delete it. An optional magnet snaps points to candle prices.
-- Your symbol, timeframe, chart type, price scale, theme, indicators, and drawings (saved per symbol) come back when you reload.
-- Dark and light themes.
-- Keyboard shortcuts for most actions. Press `?` in the app to see them all.
-- Export the chart as a PNG image.
-- Share a chart as a link: symbol, timeframe, chart type, indicators and drawings, plus scripts and the multi-chart layout if you choose. The link carries the chart itself. See [Share a chart](#share-a-chart). The same popover gives an iframe that shows the chart on a blog or docs page, see [Embed a chart](#embed-a-chart).
-- Scripts: write your own indicators in Kandle Script, with an editor under the chart and 14 example scripts. Scripts can read other timeframes and other symbols with `request.security`.
-- Strategy backtests: write a strategy script, see its trades on the chart, and get net profit, drawdown, win rate, an equity curve and the list of trades.
-- Alerts on price levels, drawn lines and indicator values, with browser notifications.
-- Bar replay to step through history one candle at a time.
-- 1, 2 or 4 charts on screen, each with its own symbol, timeframe and indicators.
-- A watchlist next to the charts with live prices and 24 hour change for crypto, and the change since the previous close for stocks and forex. Click a symbol to open it.
-- An MCP server so AI agents can read the chart, draw on it, set alerts and take screenshots.
-- Works on desktops, tablets and phones. On a narrow screen the top bar keeps the symbol, timeframe and price in view and moves the other tools into the ... menu.
-
-![BTC/USDT 4H with the Ichimoku Cloud and a volume profile of the visible bars](docs/screenshot-ichimoku.png)
-
-### Keyboard shortcuts
-
-| Keys | Action |
-| --- | --- |
-| Any letter or digit | Search symbols |
-| `/` or `Alt+I` | Indicators |
-| `Alt+S` | Script editor |
-| `Ctrl+Enter` or `Cmd+Enter` | Add or update the script on the chart (in the editor) |
-| `Alt+1` to `Alt+7` | Timeframes 1m to 1W |
-| `Alt+C` | Next chart type |
-| `Alt+T` | Trend line |
-| `Alt+R` | Ray |
-| `Alt+H` | Horizontal line |
-| `Alt+V` | Vertical line |
-| `Alt+B` | Rectangle |
-| `Alt+F` | Fibonacci retracement |
-| `Alt+P` | Price range |
-| `Alt+N` | Text note |
-| `Alt+M` | Magnet on or off |
-| `Delete` | Delete the selected drawing |
-| `Esc` | Cancel the current drawing or close a dialog |
-| `Alt+L` | Switch between light and dark |
-| `Alt+W` | Show or hide the watchlist |
-| `Alt+K` | Share a link to this chart |
-
-## Use it with your AI agent
-
-Kandle ships an MCP server, `kandle-mcp`. Your agent starts it, and the Kandle tab in your browser connects to it over a WebSocket on `127.0.0.1`. The agent can then read the chart and change it while you watch.
+<p align="center">
+  <img src="docs/demo.gif" alt="An agent reads BTC/USDT, marks resistance and a support zone, adds RSI and runs an EMA cross script" width="900">
+</p>
 
 ### Set up
 
@@ -93,11 +63,10 @@ This works with the [hosted app](https://kernel-hunter.github.io/kandle/) and wi
 
 `npx` runs `kandle-mcp` from a GitHub release, so you only need Node.js 22.12 or newer. When a new version of Kandle comes out, change the version in the URL; `get_bridge_status` tells your agent when the app is newer than its server. To run it from a clone instead, use `pnpm install && pnpm build` and point your agent at `node /path/to/kandle/packages/mcp/bin/kandle-mcp.js`.
 
-Claude Code:
+<details>
+<summary><b>Codex, Cursor, Gemini CLI and Claude Desktop</b></summary>
 
-```sh
-claude mcp add kandle -- npx -y --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.10.1/kandle-mcp-0.10.1.tgz kandle-mcp
-```
+<br>
 
 Codex (`~/.codex/config.toml`):
 
@@ -124,7 +93,12 @@ Claude Desktop: download [kandle-mcp-0.10.1.mcpb](https://github.com/Kernel-Hunt
 
 Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotocol.io/) as `io.github.Kernel-Hunter/kandle`, so clients that browse the registry can find it.
 
-### Tools
+</details>
+
+<details>
+<summary><b>All 26 tools</b></summary>
+
+<br>
 
 | Tool | What it does |
 | --- | --- |
@@ -147,11 +121,22 @@ Kandle is also listed in the [MCP Registry](https://registry.modelcontextprotoco
 
 Most tools take an optional `pane` (1 to 4) when several charts are showing. Times can be ISO 8601 dates or Unix times in seconds or milliseconds. Inputs are validated and errors say what to fix.
 
+</details>
+
 [`skills/kandle/SKILL.md`](skills/kandle/SKILL.md) is an agent skill with chart analysis workflows: support and resistance, trend, indicator confluence, and annotating a chart with an explanation. Copy it into your agent's skills folder (for Claude Code, `~/.claude/skills/kandle/`).
 
-![An agent marked up BTC/USDT with the 120-bar high and low, a Fibonacci retracement and a note](docs/screenshot-agent.png)
+<p align="center">
+  <img src="docs/screenshot-agent.png" alt="An agent marked up BTC/USDT with the 120-bar high and low, a Fibonacci retracement and a note" width="900">
+</p>
 
 ### Security model
+
+The bridge is off until you turn it on, only listens on `127.0.0.1`, and needs the pairing code on every connection.
+
+<details>
+<summary><b>How the bridge is locked down</b></summary>
+
+<br>
 
 - The bridge only listens on `127.0.0.1`. Nothing is reachable from other machines.
 - The app connects to the server, not the other way round, and only after you turn on **Agent bridge**. It is off by default and you can turn it off at any time.
@@ -163,7 +148,173 @@ Most tools take an optional `pane` (1 to 4) when several charts are showing. Tim
 - Only one Kandle tab is connected at a time. A newer tab takes over and the older one shows that it was replaced.
 - Programs running as your user on the same computer can read `~/.kandle/bridge-token`. That is the same trust level as the agent itself.
 
+</details>
+
 Settings: `--port` or `KANDLE_PORT` (default 7457, change the port in the Agent dialog to match), `KANDLE_TOKEN` for a fixed code, `KANDLE_HOME` for the token folder.
+
+## Features
+
+<table>
+  <tr>
+    <td width="33%" valign="top"><b>Live crypto, no key</b><br>Binance, Coinbase, Bybit, OKX and Kraken. History over REST, updates over websockets.</td>
+    <td width="33%" valign="top"><b>Stocks, ETFs and forex</b><br>Twelve Data, Alpaca or Polygon with your own free API key. <a href="#data-sources">Data sources</a></td>
+    <td width="33%" valign="top"><b>Your own CSV data</b><br>Import OHLCV files. They are read and kept in your browser. <a href="#csv-import">CSV import</a></td>
+  </tr>
+  <tr>
+    <td valign="top"><b>36 indicators</b><br>As many on the chart as you like, every parameter editable. Includes Ichimoku Cloud and a volume profile.</td>
+    <td valign="top"><b>Drawing tools</b><br>Trend lines, rays, channels, rectangles, Fibonacci retracement, price ranges, notes, with an optional magnet.</td>
+    <td valign="top"><b>Kandle Script</b><br>Write your own indicators in an editor under the chart, with 15 examples and <code>request.security</code>. <a href="#scripts">Scripts</a></td>
+  </tr>
+  <tr>
+    <td valign="top"><b>Strategy backtests</b><br>Trades on the chart, net profit, drawdown, win rate, an equity curve and every trade. <a href="#strategies-and-backtesting">Strategies</a></td>
+    <td valign="top"><b>Alerts</b><br>On price levels, drawn lines and indicator values, with browser notifications. <a href="#alerts">Alerts</a></td>
+    <td valign="top"><b>Bar replay</b><br>Hide every bar after a point you pick, then step forward one candle at a time. <a href="#bar-replay">Bar replay</a></td>
+  </tr>
+  <tr>
+    <td valign="top"><b>Up to 4 charts</b><br>Each with its own symbol, timeframe and indicators, with optional sync. <a href="#layouts">Layouts</a></td>
+    <td valign="top"><b>Share links and embeds</b><br>The link carries the chart itself, and an iframe puts a live chart on any page. <a href="#share-a-chart">Share</a></td>
+    <td valign="top"><b>Agent bridge</b><br>An MCP server so agents can read the chart, draw, set alerts and take screenshots. <a href="#use-it-with-your-ai-agent">Agents</a></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshot-scripts.png" alt="The script editor with an RSI script, and Supertrend and Bollinger Bands scripts on the chart"></td>
+    <td width="50%"><img src="docs/screenshot-strategy.png" alt="A Donchian breakout strategy on BTC/USDT with its trades on the chart and the Strategy tab open"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Scripts</b>: write an indicator, press Ctrl+Enter</sub></td>
+    <td align="center"><sub><b>Backtests</b>: trades on the chart and the Strategy tab</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshot-ichimoku.png" alt="BTC/USDT 4H with the Ichimoku Cloud and a volume profile of the visible bars"></td>
+    <td width="50%"><img src="docs/screenshot-sources.png" alt="The Data sources dialog over an OKX chart"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Ichimoku and volume profile</b> of the visible bars</sub></td>
+    <td align="center"><sub><b>Data sources</b>: keys stay in your browser</sub></td>
+  </tr>
+</table>
+
+<details>
+<summary><b>The full feature list</b></summary>
+
+<br>
+
+- Live crypto candles from Binance, Coinbase, Bybit, OKX and Kraken public market data, with no key. History loads over REST and updates stream over websockets.
+- US and global stocks, ETFs and forex from Twelve Data, Alpaca or Polygon with your own free API key. See [Data sources](#data-sources).
+- Your own OHLCV data from a CSV file, kept in your browser. See [CSV import](#csv-import).
+- Symbol search for the chosen source, with Crypto, Stock, ETF, Forex, Index and CSV badges.
+- Timeframes: 1m, 5m, 15m, 1H, 4H, 1D, 1W. Scroll left to load older history.
+- Chart types: candles, hollow candles, bars (OHLC), line, area and Heikin Ashi, with a normal, logarithmic or percent price scale. Each chart in a layout keeps its own. Heikin Ashi only changes how bars are drawn: indicators, scripts, backtests, alerts and the agent tools keep using the real prices, and the legend shows the Heikin Ashi values on their own line.
+- 36 indicators, with as many on the chart as you like: MA, EMA, SMA, WMA, HMA, Bollinger Bands, Donchian Channel, VWAP, Supertrend, Parabolic SAR, Ichimoku Cloud, Volume Profile, Volume, MACD, RSI, Stochastic RSI, KDJ, ATR, OBV, CCI, DMI/ADX, Williams %R, ROC, Momentum, TRIX, Awesome Oscillator and more. Every parameter can be edited.
+- Ichimoku Cloud with the cloud drawn ahead of the last candle, and a volume profile of the bars on screen that marks the point of control and the value area. The profile updates as you scroll and zoom.
+- Drawing tools: trend line, ray, extended line, horizontal line and ray, vertical line, parallel channel, rectangle, Fibonacci retracement, price range, text notes and price labels. Select a drawing to move it or delete it. An optional magnet snaps points to candle prices.
+- Your symbol, timeframe, chart type, price scale, theme, indicators, and drawings (saved per symbol) come back when you reload.
+- Dark and light themes.
+- Keyboard shortcuts for most actions. Press `?` in the app to see them all.
+- Export the chart as a PNG image.
+- Share a chart as a link: symbol, timeframe, chart type, indicators and drawings, plus scripts and the multi-chart layout if you choose. The link carries the chart itself. See [Share a chart](#share-a-chart). The same popover gives an iframe that shows the chart on a blog or docs page, see [Embed a chart](#embed-a-chart).
+- Scripts: write your own indicators in Kandle Script, with an editor under the chart and 15 example scripts. Scripts can read other timeframes and other symbols with `request.security`.
+- Strategy backtests: write a strategy script, see its trades on the chart, and get net profit, drawdown, win rate, an equity curve and the list of trades.
+- Alerts on price levels, drawn lines and indicator values, with browser notifications.
+- Bar replay to step through history one candle at a time.
+- 1, 2 or 4 charts on screen, each with its own symbol, timeframe and indicators.
+- A watchlist next to the charts with live prices and 24 hour change for crypto, and the change since the previous close for stocks and forex. Click a symbol to open it.
+- An MCP server so AI agents can read the chart, draw on it, set alerts and take screenshots.
+- Works on desktops, tablets and phones. On a narrow screen the top bar keeps the symbol, timeframe and price in view and moves the other tools into the ... menu.
+
+</details>
+
+<details>
+<summary><b>Keyboard shortcuts</b></summary>
+
+<br>
+
+| Keys | Action |
+| --- | --- |
+| Any letter or digit | Search symbols |
+| `/` or `Alt+I` | Indicators |
+| `Alt+S` | Script editor |
+| `Ctrl+Enter` or `Cmd+Enter` | Add or update the script on the chart (in the editor) |
+| `Alt+1` to `Alt+7` | Timeframes 1m to 1W |
+| `Alt+C` | Next chart type |
+| `Alt+T` | Trend line |
+| `Alt+R` | Ray |
+| `Alt+H` | Horizontal line |
+| `Alt+V` | Vertical line |
+| `Alt+B` | Rectangle |
+| `Alt+F` | Fibonacci retracement |
+| `Alt+P` | Price range |
+| `Alt+N` | Text note |
+| `Alt+M` | Magnet on or off |
+| `Delete` | Delete the selected drawing |
+| `Esc` | Cancel the current drawing or close a dialog |
+| `Alt+L` | Switch between light and dark |
+| `Alt+W` | Show or hide the watchlist |
+| `Alt+K` | Share a link to this chart |
+
+</details>
+
+## Data sources
+
+Click **Data** in the top bar to see every source, add keys and test them. In symbol search, pick the source above the results.
+
+| Source | Markets | Key needed | Updates |
+| --- | --- | --- | --- |
+| Binance | Crypto | No | Live |
+| Coinbase | Crypto | No | Live |
+| Bybit | Crypto | No | Live |
+| OKX | Crypto | No | Live |
+| Kraken | Crypto | No | Live. History is limited to the latest 720 bars per timeframe. |
+| Twelve Data | Stocks, ETFs, forex, crypto | Free key | Live for the symbols your plan streams, otherwise refreshed once a minute |
+| Alpaca | US stocks and ETFs | Free key ID and secret | Live from the IEX feed (volume covers IEX trades only) |
+| Polygon | Stocks, ETFs, forex, crypto, indices | Free key | End of day on the free plan, marked Delayed |
+| CSV | Your own data | No | Never. See [CSV import](#csv-import) |
+
+Free keys:
+
+- Twelve Data: sign up at [twelvedata.com](https://twelvedata.com/register). The free plan allows 8 requests a minute and 800 a day.
+- Alpaca: open a free account at [alpaca.markets](https://app.alpaca.markets/signup) (paper trading is enough) and create an API key. The free plan uses the IEX feed and allows 200 requests a minute.
+- Polygon: sign up at [polygon.io](https://polygon.io/dashboard/signup). The free plan has 2 years of end-of-day data and 5 requests a minute.
+
+Finnhub is not included: its free plan does not include historical candles, so it cannot draw a chart.
+
+How keys are handled:
+
+- Keys stay in this browser. They are saved in local storage under `kandle:apikey:<source>` and are never sent anywhere except to that provider's own API. Kandle has no server.
+- Keys go in request headers where the provider allows it. The Twelve Data websocket only accepts the key in its URL, which goes to Twelve Data only.
+- **Remove key** in the Data dialog deletes it from the browser.
+
+Free plans have tight limits, so Kandle caches responses, counts requests against each plan's per-minute limit, and backs off when a provider answers 429. When a limit is reached the chart says "Free plan limit reached, try again in N s" instead of retrying in a loop.
+
+Stock charts only have bars for trading hours. Nights, weekends and holidays get no empty bars, and the chart places bars side by side, so there are no gaps on the time axis.
+
+Market data comes straight from each provider's official public API in your browser. Kandle does not store or redistribute it, and each provider's terms apply. Exchange availability depends on your region; for Binance the app uses the public market data hosts first.
+
+### CSV import
+
+Load your own OHLCV data: click **Import CSV** in symbol search or in the CSV card of the **Data** dialog and pick a file, or drop a file on the chart. Kandle reads it in your browser and shows what it found, you give the dataset a name, and it opens on the chart. Nothing is uploaded.
+
+<details>
+<summary><b>Accepted files, timeframes and storage limits</b></summary>
+
+<br>
+
+Accepted files:
+
+- A header row with a time column (`time`, `date`, `datetime`, `timestamp` or `open time`), `open`, `high`, `low`, `close` and an optional `volume`, in any order and any case. Separate `date` and `time` columns are joined. A file with no header is read as time, open, high, low, close and volume.
+- Comma, semicolon or tab separated. In semicolon files a decimal comma (`1234,5`) works.
+- Times as ISO 8601 (`2024-03-05T14:30:00Z`, with a zone), `YYYY-MM-DD`, `YYYY-MM-DD HH:mm` or `YYYY-MM-DD HH:mm:ss` (read as UTC), or Unix time in seconds or milliseconds.
+- Rows are sorted by time. When two rows have the same time the later one is kept. Rows with an unreadable time or price, or a high below the low, are skipped and counted.
+
+The timeframe comes from the median gap between bars, so daily stock data without weekends is still 1D. Bars that fit no timeframe but divide one, such as 30-minute bars, are combined into the next one (1H). The chart can show a dataset in its own timeframe and longer ones, which are built from its bars; shorter timeframe buttons are disabled.
+
+Datasets are saved in this browser's local storage (up to 2.5 MB each and 4 MB in total, about 40,000 bars per dataset), appear in symbol search under **CSV** with a CSV badge, come back when you reload, and can be deleted in the Data dialog. Scripts, strategy backtests, `request.security` on higher timeframes, drawings, bar replay and multi-chart layouts work on them. The data never updates, so alerts on a CSV chart never fire. Agents can open a dataset with `set_symbol` and exchange `csv`.
+
+<img src="docs/screenshot-csv.png" alt="An imported BTC daily CSV file with a weekly EMA script, and the Import CSV dialog" width="800">
+
+</details>
 
 ## Scripts
 
@@ -187,11 +338,16 @@ plotshape(ta.crossover(fast, slow), "Up", shape.triangleup, location.belowbar, c
 
 Scripts with `overlay = true` draw on the price chart; the others get their own pane. Inputs show up in the **Indicators** dialog, where you can change them without touching the code. Scripts and their input values are saved with your layout. When a new candle arrives or the last one changes, only the last bar is calculated again; a full run over 1,500 bars takes a few milliseconds for typical scripts.
 
-One run of a script may use 10,000,000 operations (each bar and each loop iteration counts as one, including loops inside `request.security`) and 1 second. A loop may repeat 100,000 times on one bar, and an array may hold up to 100,000 elements. The examples use about 5,000 operations on 5,000 bars. A script that goes over stops with an error and does not run again until you change it, its inputs or the symbol, so a heavy script cannot keep the tab busy.
-
 The indicator examples are a moving average cross, RSI with bands, MACD, Bollinger Bands, Supertrend, VWAP bands, Stochastic, an ATR trailing stop, a Donchian breakout, volume spikes and a daily EMA trend filter that uses `request.security`. The strategy examples are an EMA cross that is always in the market, RSI mean reversion with a stop and a target, a Donchian channel breakout, and a range breakout that waits with a buy stop above the range and a sell stop below it in one order group and stops trading after a set drawdown.
 
-![The script editor with an RSI script, and Supertrend and Bollinger Bands scripts on the chart](docs/screenshot-scripts.png)
+<details>
+<summary><b>Limits on a script run</b></summary>
+
+<br>
+
+One run of a script may use 10,000,000 operations (each bar and each loop iteration counts as one, including loops inside `request.security`) and 1 second. A loop may repeat 100,000 times on one bar, and an array may hold up to 100,000 elements. The examples use about 5,000 operations on 5,000 bars. A script that goes over stops with an error and does not run again until you change it, its inputs or the symbol, so a heavy script cannot keep the tab busy.
+
+</details>
 
 ### Strategies and backtesting
 
@@ -221,7 +377,10 @@ plot(slow, "Slow", color.blue)
 
 The values in the `strategy()` call are the script's defaults. To try others without editing the code, open the **Indicators** dialog: a strategy has a **Backtest settings** group under its inputs with initial capital, order size and its type, commission and its type, slippage in ticks, pyramiding, and filling market orders on the bar close. A change runs the backtest again, and the trades on the chart and the **Strategy** tab follow. Changed settings are highlighted and saved with the layout like input values, and **Reset** goes back to the values in the script.
 
-How orders fill:
+<details>
+<summary><b>How orders fill</b></summary>
+
+<br>
 
 - The script runs once at the close of each bar. An order placed on a bar fills on a later bar: a market order at the next open, a limit or stop order when a bar's range reaches its price. With `process_orders_on_close = true`, market orders fill at the close of the bar that placed them.
 - Kandle has no data inside a bar, so it assumes price moved from the open to the nearer of the high and the low, then to the other one, then to the close (high first when both are equally far). When one bar touches both the stop and the target of an exit, the level nearer the open fills. This is an assumption, and a real trade on such a bar could have gone the other way.
@@ -232,7 +391,14 @@ How orders fill:
 - Order sizes come from `default_qty_type` and `default_qty_value` unless `qty` is given. Cash and percent of equity sizes use the fill price. Quantities are not rounded to lot sizes and there are no margin calls.
 - The whole history is recalculated when new data arrives, so the results always match the bars on the chart. Scroll left to load older bars and the backtest covers them too.
 
-Order groups: `strategy.entry` and `strategy.order` take `oca_name` and `oca_type`. Pending orders with the same `oca_name` form a group, and when one of them fills, its `oca_type` decides what happens to the others:
+</details>
+
+<details>
+<summary><b>Order groups</b></summary>
+
+<br>
+
+`strategy.entry` and `strategy.order` take `oca_name` and `oca_type`. Pending orders with the same `oca_name` form a group, and when one of them fills, its `oca_type` decides what happens to the others:
 
 - `strategy.oca.cancel`: the other orders of the group are cancelled. This is the usual bracket: a buy stop above a range and a sell stop below it, where the first one to fill removes the other.
 - `strategy.oca.reduce`: the quantity of each other order is lowered by the quantity that filled (for an entry that reverses a position, the closed contracts count too), and an order that gets to 0 is cancelled. An order placed without `qty` is first given its default size at the fill price.
@@ -240,7 +406,14 @@ Order groups: `strategy.entry` and `strategy.order` take `oca_name` and `oca_typ
 
 This happens at the moment of the fill, so a cancelled order cannot fill later in the same bar even if the price path reaches it. Orders in a group should share one type; if they do not, the type of the order that fills is the one that counts. Only real fills count: an entry that does nothing because of `pyramiding` or a risk rule leaves the group alone. Placing an order with the id of a pending one replaces it, group included. Exit brackets from `strategy.exit` keep working as before for the trade that filled.
 
-Risk rules: `strategy.risk.*` calls are settings. They must be at the top level of the script, they apply from the next fill on, and when one is called again the latest value counts. Arguments that are constants are checked when the script compiles; values from inputs are checked when it runs. Both errors point at the line and column.
+</details>
+
+<details>
+<summary><b>Risk rules</b></summary>
+
+<br>
+
+`strategy.risk.*` calls are settings. They must be at the top level of the script, they apply from the next fill on, and when one is called again the latest value counts. Arguments that are constants are checked when the script compiles; values from inputs are checked when it runs. Both errors point at the line and column.
 
 - `strategy.risk.allow_entry_in(strategy.direction.all | strategy.direction.long | strategy.direction.short)`: `strategy.entry` in a direction that is not allowed only closes an open position in the other direction, and does nothing when there is none. `strategy.order` in that direction can reduce a position but not open one.
 - `strategy.risk.max_position_size(contracts)`: an entry or order that would make the position larger than `contracts` is cut down to the room that is left, and does nothing when there is no room. A reversal closes the old position in full and opens at most `contracts`.
@@ -251,13 +424,42 @@ Risk rules: `strategy.risk.*` calls are settings. They must be at the top level 
 
 When a rule triggers, every pending order and `strategy.exit` bracket is cancelled, the open position is closed with a market order labelled with the rule (such as "Max drawdown"), and new entries, orders and exits are ignored until trading resumes; `strategy.close` and `strategy.cancel` still work. The closing order fills like any market order: at the next bar's open, or at the close of the same bar with `process_orders_on_close = true`. `max_cons_loss_days` triggers as a new day begins, so it closes at that bar's open. Days are UTC calendar days, taken from the bar's open time, because Kandle has no trading session data. Rules measured on bar-close equity do not see a loss that only happened inside a bar.
 
-How the figures are measured: max drawdown is the largest fall of bar-close equity from an earlier peak. The Sharpe ratio uses the equity at the end of each UTC day (each bar on daily and weekly charts): the mean return over its standard deviation, annualized over 365 days, with a risk-free rate of 0. Buy and hold is the price change from the first loaded close to the last close, applied to the initial capital. Open profit counts the commission already paid on entry.
+</details>
 
-Supported: `strategy()` with `initial_capital` (default 100000), `default_qty_type` (`strategy.fixed`, `strategy.cash`, `strategy.percent_of_equity`), `default_qty_value`, `commission_type` (`strategy.commission.percent`, `cash_per_contract`, `cash_per_order`), `commission_value`, `slippage`, `pyramiding` and `process_orders_on_close`. Orders: `strategy.entry` and `strategy.order` (with `oca_name` and `oca_type`: `strategy.oca.cancel`, `reduce` and `none`), `strategy.exit` (`profit`, `limit`, `loss`, `stop`, `trail_price` or `trail_points` with `trail_offset`, `qty`, `qty_percent`, `comment_profit`, `comment_loss`, `comment_trailing`), `strategy.close` (with `qty`, `qty_percent` and `immediately`), `strategy.close_all`, `strategy.cancel` and `strategy.cancel_all`, with `strategy.long` and `strategy.short`. Risk rules: `strategy.risk.allow_entry_in` (`strategy.direction.all`, `long`, `short`), `max_position_size`, `max_drawdown`, `max_intraday_loss`, `max_intraday_filled_orders` and `max_cons_loss_days`. State: `strategy.position_size`, `position_avg_price`, `equity`, `netprofit`, `openprofit`, `grossprofit`, `grossloss`, `max_drawdown`, `closedtrades`, `opentrades`, `wintrades`, `losstrades`, `eventrades`, `initial_capital`, and per-trade values such as `strategy.closedtrades.profit(i)` and `strategy.opentrades.entry_price(i)`. `currency`, `calc_on_every_tick` and the `alert_message` arguments are accepted and ignored. `oca_name` in `strategy.exit` is accepted and has no effect, because the target and stop of an exit already cancel each other.
+<details>
+<summary><b>How the figures are measured</b></summary>
+
+<br>
+
+Max drawdown is the largest fall of bar-close equity from an earlier peak. The Sharpe ratio uses the equity at the end of each UTC day (each bar on daily and weekly charts): the mean return over its standard deviation, annualized over 365 days, with a risk-free rate of 0. Buy and hold is the price change from the first loaded close to the last close, applied to the initial capital. Open profit counts the commission already paid on entry.
+
+</details>
+
+<details>
+<summary><b>Supported strategy arguments, orders and state</b></summary>
+
+<br>
+
+`strategy()` with `initial_capital` (default 100000), `default_qty_type` (`strategy.fixed`, `strategy.cash`, `strategy.percent_of_equity`), `default_qty_value`, `commission_type` (`strategy.commission.percent`, `cash_per_contract`, `cash_per_order`), `commission_value`, `slippage`, `pyramiding` and `process_orders_on_close`.
+
+Orders: `strategy.entry` and `strategy.order` (with `oca_name` and `oca_type`: `strategy.oca.cancel`, `reduce` and `none`), `strategy.exit` (`profit`, `limit`, `loss`, `stop`, `trail_price` or `trail_points` with `trail_offset`, `qty`, `qty_percent`, `comment_profit`, `comment_loss`, `comment_trailing`), `strategy.close` (with `qty`, `qty_percent` and `immediately`), `strategy.close_all`, `strategy.cancel` and `strategy.cancel_all`, with `strategy.long` and `strategy.short`.
+
+Risk rules: `strategy.risk.allow_entry_in` (`strategy.direction.all`, `long`, `short`), `max_position_size`, `max_drawdown`, `max_intraday_loss`, `max_intraday_filled_orders` and `max_cons_loss_days`.
+
+State: `strategy.position_size`, `position_avg_price`, `equity`, `netprofit`, `openprofit`, `grossprofit`, `grossloss`, `max_drawdown`, `closedtrades`, `opentrades`, `wintrades`, `losstrades`, `eventrades`, `initial_capital`, and per-trade values such as `strategy.closedtrades.profit(i)` and `strategy.opentrades.entry_price(i)`.
+
+`currency`, `calc_on_every_tick` and the `alert_message` arguments are accepted and ignored. `oca_name` in `strategy.exit` is accepted and has no effect, because the target and stop of an exit already cancel each other.
+
+</details>
+
+<details>
+<summary><b>Backtests from an agent or the page</b></summary>
+
+<br>
 
 Agents get the same results: `run_script` returns the backtest summary and the last 20 trades of a strategy, and `get_backtest` returns up to 500 trades. `run_script` also takes `strategy`, backtest settings named like the `strategy()` arguments, such as `{"initial_capital": 5000, "commission_value": 0.1}`; `null` puts a setting back to the script's value, and with `id` it reruns a strategy already on the chart. In the page, `window.kandle.setStrategySettings(id, settings)` does the same for a script on the chart, `listScripts()` shows each strategy's own settings and the ones in use, and `getBacktest()` lists the settings that differ in `changedSettings`. The risk rules a script sets are in `settings.risk`, `riskStop` names the rule that stopped trading with the reason (or is `null`), and `riskHalts` counts the days an intraday rule paused trading.
 
-![A Donchian breakout strategy on BTC/USDT with its trades on the chart and the Strategy tab open](docs/screenshot-strategy.png)
+</details>
 
 ### Other symbols and timeframes
 
@@ -270,6 +472,11 @@ dailyEma = request.security(syminfo.tickerid, "D", ta.ema(close, 20))
 ethClose = request.security("ETHUSDT", "60", close)
 plot(dailyEma, "Daily EMA", color.orange, 2, plot.style_stepline)
 ```
+
+<details>
+<summary><b>Symbols, timeframes, inputs and lookahead</b></summary>
+
+<br>
 
 - `symbol` is `syminfo.tickerid` (or `syminfo.ticker`) for the chart's symbol, or a symbol on the same data source such as `"ETHUSDT"` while you chart BTCUSDT on Binance. A prefix such as `"BINANCE:ETHUSDT"` picks that data source when Kandle has it and is ignored otherwise.
 - `timeframe` is `"1"`, `"5"`, `"15"`, `"60"`, `"240"`, `"D"` or `"W"` (`"1D"`, `"1W"`, `"1h"` and `"4h"` also work), or `timeframe.period` or `""` for the chart's own.
@@ -294,7 +501,14 @@ No lookahead by default. With `lookahead = barmerge.lookahead_off`, a chart bar 
 
 Requested series load through the chart's data source with the same caching and rate limits, from 500 bars before the first bar on the chart, and load more when you scroll back. On sources without a key they update live; on sources that need a key they refresh every few minutes to stay within the free plan. While a series loads its values are na, and if it cannot load the script shows the error. `run_script` waits for the data before it returns.
 
+</details>
+
 ### What is supported
+
+<details>
+<summary><b>Syntax, built-ins and what is not supported yet</b></summary>
+
+<br>
 
 - Syntax: `//@version=5` and `//@version=6` headers, comments, indented blocks, line wrapping inside brackets or after an operator, `var` and `varip`, type names on declarations (`float x = na`), `=`, `:=` and `+= -= *= /= %=`, `?:`, `and`, `or`, `not`, `if` / `else if` / `else`, `switch` with or without a value, `for i = a to b by step`, `for x in array`, `for [i, x] in array`, `while`, `break`, `continue`, functions on one line or several, default and named arguments, tuples (`[a, b] = f()`), user methods (`method f(float x) =>`) and method calls such as `values.push(x)`.
 - Series: every value has history, read with `x[n]`. `na`, `na()`, `nz()` and `fixnan()`. Variables declared with `var` keep their value from bar to bar. Each call of a function keeps its own history.
@@ -309,6 +523,8 @@ Requested series load through the chart's data source with the same caching and 
 - Output: `indicator()` with `title`, `shorttitle`, `overlay`, `format` and `precision`; `plot` with the line, step line, histogram, columns, circles, cross and area styles, per-bar colors, `linewidth` and `offset`; `plotshape`; `plotchar`; `hline`; `fill` between two plots or two hlines; `bgcolor`; `barcolor` (on price-chart scripts).
 
 Not supported yet: `request.*` functions other than `request.security` (such as `request.security_lower_tf` and `request.financial`), drawing objects (`label`, `line`, `box`, `table`), user-defined types and enums, `import`, `matrix` and `map`, and gradient fills. Using one of these gives a clear "not supported yet" error that points at the line.
+
+</details>
 
 ## Alerts
 
@@ -332,6 +548,11 @@ Click **Layout** to show 1 chart, 2 side by side or 4 in a grid. The first chart
 
 Click **Watchlist** (or press `Alt+W`) to show the list on the right of the charts. Click a symbol to load it into the chart you last clicked, which has a blue outline when several charts are showing. The **+** button adds the symbol of that chart and the search button finds any symbol on any source. Drag a row by its handle to reorder it, or focus it and press `Alt+Up` or `Alt+Down`; `Delete` removes it. The first time you open Kandle the list has BTCUSDT, ETHUSDT and SOLUSDT on Binance.
 
+<details>
+<summary><b>What each row shows and how often it updates</b></summary>
+
+<br>
+
 Each row keeps its own data source, and the change it shows depends on that source:
 
 - Binance, Coinbase, Bybit, OKX and Kraken: the last trade and the change over the last 24 hours (a rolling window, not since midnight), streamed live. Kandle opens one websocket per exchange for all of its symbols.
@@ -339,6 +560,8 @@ Each row keeps its own data source, and the change it shows depends on that sour
 - CSV: the last close of the imported data against the bar before it.
 
 Prices only update while the watchlist is showing. When you hide it, or leave the tab in the background for a minute, Kandle closes the connections and opens them again when you come back. On a phone the list opens over the chart from the list button at the bottom of the drawing toolbar. The list and whether it is showing are saved in your browser.
+
+</details>
 
 ## Share a chart
 
@@ -362,7 +585,10 @@ The embed shows the chart with its indicators and drawings, and the other charts
 
 An embed URL is a share link with `?embed=1` before the `#`. The chart stays in the fragment in the same format, so the query is the only part a server sees and it says nothing about the chart. Add `&theme=light` or `&theme=dark` to fix the colors; without it the embed follows the viewer's system setting.
 
-What an embed leaves out:
+<details>
+<summary><b>What an embed leaves out, and why framing is limited to embeds</b></summary>
+
+<br>
 
 - Scripts. Embed links never include them. If a link carries scripts anyway, the embed does not run them and says to open the chart in Kandle to run them.
 - Browser storage. An embed reads and writes nothing there, so it never sees the viewer's own chart or API keys. Charts from sources that need a key (Twelve Data, Alpaca, Polygon) show a note instead, so embed charts from the crypto exchanges.
@@ -370,18 +596,17 @@ What an embed leaves out:
 
 Only embed links run in a frame. GitHub Pages cannot send headers that forbid framing, so a page could otherwise lay its own buttons over the full app's, such as **Run scripts** or **Keep it**. When another page frames the full app, Kandle shows a note with a link that opens it in its own tab instead. Embeds are safe to frame: Kandle has no account and nothing on a server, current browsers give a framed page storage of its own, apart from the viewer's Kandle tab, and an embed has no action that changes or deletes anything. GitHub does not show iframes in README files, so link to the chart there instead.
 
+</details>
+
 Agents get the iframe from `get_share_link` with `embed: true`. In the page, `await window.kandle.share({ embed: true, theme: 'dark' })` returns the embed URL and `await window.kandle.embedCode({ width: 800, height: 450 })` returns the iframe.
-
-## Roadmap
-
-- Desktop app for macOS, Windows, and Linux.
-- Larger CSV imports stored in IndexedDB.
 
 ## Run it locally
 
 You need Node.js 22.12 or newer and pnpm.
 
 ```sh
+git clone https://github.com/Kernel-Hunter/kandle.git
+cd kandle
 pnpm install
 pnpm dev
 ```
@@ -428,63 +653,105 @@ tests/               unit tests
 
 To add an exchange, implement the `DataSource` interface in `src/data/types.ts` and register it in `src/data/sources.ts`.
 
-## Data sources
+## Roadmap
 
-Click **Data** in the top bar to see every source, add keys and test them. In symbol search, pick the source above the results.
+- Desktop app for macOS, Windows, and Linux.
+- Larger CSV imports stored in IndexedDB.
 
-| Source | Markets | Key needed | Updates |
-| --- | --- | --- | --- |
-| Binance | Crypto | No | Live |
-| Coinbase | Crypto | No | Live |
-| Bybit | Crypto | No | Live |
-| OKX | Crypto | No | Live |
-| Kraken | Crypto | No | Live. History is limited to the latest 720 bars per timeframe. |
-| Twelve Data | Stocks, ETFs, forex, crypto | Free key | Live for the symbols your plan streams, otherwise refreshed once a minute |
-| Alpaca | US stocks and ETFs | Free key ID and secret | Live from the IEX feed (volume covers IEX trades only) |
-| Polygon | Stocks, ETFs, forex, crypto, indices | Free key | End of day on the free plan, marked Delayed |
-| CSV | Your own data | No | Never. See [CSV import](#csv-import) |
+## FAQ
 
-Free keys:
+<details>
+<summary><b>Do I need an account or an API key?</b></summary>
 
-- Twelve Data: sign up at [twelvedata.com](https://twelvedata.com/register). The free plan allows 8 requests a minute and 800 a day.
-- Alpaca: open a free account at [alpaca.markets](https://app.alpaca.markets/signup) (paper trading is enough) and create an API key. The free plan uses the IEX feed and allows 200 requests a minute.
-- Polygon: sign up at [polygon.io](https://polygon.io/dashboard/signup). The free plan has 2 years of end-of-day data and 5 requests a minute.
+<br>
 
-Finnhub is not included: its free plan does not include historical candles, so it cannot draw a chart.
+No account. Crypto charts from Binance, Coinbase, Bybit, OKX and Kraken need no key. Stocks, ETFs and forex need a free key from Twelve Data, Alpaca or Polygon, which you add in the **Data** dialog. See [Data sources](#data-sources).
 
-How keys are handled:
+</details>
 
-- Keys stay in this browser. They are saved in local storage under `kandle:apikey:<source>` and are never sent anywhere except to that provider's own API. Kandle has no server.
-- Keys go in request headers where the provider allows it. The Twelve Data websocket only accepts the key in its URL, which goes to Twelve Data only.
-- **Remove key** in the Data dialog deletes it from the browser.
+<details>
+<summary><b>Where are my API keys and charts stored?</b></summary>
 
-Free plans have tight limits, so Kandle caches responses, counts requests against each plan's per-minute limit, and backs off when a provider answers 429. When a limit is reached the chart says "Free plan limit reached, try again in N s" instead of retrying in a loop.
+<br>
 
-Stock charts only have bars for trading hours. Nights, weekends and holidays get no empty bars, and the chart places bars side by side, so there are no gaps on the time axis.
+In your browser's local storage. Keys are only sent to that provider's own API, and Kandle has no server. **Remove key** in the Data dialog deletes a key.
 
-Market data comes straight from each provider's official public API in your browser. Kandle does not store or redistribute it, and each provider's terms apply. Exchange availability depends on your region; for Binance the app uses the public market data hosts first.
+</details>
 
-![The Data sources dialog over an OKX chart](docs/screenshot-sources.png)
+<details>
+<summary><b>What can a connected agent see?</b></summary>
 
-### CSV import
+<br>
 
-Load your own OHLCV data: click **Import CSV** in symbol search or in the CSV card of the **Data** dialog and pick a file, or drop a file on the chart. Kandle reads it in your browser and shows what it found, you give the dataset a name, and it opens on the chart. Nothing is uploaded.
+Only what the tools allow: chart data, symbols, indicators, drawings, alerts, replay, layout, the watchlist, screenshots of the chart and share links. It cannot read other tabs, your files or your browser storage. See [Security model](#security-model).
 
-Accepted files:
+</details>
 
-- A header row with a time column (`time`, `date`, `datetime`, `timestamp` or `open time`), `open`, `high`, `low`, `close` and an optional `volume`, in any order and any case. Separate `date` and `time` columns are joined. A file with no header is read as time, open, high, low, close and volume.
-- Comma, semicolon or tab separated. In semicolon files a decimal comma (`1234,5`) works.
-- Times as ISO 8601 (`2024-03-05T14:30:00Z`, with a zone), `YYYY-MM-DD`, `YYYY-MM-DD HH:mm` or `YYYY-MM-DD HH:mm:ss` (read as UTC), or Unix time in seconds or milliseconds.
-- Rows are sorted by time. When two rows have the same time the later one is kept. Rows with an unreadable time or price, or a high below the low, are skipped and counted.
+<details>
+<summary><b>Will my existing indicator scripts run?</b></summary>
 
-The timeframe comes from the median gap between bars, so daily stock data without weekends is still 1D. Bars that fit no timeframe but divide one, such as 30-minute bars, are combined into the next one (1H). The chart can show a dataset in its own timeframe and longer ones, which are built from its bars; shorter timeframe buttons are disabled.
+<br>
 
-Datasets are saved in this browser's local storage (up to 2.5 MB each and 4 MB in total, about 40,000 bars per dataset), appear in symbol search under **CSV** with a CSV badge, come back when you reload, and can be deleted in the Data dialog. Scripts, strategy backtests, `request.security` on higher timeframes, drawings, bar replay and multi-chart layouts work on them. The data never updates, so alerts on a CSV chart never fire. Agents can open a dataset with `set_symbol` and exchange `csv`.
+Many run with few or no changes. Drawing objects (`label`, `line`, `box`, `table`), user-defined types, `matrix`, `map` and `request.*` functions other than `request.security` are not supported yet, and give an error that points at the line. See [What is supported](#what-is-supported).
 
-![An imported BTC daily CSV file with a weekly EMA script, and the Import CSV dialog](docs/screenshot-csv.png)
+</details>
+
+<details>
+<summary><b>Do alerts work when the tab is closed?</b></summary>
+
+<br>
+
+No. Alerts are checked against live data while a Kandle tab is open.
+
+</details>
+
+<details>
+<summary><b>Does a share link send my chart to a server?</b></summary>
+
+<br>
+
+No. The chart is stored after the `#` in the link, and browsers do not send that part to any server.
+
+</details>
+
+<details>
+<summary><b>Why is Finnhub not a data source?</b></summary>
+
+<br>
+
+Its free plan does not include historical candles, so it cannot draw a chart.
+
+</details>
+
+## Contributing
+
+Bug reports, new indicators, data sources and script functions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers setup, where things live and what a pull request needs.
+
+Good places to start:
+
+- [Add ta.alma to Kandle Script](https://github.com/Kernel-Hunter/kandle/issues/1) (good first issue)
+- [Add ta.cmo and ta.tsi to Kandle Script](https://github.com/Kernel-Hunter/kandle/issues/2) (good first issue)
+- [Add ta.swma, ta.range and ta.kcw to Kandle Script](https://github.com/Kernel-Hunter/kandle/issues/3) (good first issue)
+- [Add ta.sar (Parabolic SAR) to Kandle Script](https://github.com/Kernel-Hunter/kandle/issues/4) (help wanted)
+- [Add KuCoin as a keyless crypto data source](https://github.com/Kernel-Hunter/kandle/issues/5) (help wanted)
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
 
 Charts are drawn with [KLineChart](https://github.com/klinecharts/KLineChart), licensed under Apache-2.0. The script editor uses [CodeMirror](https://codemirror.net), licensed under MIT. Their notices are in `public/third-party-notices.txt`.
+
+## Star history
+
+<a href="https://star-history.com/#kernel-hunter/kandle&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=kernel-hunter/kandle&type=Date&theme=dark">
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=kernel-hunter/kandle&type=Date">
+    <img alt="Star history chart for Kandle" src="https://api.star-history.com/svg?repos=kernel-hunter/kandle&type=Date" width="600">
+  </picture>
+</a>
+
+<div align="center">
+<br>
+Built by <a href="https://github.com/Kernel-Hunter">Karim Masmoudi</a>. If Kandle is useful to you, a star helps other people find it.
+</div>
