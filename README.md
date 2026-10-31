@@ -720,6 +720,15 @@ No. The chart is stored after the `#` in the link, and browsers do not send that
 </details>
 
 <details>
+<summary><b>How do I get a new version?</b></summary>
+
+<br>
+
+Reload the page. A tab that stays open checks for a new version when you come back to it and every 30 minutes, and shows **Kandle was updated** with a **Reload** button. Your layout, drawings, scripts, watchlist and alerts are saved as you go, so a reload keeps them. If you are in bar replay or looking at a shared chart you have not kept, it says so before reloading. Embedded charts do not check.
+
+</details>
+
+<details>
 <summary><b>Why is Finnhub not a data source?</b></summary>
 
 <br>

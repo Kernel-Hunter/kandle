@@ -67,6 +67,8 @@ export interface Features {
   onLiveCandle(candle: Candle): void;
   /** Call after window.kandle exists. Builds the UI and connects everything. */
   start(): void;
+  /** True while bar replay runs (a reload ends it). */
+  replayActive(): boolean;
 }
 
 const DRAWINGS_GROUP = 'drawings';
@@ -243,6 +245,8 @@ export function createFeatures(deps: FeatureDeps): Features {
     onLiveCandle(candle) {
       if (mainPane) onPaneCandle(mainPane, candle);
     },
+
+    replayActive: () => replay?.active ?? false,
 
     start() {
       if (!loader) throw new Error('wrapLoader must be called before start');

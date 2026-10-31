@@ -7,6 +7,7 @@ import { keyGate, keyedSources } from './share/keyGate';
 import { openSharedView, type SharedView } from './share/view';
 import { browserStorage, type KeyValueStorage } from './store/layout';
 import { h } from './ui/dom';
+import { watchForUpdates } from './update';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('Missing #app element');
@@ -68,6 +69,8 @@ if (embed.embed) {
       const app = new App(root, view?.storage ?? storage, view);
       await app.start();
       if (error) app.toast(error, 'error');
+      // A tab left open learns about a new deploy; embeds and framed pages never check.
+      watchForUpdates(() => app.offerUpdate());
     })
     .catch(failed);
 }
