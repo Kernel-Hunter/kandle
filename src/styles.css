@@ -878,6 +878,41 @@ kbd {
   border-color: var(--down);
 }
 
+/* A newer build is deployed (src/update.ts). */
+.update-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+}
+
+.ub-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ub-text {
+  flex: 1;
+}
+
+.ub-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ub-end {
+  justify-content: flex-end;
+  padding-bottom: 2px;
+}
+
+.ub-lost {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
 /* ---------------------------------------------------------------- responsive */
 
 @media (max-width: 900px) {

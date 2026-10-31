@@ -28,6 +28,7 @@ import { scriptRows } from './ui/scriptInputs';
 import type { ScriptPanel } from './ui/scriptPanel';
 import type { SharedView } from './share/view';
 import { createKeyCover, keyGate } from './share/keyGate';
+import { createUpdateBanner } from './update';
 
 const DRAWINGS_GROUP = 'drawings';
 const CANDLE_PANE = 'candle_pane';
@@ -662,6 +663,26 @@ export class App {
     const t = h('div', { class: `toast toast-${kind}`, role: kind === 'error' ? 'alert' : 'status' }, message);
     this.el.toasts.append(t);
     setTimeout(() => t.remove(), kind === 'error' ? 6000 : 3000);
+  }
+
+  /** Shows the banner for a newer build (src/update.ts) above the toasts. */
+  offerUpdate(): void {
+    if (this.el.toasts.querySelector('.update-banner')) return;
+    this.el.toasts.prepend(createUpdateBanner({ beforeReload: () => this.prepareReload() }));
+  }
+
+  /**
+   * Before a reload into a new build: saves the drawings and the script draft now (they are
+   * otherwise saved a moment after each change) and returns what a reload would still lose.
+   * Layouts, indicators, scripts on the chart, the watchlist and alerts are saved as they change.
+   */
+  prepareReload(): string[] {
+    this.saveDrawings();
+    this.scriptPanel?.saveDraft();
+    const lost: string[] = [];
+    if (this.shared?.storage.temporary) lost.push('This shared chart opens again as the link has it, without your changes. Use Keep it to save it as your chart first.');
+    if (this.features.replayActive()) lost.push('Bar replay ends.');
+    return lost;
   }
 
   private persistLayout(): void {

@@ -37,6 +37,8 @@ export interface ScriptPanel {
   run(): RunScriptResult;
   /** Opens the panel on the Strategy tab, showing the strategy with `id` if given. */
   showStrategy(id?: string): void;
+  /** Writes the draft now instead of a moment after the last edit (before a reload). */
+  saveDraft(): void;
 }
 
 type PanelTab = 'editor' | 'strategy';
@@ -92,15 +94,18 @@ export function createScriptPanel(opts: ScriptPanelOptions): ScriptPanel {
   let tab: PanelTab = draft.tab ?? 'editor';
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
+  const writeDraft = () => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = null;
+    try {
+      storage.setItem(draftKey, JSON.stringify({ source: view.state.doc.toString(), target, height, tab }));
+    } catch {
+      // storage full or blocked; the draft is a convenience only
+    }
+  };
   const saveDraft = () => {
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      try {
-        storage.setItem(draftKey, JSON.stringify({ source: view.state.doc.toString(), target, height, tab }));
-      } catch {
-        // storage full or blocked; the draft is a convenience only
-      }
-    }, 300);
+    saveTimer = setTimeout(writeDraft, 300);
   };
 
   // ------------------------------------------------------------------ DOM
@@ -353,6 +358,9 @@ export function createScriptPanel(opts: ScriptPanelOptions): ScriptPanel {
       else panel.close();
     },
     isOpen: () => !root.hidden,
+    saveDraft: () => {
+      if (saveTimer) writeDraft();
+    },
   };
   refreshTargets();
   setTab(tab);

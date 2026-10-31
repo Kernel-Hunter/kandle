@@ -38,6 +38,10 @@ jobs:
 
       - run: pnpm build
 
+      # Open tabs fetch version.json (with a cache-busting query) to learn about a new deploy.
+      - name: Check the build id is in index.html and version.json
+        run: grep -q "\"build\":\"$(grep -o 'kandle-build" content="[0-9a-f]*' dist/index.html | cut -d'"' -f3)\"" dist/version.json
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
