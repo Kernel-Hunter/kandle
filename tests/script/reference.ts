@@ -365,3 +365,91 @@ export function dmi(c: Candle[], n: number, adxLen: number): { plus: S; minus: S
   });
   return { plus, minus, adx: mul(rma(dx, adxLen), 100) };
 }
+
+export function alma(x: S, n: number, offset: number, sigma: number, floor = false): S {
+  const m = floor ? Math.floor(offset * (n - 1)) : offset * (n - 1);
+  const s = n / sigma;
+  const weights = Array.from({ length: n }, (_, i) => Math.exp(-((i - m) ** 2) / (2 * s * s)));
+  const total = weights.reduce((a, b) => a + b, 0);
+  return x.map((_, i) => {
+    if (i < n - 1) return NaN;
+    const w = x.slice(i - n + 1, i + 1);
+    if (!w.every(ok)) return NaN;
+    return w.reduce((acc, v, k) => acc + v * weights[k], 0) / total;
+  });
+}
+
+export function swma(x: S): S {
+  return x.map((v, i) => (i < 3 ? NaN : (x[i - 3] + 2 * x[i - 2] + 2 * x[i - 1] + v) / 6));
+}
+
+export function range(x: S, n: number): S {
+  return sub(highest(x, n), lowest(x, n));
+}
+
+export function cmo(x: S, n: number): S {
+  const ch = change(x);
+  return x.map((_, i) => {
+    if (i < n) return NaN;
+    let up = 0;
+    let down = 0;
+    for (let k = i - n + 1; k <= i; k++) {
+      if (ch[k] > 0) up += ch[k];
+      else down -= ch[k];
+    }
+    return up + down === 0 ? NaN : (100 * (up - down)) / (up + down);
+  });
+}
+
+export function tsi(x: S, short: number, long: number): S {
+  const ch = change(x);
+  const pc = ema(ema(ch, long), short);
+  const apc = ema(ema(ch.map(Math.abs), long), short);
+  return div(pc, apc);
+}
+
+export function kcw(c: Candle[], src: S, n: number, mult: number): S {
+  const mid = ema(src, n);
+  const width = mul(ema(tr(c, false), n), 2 * mult);
+  return div(width, mid);
+}
+
+/** Wilder's parabolic SAR written as one loop over the bars. */
+export function sar(c: Candle[], start: number, inc: number, max: number): S {
+  const out = nan(c.length);
+  if (c.length < 2) return out;
+  let up = c[1].close > c[0].close;
+  let stop = up ? Math.min(c[0].low, c[1].low) : Math.max(c[0].high, c[1].high);
+  let ep = up ? Math.max(c[0].high, c[1].high) : Math.min(c[0].low, c[1].low);
+  let af = start;
+  out[1] = stop;
+  for (let i = 2; i < c.length; i++) {
+    const b = c[i];
+    stop += af * (ep - stop);
+    if (up) {
+      stop = Math.min(stop, c[i - 1].low, c[i - 2].low);
+      if (b.low < stop) {
+        up = false;
+        stop = Math.max(ep, b.high);
+        ep = b.low;
+        af = start;
+      } else if (b.high > ep) {
+        ep = b.high;
+        af = Math.min(af + inc, max);
+      }
+    } else {
+      stop = Math.max(stop, c[i - 1].high, c[i - 2].high);
+      if (b.high > stop) {
+        up = true;
+        stop = Math.min(ep, b.low);
+        ep = b.high;
+        af = start;
+      } else if (b.low < ep) {
+        ep = b.low;
+        af = Math.min(af + inc, max);
+      }
+    }
+    out[i] = stop;
+  }
+  return out;
+}

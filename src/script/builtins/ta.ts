@@ -169,6 +169,46 @@ stateful(
   },
 );
 
+/**
+ * Arnaud Legoux moving average: a Gaussian-weighted average of the last `length` values.
+ * The curve is centred at offset * (length - 1) bars from the oldest value and has a
+ * width of length / sigma. With `floor`, the centre is rounded down first.
+ */
+stateful(
+  'ta.alma',
+  ['series', 'length', 'offset', 'sigma', 'floor'],
+  4,
+  newSrc,
+  ([s, l, o, sg, fl], st, rt) => {
+    const b = rt.bar;
+    st.src[b] = num(s);
+    const n = len(l);
+    const offset = num(o);
+    const sigma = num(sg);
+    if (!(n >= 1) || b < n - 1 || offset !== offset || !(sigma > 0)) return NaN;
+    const m = fl === true ? Math.floor(offset * (n - 1)) : offset * (n - 1);
+    const width = n / sigma;
+    let sum = 0;
+    let norm = 0;
+    for (let i = 0; i < n; i++) {
+      const v = st.src[b - n + 1 + i];
+      if (v === undefined || v !== v) return NaN;
+      const w = Math.exp(-((i - m) * (i - m)) / (2 * width * width));
+      sum += v * w;
+      norm += w;
+    }
+    return sum / norm;
+  },
+);
+
+/** Symmetrically weighted average of the last 4 values, weights 1, 2, 2, 1 over 6. */
+stateful('ta.swma', ['source'], 1, newSrc, ([s], st, rt) => {
+  const b = rt.bar;
+  st.src[b] = num(s);
+  if (b < 3) return NaN;
+  return (at(st.src, b - 3) + 2 * at(st.src, b - 2) + 2 * at(st.src, b - 1) + at(st.src, b)) / 6;
+});
+
 // ------------------------------------------------------------------ oscillators
 
 function rsiState() {
@@ -185,6 +225,54 @@ function rsiStep(st: ReturnType<typeof rsiState>, x: number, n: number, b: numbe
 }
 
 stateful('ta.rsi', ['source', 'length'], 2, rsiState, ([s, l], st, rt) => rsiStep(st, num(s), len(l), rt.bar));
+
+/**
+ * Chande momentum oscillator: the sums of up moves and of down moves over the last
+ * `length` changes, as 100 * (up - down) / (up + down). A flat window has no moves at
+ * all, so the ratio is undefined and the result is na.
+ */
+stateful(
+  'ta.cmo',
+  ['source', 'length'],
+  2,
+  () => ({ src: [] as Arr, up: [] as Arr, down: [] as Arr }),
+  ([s, l], st, rt) => {
+    const b = rt.bar;
+    const x = num(s);
+    st.src[b] = x;
+    const ch = x - at(st.src, b - 1);
+    st.up[b] = ch !== ch ? NaN : Math.max(ch, 0);
+    st.down[b] = ch !== ch ? NaN : Math.max(-ch, 0);
+    const n = len(l);
+    const up = windowSum(st.up, b, n);
+    const down = windowSum(st.down, b, n);
+    const total = up + down;
+    return total === 0 ? NaN : (100 * (up - down)) / total;
+  },
+);
+
+/**
+ * True strength index (William Blau): the one-bar change smoothed twice with exponential
+ * averages, long length first, divided by the absolute change smoothed the same way.
+ * The result is between -1 and 1. With no movement at all it is na (0 / 0).
+ */
+stateful(
+  'ta.tsi',
+  ['source', 'short_length', 'long_length'],
+  3,
+  () => ({ src: [] as Arr, pc1: newRec(), pc2: newRec(), apc1: newRec(), apc2: newRec() }),
+  ([s, sl, ll], st, rt) => {
+    const b = rt.bar;
+    const x = num(s);
+    st.src[b] = x;
+    const ch = x - at(st.src, b - 1);
+    const short = len(sl);
+    const long = len(ll);
+    const pc = emaStep(st.pc2, emaStep(st.pc1, ch, long, b), short, b);
+    const apc = emaStep(st.apc2, emaStep(st.apc1, Math.abs(ch), long, b), short, b);
+    return pc / apc;
+  },
+);
 
 stateful(
   'ta.macd',
@@ -331,20 +419,26 @@ stateful('ta.bbw', ['series', 'length', 'mult'], 3, newSrc, ([s, l, m], st, rt) 
   return (upper - lower) / basis;
 });
 
-stateful(
-  'ta.kc',
-  ['series', 'length', 'mult', 'useTrueRange'],
-  3,
-  () => ({ mid: newRec(), range: newRec() }),
-  ([s, l, m, useTr], st, rt) => {
-    const b = rt.bar;
-    const n = len(l);
-    const basis = emaStep(st.mid, num(s), n, b);
-    const range = useTr === false ? rt.high[b] - rt.low[b] : trueRange(rt, b, false);
-    const r = emaStep(st.range, range, n, b) * num(m);
-    return new Tuple([basis, basis + r, basis - r]);
-  },
-);
+function keltnerState() {
+  return { mid: newRec(), range: newRec() };
+}
+
+function keltner(st: ReturnType<typeof keltnerState>, rt: Runtime, args: unknown[]): [number, number, number] {
+  const [s, l, m, useTr] = args;
+  const b = rt.bar;
+  const n = len(l);
+  const basis = emaStep(st.mid, num(s), n, b);
+  const range = useTr === false ? rt.high[b] - rt.low[b] : trueRange(rt, b, false);
+  const r = emaStep(st.range, range, n, b) * num(m);
+  return [basis, basis + r, basis - r];
+}
+
+stateful('ta.kc', ['series', 'length', 'mult', 'useTrueRange'], 3, keltnerState, (args, st, rt) => new Tuple(keltner(st, rt, args)));
+
+stateful('ta.kcw', ['series', 'length', 'mult', 'useTrueRange'], 3, keltnerState, (args, st, rt) => {
+  const [basis, upper, lower] = keltner(st, rt, args);
+  return (upper - lower) / basis;
+});
 
 stateful(
   'ta.supertrend',
@@ -381,6 +475,58 @@ stateful(
     st.lower[b] = lower;
     st.line[b] = line;
     return new Tuple([line, dir]);
+  },
+);
+
+/**
+ * Parabolic stop and reverse, after J. Welles Wilder (New Concepts in Technical Trading
+ * Systems, 1978). The first trend is up if the second bar closes above the first. Each
+ * bar the stop moves toward the extreme point (EP) by the acceleration factor times the
+ * distance. In an uptrend the stop never rises above the two previous lows, in a
+ * downtrend it never drops below the two previous highs. A new EP raises the factor by
+ * `inc`, up to `max`. When price crosses the stop the trend flips, the stop jumps to the
+ * old EP (or past this bar's range) and the factor goes back to `start`.
+ */
+stateful(
+  'ta.sar',
+  ['start', 'inc', 'max'],
+  3,
+  () => ({ dir: [] as Arr, sar: [] as Arr, ep: [] as Arr, af: [] as Arr }),
+  ([s0, i0, m0], st, rt) => {
+    const b = rt.bar;
+    const start = num(s0);
+    const inc = num(i0);
+    const max = num(m0);
+    const save = (dir: number, sar: number, ep: number, af: number) => {
+      st.dir[b] = dir;
+      st.sar[b] = sar;
+      st.ep[b] = ep;
+      st.af[b] = af;
+      return sar;
+    };
+    const h = rt.high[b];
+    const lo = rt.low[b];
+    if (b === 0 || start !== start || inc !== inc || max !== max) return save(NaN, NaN, NaN, NaN);
+    const dir = at(st.dir, b - 1);
+    if (dir !== dir) {
+      // Start the first trend from the first two bars.
+      const up = rt.close[b] > rt.close[b - 1];
+      return up
+        ? save(1, Math.min(lo, rt.low[b - 1]), Math.max(h, rt.high[b - 1]), start)
+        : save(-1, Math.max(h, rt.high[b - 1]), Math.min(lo, rt.low[b - 1]), start);
+    }
+    const prevSar = at(st.sar, b - 1);
+    const ep = at(st.ep, b - 1);
+    const af = at(st.af, b - 1);
+    let sar = prevSar + af * (ep - prevSar);
+    if (dir === 1) {
+      sar = Math.min(sar, rt.low[b - 1], b >= 2 ? rt.low[b - 2] : Infinity);
+      if (lo < sar) return save(-1, Math.max(ep, h), lo, start);
+      return h > ep ? save(1, sar, h, Math.min(af + inc, max)) : save(1, sar, ep, af);
+    }
+    sar = Math.max(sar, rt.high[b - 1], b >= 2 ? rt.high[b - 2] : -Infinity);
+    if (h > sar) return save(1, Math.min(ep, lo), h, start);
+    return lo < ep ? save(-1, sar, lo, Math.min(af + inc, max)) : save(-1, sar, ep, af);
   },
 );
 
@@ -467,6 +613,13 @@ for (const [name, sign, source] of [
     return -windowExtreme(st.src, b, len(l), sign)[1];
   }, { implicitSource: source });
 }
+
+stateful('ta.range', ['source', 'length'], 2, newSrc, ([s, l], st, rt) => {
+  const b = rt.bar;
+  st.src[b] = num(s);
+  const n = len(l);
+  return windowExtreme(st.src, b, n, 1)[0] - windowExtreme(st.src, b, n, -1)[0];
+});
 
 // ------------------------------------------------------------------ crosses and direction
 

@@ -208,7 +208,7 @@ describe('error messages carry line:column', () => {
   it('reports unknown and unsupported names clearly', () => {
     expect(errorOf('x = foo(1)')).toBe("1:5 Unknown function 'foo' (it may not be supported yet)");
     expect(errorOf('x = request.security_lower_tf(syminfo.tickerid, "1", close)')).toBe("1:5 'request.security_lower_tf' is not supported yet");
-    expect(errorOf('x = ta.alma(close, 9, 0.85, 6)')).toBe("1:5 'ta.alma' is not supported yet");
+    expect(errorOf('x = ta.cog(close, 10)')).toBe("1:5 'ta.cog' is not supported yet");
     expect(errorOf('strategy("s")\nstrategy.convert_to_account(1)')).toBe("2:1 'strategy.convert_to_account' is not supported yet");
     expect(errorOf('label.new(bar_index, high, "x")')).toBe("1:1 'label.new' is not supported yet");
     expect(errorOf('x = y + 1')).toBe("1:5 Unknown variable 'y'");
