@@ -78,6 +78,10 @@ Use replay to walk through history without seeing the future, for example to che
 
 `get_watchlist` returns the user's watchlist with last price, change and change percent per symbol. `basis` says what the change is measured against: `24h` (crypto, rolling 24 hours), `prev_close` (stocks and forex, previous daily close) or `prev_bar` (CSV data). Use it for a quick overview of several markets before opening one with `set_symbol`. `add_to_watchlist` and `remove_from_watchlist` take a `symbol` and an optional `exchange`.
 
+## Compare symbols
+
+`add_compare` draws another symbol as a line over the main chart, for example ETHUSDT over BTCUSDT, or SPY from `twelvedata` over a stock. Each line starts at the chart's price at the left edge and follows the compared symbol's own percent changes. The first one switches a normal price scale to percent, so the chart and every line read as change since the left edge. The result and `get_chart_state` give each line's `change_percent` over the visible range; quote those numbers when you say which market did better. Scroll or zoom (or change the timeframe) to compare over a different period. `remove_compare` takes a symbol or `"all"`.
+
 ## Several charts
 
 `set_layout` with `charts` 2 or 4 shows more charts; give `panes` a symbol and timeframe each, for example the same symbol on 1D, 4H, 1H and 15m. Pass `pane` to `get_chart_state`, `get_candles`, `add_indicator`, `screenshot` and the other pane tools. Drawings, alerts and replay apply to pane 1.

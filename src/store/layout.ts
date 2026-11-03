@@ -2,6 +2,7 @@ import { APP } from '../config';
 import { isTimeframeId, type TimeframeId } from '../data/timeframes';
 import { isChartType, isPriceScale, type ChartType, type PriceScale } from '../chart/chartStyle';
 import { sanitizeScripts, type ScriptRecord } from '../script/persist';
+import { sanitizeCompare, type CompareSymbol } from '../compare/series';
 
 export type Theme = 'dark' | 'light';
 export type PaneKind = 'main' | 'sub';
@@ -36,6 +37,10 @@ export interface Layout {
   chartType?: ChartType;
   /** Price axis scale; normal when left out. */
   scale?: PriceScale;
+  /** Other symbols drawn as lines over the main chart. */
+  compare?: CompareSymbol[];
+  /** The scale went to percent when the first symbol was compared, so it goes back to normal after the last. */
+  compareScale?: true;
 }
 
 /** The subset of the Web Storage API the store needs. `localStorage` satisfies it. */
@@ -89,6 +94,8 @@ export function sanitizeLayout(raw: unknown): Layout {
   if (Array.isArray(r.scripts)) layout.scripts = sanitizeScripts(r.scripts);
   if (isChartType(r.chartType)) layout.chartType = r.chartType;
   if (isPriceScale(r.scale)) layout.scale = r.scale;
+  if (Array.isArray(r.compare)) layout.compare = sanitizeCompare(r.compare);
+  if (r.compareScale === true) layout.compareScale = true;
   return layout;
 }
 

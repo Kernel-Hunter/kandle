@@ -400,6 +400,65 @@ describe('bridge handlers', () => {
   });
 });
 
+describe('compare handlers', () => {
+  function withCompare() {
+    const items: Array<{ source: string; symbol: string }> = [];
+    const report = () => items.map((c, i) => ({ ...c, color: `#00000${i}`, last: 2500.123456789, changePercent: 4.56789, loading: false }));
+    const compare = {
+      report,
+      add: vi.fn(async (item: { source: string; symbol: string }) => {
+        if (items.some((c) => c.source === item.source && c.symbol === item.symbol)) throw new Error(`${item.symbol} is already compared`);
+        items.push(item);
+        return { report: report().at(-1)!, scaled: items.length === 1 };
+      }),
+      remove: vi.fn((item: { source: string; symbol: string }) => {
+        const i = items.findIndex((c) => c.source === item.source && c.symbol === item.symbol);
+        if (i >= 0) items.splice(i, 1);
+        return i >= 0;
+      }),
+      clear: vi.fn(() => items.splice(0).length),
+    };
+    return { ...setup({ compare }), compare, items };
+  }
+
+  it('adds a symbol on the main chart\'s exchange and reports every line', async () => {
+    const { handlers, compare } = withCompare();
+    const res = await call(handlers, 'add_compare', { symbol: 'eth/usdt' });
+    expect(compare.add).toHaveBeenCalledWith({ source: 'binance', symbol: 'ETHUSDT' });
+    expect(res.added).toEqual({ exchange: 'binance', symbol: 'ETHUSDT', color: '#000000', last_price: 2500.123457, change_percent: 4.57, status: 'loaded' });
+    expect(res.note).toMatch(/percent/);
+    const again = await call(handlers, 'add_compare', { symbol: 'BTCUSDT', exchange: 'coinbase' });
+    expect(again.note).toBeUndefined();
+    expect(again.compare).toHaveLength(2);
+    expect((await call(handlers, 'get_chart_state')).compare).toHaveLength(2);
+  });
+
+  it('explains what went wrong', async () => {
+    const { handlers } = withCompare();
+    expect(await dispatch(handlers, 'add_compare', {})).toEqual({ ok: false, error: 'symbol is required' });
+    expect((await dispatch(handlers, 'add_compare', { symbol: 'NOPE' })).ok).toBe(false);
+    expect(await dispatch(handlers, 'add_compare', { symbol: 'ETHUSDT', exchange: 'ftx' })).toMatchObject({ ok: false, error: expect.stringMatching(/Unknown exchange ftx/) });
+    await call(handlers, 'add_compare', { symbol: 'ETHUSDT' });
+    expect(await dispatch(handlers, 'add_compare', { symbol: 'ETHUSDT' })).toEqual({ ok: false, error: 'ETHUSDT is already compared' });
+  });
+
+  it('removes one symbol or all of them', async () => {
+    const { handlers, items } = withCompare();
+    await call(handlers, 'add_compare', { symbol: 'ETHUSDT' });
+    await call(handlers, 'add_compare', { symbol: 'ETHBTC' });
+    expect(await call(handlers, 'remove_compare', { symbol: 'eth-btc' })).toMatchObject({ removed: [{ exchange: 'binance', symbol: 'ETHBTC' }] });
+    expect(await dispatch(handlers, 'remove_compare', { symbol: 'SOLUSDT' })).toEqual({ ok: false, error: 'SOLUSDT is not compared on the main chart. Compared: ETHUSDT (binance).' });
+    expect(await call(handlers, 'remove_compare', { symbol: 'all' })).toEqual({ removed: 1, compare: [] });
+    expect(items).toEqual([]);
+  });
+
+  it('says so when this build cannot compare', async () => {
+    const { handlers } = setup();
+    expect(await dispatch(handlers, 'add_compare', { symbol: 'ETHUSDT' })).toEqual({ ok: false, error: 'Compare is not available' });
+    expect((await call(handlers, 'get_chart_state')).compare).toBeUndefined();
+  });
+});
+
 describe('watchlist handlers', () => {
   /** A real controller with no feeds; refresh() is replaced so tests do not wait on timers. */
   function withWatchlist(items?: Array<{ source: string; symbol: string }>) {

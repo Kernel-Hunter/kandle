@@ -5,6 +5,7 @@ const items = (width: number, overrides: Partial<Record<TopbarItemId, number>> =
   chartType: width,
   indicators: width,
   scripts: width,
+  compare: width,
   alerts: width,
   replay: width,
   layout: width,
@@ -19,9 +20,9 @@ const items = (width: number, overrides: Partial<Record<TopbarItemId, number>> =
 });
 
 // Measured in Chrome with BTC/USDT on Binance. Phones and touch screens use 40px buttons.
-const PHONE = { withLabels: 1336, iconsOnly: 1042, items: items(44, { agent: 59 }), timeframes: 189, more: 44 };
-const TABLET = { withLabels: 1581, iconsOnly: 1134, items: items(46, { chartType: 40, agent: 61, image: 38, share: 38, shortcuts: 38, theme: 38 }), timeframes: 189, more: 38 };
-const DESKTOP = { withLabels: 1731, iconsOnly: 1284, items: items(48, { chartType: 42, agent: 63, image: 40, share: 40, shortcuts: 40, theme: 40 }), timeframes: 217, more: 40 };
+const PHONE = { withLabels: 1442, iconsOnly: 1086, items: items(44, { agent: 59 }), timeframes: 189, more: 44 };
+const TABLET = { withLabels: 1689, iconsOnly: 1180, items: items(46, { chartType: 40, agent: 61, image: 38, share: 38, shortcuts: 38, theme: 38 }), timeframes: 189, more: 38 };
+const DESKTOP = { withLabels: 1841, iconsOnly: 1332, items: items(48, { chartType: 42, agent: 63, image: 40, share: 40, shortcuts: 40, theme: 40 }), timeframes: 217, more: 40 };
 
 describe('planTopbar', () => {
   it('keeps everything with labels on a wide screen', () => {
@@ -35,7 +36,7 @@ describe('planTopbar', () => {
   it('moves the least needed buttons into the menu at 1024px', () => {
     expect(planTopbar({ ...DESKTOP, available: 1024 })).toEqual({
       labels: false,
-      overflow: ['shortcuts', 'image', 'share', 'theme', 'data', 'agent', 'layout'],
+      overflow: ['shortcuts', 'image', 'share', 'theme', 'data', 'agent', 'layout', 'replay'],
       compactTimeframes: false,
     });
   });
@@ -43,7 +44,7 @@ describe('planTopbar', () => {
   it('keeps the row of timeframes on a 768px tablet', () => {
     const plan = planTopbar({ ...TABLET, available: 768 });
     expect(plan.compactTimeframes).toBe(false);
-    expect(plan.overflow).toEqual(['shortcuts', 'image', 'share', 'theme', 'data', 'agent', 'layout', 'replay', 'scripts', 'alerts']);
+    expect(plan.overflow).toEqual(['shortcuts', 'image', 'share', 'theme', 'data', 'agent', 'layout', 'replay', 'compare', 'scripts', 'alerts']);
   });
 
   it.each([375, 390])('keeps the symbol, a timeframe dropdown and Indicators on a %ipx phone', (available) => {
@@ -66,10 +67,10 @@ describe('planTopbar', () => {
   });
 
   it('brings back the most needed buttons when the dropdown frees more room than was missing', () => {
-    // After 11 buttons and the dropdown the bar is at 440 of 500px, so Watchlist fits again but Alerts does not.
-    const plan = planTopbar({ available: 500, withLabels: 1200, iconsOnly: 1040, items: items(40), timeframes: 200, more: 40 });
+    // After 12 buttons and the dropdown the bar is at 440 of 500px, so Watchlist fits again but Alerts does not.
+    const plan = planTopbar({ available: 500, withLabels: 1200, iconsOnly: 1080, items: items(40), timeframes: 200, more: 40 });
     expect(plan.compactTimeframes).toBe(true);
-    expect(plan.overflow).toEqual(['shortcuts', 'image', 'share', 'theme', 'data', 'agent', 'layout', 'replay', 'scripts', 'alerts']);
+    expect(plan.overflow).toEqual(['shortcuts', 'image', 'share', 'theme', 'data', 'agent', 'layout', 'replay', 'compare', 'scripts', 'alerts']);
   });
 
   it('removes the More button when every button comes back', () => {
@@ -80,6 +81,6 @@ describe('planTopbar', () => {
   it('moves everything when even that is not enough', () => {
     const plan = planTopbar({ available: 200, withLabels: 1200, iconsOnly: 1000, items: items(40), timeframes: 200, more: 40 });
     expect(plan.compactTimeframes).toBe(true);
-    expect(plan.overflow).toHaveLength(13);
+    expect(plan.overflow).toHaveLength(14);
   });
 });

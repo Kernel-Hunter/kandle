@@ -75,6 +75,7 @@ describe('temporary view', () => {
     scripts: [{ id: 'mine', source: 'indicator("Mine")\nplot(close)', inputs: {} }],
     chartType: 'line',
     scale: 'percent',
+    compare: [{ source: 'okx', symbol: 'BTC-USDT' }],
   };
   const myDrawing: DrawingRecord = { name: 'horizontalStraightLine', points: [{ timestamp: T0, value: 2000 }] };
 
@@ -128,6 +129,17 @@ describe('temporary view', () => {
     expect(dump()).toBe(before);
     view.discard();
     expect(dump()).toBe(before);
+  });
+
+  it('shows the compared symbols of a link with indicators, and the user\'s own otherwise', () => {
+    const { storage } = savedStorage();
+    const compare = [{ source: 'binance', symbol: 'SOLUSDT' }];
+    const withIndicators = openSharedView(storage, pickShared(snapshot({ compare }), DEFAULT_INCLUDE).chart);
+    expect(new LayoutStore(withIndicators.storage).loadLayout().compare).toEqual(compare);
+    const none = openSharedView(storage, pickShared(snapshot(), DEFAULT_INCLUDE).chart);
+    expect(new LayoutStore(none.storage).loadLayout().compare).toEqual([]);
+    const without = openSharedView(storage, pickShared(snapshot({ compare }), { ...DEFAULT_INCLUDE, indicators: false }).chart);
+    expect(new LayoutStore(without.storage).loadLayout().compare).toEqual(own.compare);
   });
 
   it('takes what the link leaves out from the saved chart', () => {

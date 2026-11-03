@@ -2,6 +2,8 @@ import type { Chart, KLineData } from 'klinecharts';
 import type { BridgeMethod } from '../../packages/mcp/src/protocol';
 import { describeAlert, LINE_OVERLAYS, lineValueAt, type Alert, type AlertCondition, type AlertEngine, type LineGeometry, type NewAlert } from '../alerts/engine';
 import { parseChartStyleChange, type ChartStyle } from '../chart/chartStyle';
+import type { CompareReport } from '../compare/controller';
+import type { CompareSymbol } from '../compare/series';
 import { INDICATORS, getIndicatorDef } from '../chart/indicators';
 import { isTimeframeId, type TimeframeId } from '../data/timeframes';
 import type { Candle, SymbolMeta } from '../data/types';
@@ -56,6 +58,15 @@ export interface WatchlistLike {
   refresh(timeoutMs?: number): Promise<void>;
 }
 
+/** Symbols compared on the main chart (src/compare). */
+export interface CompareLike {
+  report(): CompareReport[];
+  /** Resolves when the symbol's history has loaded or failed; `scaled` is true when the price scale switched to percent. */
+  add(item: CompareSymbol): Promise<{ report: CompareReport; scaled: boolean }>;
+  remove(item: CompareSymbol): boolean;
+  clear(): number;
+}
+
 export interface LayoutLike {
   state(): LayoutState;
   setCount(count: ChartCount): Promise<void>;
@@ -85,6 +96,7 @@ export interface HostEnv {
   replay: ReplayLike;
   layout: LayoutLike | null;
   watchlist?: WatchlistLike | null;
+  compare?: CompareLike | null;
   /** Wait between adding an indicator and reading its values (the engine computes them asynchronously). */
   settle?(): Promise<void>;
   /** Waits for the chart to repaint. Resolves false if the page is hidden and did not paint. */
@@ -246,6 +258,21 @@ function reportAlert(alert: Alert) {
   };
 }
 
+export function reportCompare(c: CompareReport) {
+  return {
+    exchange: c.source,
+    symbol: c.symbol,
+    color: c.color,
+    last_price: round(c.last),
+    change_percent: c.changePercent === null ? null : Math.round(c.changePercent * 100) / 100,
+    status: c.error ? 'error' : c.loading ? 'loading' : 'loaded',
+    ...(c.error ? { error: c.error } : {}),
+  };
+}
+
+const COMPARE_SCALE_NOTE = 'The price scale switched to percent, so the chart and each line read as change since the left edge of the chart.';
+const compactSymbol = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 /** Snaps a time to the open time of the bar containing it, when it falls inside the data. */
 function snapTime(bars: readonly KLineData[], time: number): number {
   if (bars.length === 0) return time;
@@ -342,9 +369,15 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
         .filter((a) => a.source === info.source && a.symbol === info.symbol)
         .map(reportAlert);
       state.replay = env.replay.state();
+      if (env.compare) state.compare = env.compare.report().map(reportCompare);
     }
     if (env.layout) state.layout = env.layout.state();
     return state;
+  };
+
+  const compareOf = (): CompareLike => {
+    if (!env.compare) throw new Error('Compare is not available');
+    return env.compare;
   };
 
   const watchlistOf = (): WatchlistLike => {
@@ -485,6 +518,36 @@ export function createHandlers(env: HostEnv): Record<BridgeMethod, Handler> {
           defaults: d.defaults,
         })),
       };
+    },
+
+    add_compare: async (params) => {
+      const compare = compareOf();
+      const symbol = required(str(params, 'symbol'), 'symbol');
+      const source = str(params, 'exchange') ?? mainPane().info().source;
+      const meta = await resolveIn(source, symbol);
+      const { report, scaled } = await compare.add({ source, symbol: meta.symbol });
+      const result: Record<string, unknown> = {
+        added: reportCompare(report),
+        compare: compare.report().map(reportCompare),
+        price_scale: mainPane().chartStyle?.().scale,
+      };
+      if (scaled) result.note = COMPARE_SCALE_NOTE;
+      return result;
+    },
+
+    remove_compare: async (params) => {
+      const compare = compareOf();
+      const symbol = required(str(params, 'symbol'), 'symbol');
+      if (symbol.toLowerCase() === 'all') return { removed: compare.clear(), compare: [] };
+      const exchange = str(params, 'exchange');
+      const current = compare.report();
+      const targets = current.filter((c) => compactSymbol(c.symbol) === compactSymbol(symbol) && (exchange === undefined || c.source === exchange));
+      if (targets.length === 0) {
+        const list = current.map((c) => `${c.symbol} (${c.source})`).join(', ');
+        throw new Error(`${symbol} is not compared on the main chart.${list ? ` Compared: ${list}.` : ' Nothing is compared.'}`);
+      }
+      for (const t of targets) compare.remove({ source: t.source, symbol: t.symbol });
+      return { removed: targets.map((t) => ({ exchange: t.source, symbol: t.symbol })), compare: compare.report().map(reportCompare) };
     },
 
     draw: async (params) => {

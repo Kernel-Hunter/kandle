@@ -14,13 +14,15 @@ export interface SymbolSearchOptions {
   storage: KeyValueStorage;
   currentSource: () => string;
   onPick: (sourceId: string, meta: SymbolMeta) => void;
+  /** Dialog title; "Symbol search" when left out. */
+  title?: string;
 }
 
 /** Waits this long after the last keystroke before asking a provider's search API. */
 const REMOTE_DEBOUNCE_MS = 450;
 
 export function createSymbolSearch(options: SymbolSearchOptions) {
-  const modal = createModal('Symbol search', { className: 'modal-search' });
+  const modal = createModal(options.title ?? 'Symbol search', { className: 'modal-search' });
   let sourceId = options.currentSource();
   let symbols: SymbolMeta[] = [];
   let results: SymbolMeta[] = [];

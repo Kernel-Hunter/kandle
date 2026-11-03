@@ -47,6 +47,8 @@ export const BRIDGE_METHODS = [
   'add_indicator',
   'remove_indicator',
   'list_indicators',
+  'add_compare',
+  'remove_compare',
   'draw',
   'remove_drawing',
   'clear_drawings',
