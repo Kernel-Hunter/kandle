@@ -38,7 +38,7 @@ For Claude Code:
 
 ```sh
 claude mcp add kandle -- npx -y \
-  --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.10.1/kandle-mcp-0.10.1.tgz \
+  --package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.11.0/kandle-mcp-0.11.0.tgz \
   kandle-mcp
 ```
 
@@ -57,7 +57,7 @@ The code is saved in your browser and in `~/.kandle/bridge-token`, so you only p
 
 <br>
 
-Download [kandle-mcp-0.10.1.mcpb](https://github.com/Kernel-Hunter/kandle/releases/download/v0.10.1/kandle-mcp-0.10.1.mcpb) and open it to install the server.
+Download [kandle-mcp-0.11.0.mcpb](https://github.com/Kernel-Hunter/kandle/releases/download/v0.11.0/kandle-mcp-0.11.0.mcpb) and open it to install the server.
 
 </details>
 
@@ -71,7 +71,7 @@ In `~/.codex/config.toml`:
 ```toml
 [mcp_servers.kandle]
 command = "npx"
-args = ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.10.1/kandle-mcp-0.10.1.tgz", "kandle-mcp"]
+args = ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.11.0/kandle-mcp-0.11.0.tgz", "kandle-mcp"]
 ```
 
 </details>
@@ -88,7 +88,7 @@ In `~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project) for Cursor, and `~/
   "mcpServers": {
     "kandle": {
       "command": "npx",
-      "args": ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.10.1/kandle-mcp-0.10.1.tgz", "kandle-mcp"]
+      "args": ["-y", "--package=https://github.com/Kernel-Hunter/kandle/releases/download/v0.11.0/kandle-mcp-0.11.0.tgz", "kandle-mcp"]
     }
   }
 }
