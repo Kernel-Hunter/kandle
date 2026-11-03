@@ -112,7 +112,7 @@ describe('embed layout', () => {
     const { chart } = pickShared(snapshot(), { ...DEFAULT_INCLUDE, indicators: false, drawings: false });
     const layout = embedLayout(chart);
     expect(layout.count).toBe(1);
-    expect(layout.panes).toEqual([{ source: 'binance', symbol: 'ETHUSDT', timeframe: '4h', style: { type: 'heikin_ashi', scale: 'log' }, indicators: [], drawings: [], range: snapshot().range }]);
+    expect(layout.panes).toEqual([{ source: 'binance', symbol: 'ETHUSDT', timeframe: '4h', style: { type: 'heikin_ashi', scale: 'log' }, indicators: [], compare: [], drawings: [], range: snapshot().range }]);
   });
 
   it('shows every chart of a shared layout', () => {
@@ -123,6 +123,13 @@ describe('embed layout', () => {
     expect(layout.panes.map((p) => `${p.source}:${p.symbol}:${p.timeframe}`)).toEqual(['binance:ETHUSDT:4h', 'coinbase:BTC-USD:1D', 'kraken:XBT/USD:15m', 'twelvedata:EUR/USD:1h']);
     expect(layout.panes[1]).toMatchObject({ style: { type: 'bars', scale: 'percent' }, indicators: [{ name: 'MACD', params: [12, 26, 9] }], drawings: [] });
     expect(layout.panes[2].style).toEqual({ type: 'candles', scale: 'normal' });
+  });
+
+  it('puts compared symbols on the main chart only', () => {
+    const { chart } = pickShared(snapshot({ compare: [{ source: 'binance', symbol: 'SOLUSDT' }] }), ALL);
+    const layout = embedLayout(chart);
+    expect(layout.panes[0].compare).toEqual([{ source: 'binance', symbol: 'SOLUSDT' }]);
+    expect(layout.panes.slice(1).every((p) => p.compare.length === 0)).toBe(true);
   });
 
   it('fills panes a link leaves out with the defaults', () => {

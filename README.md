@@ -110,17 +110,18 @@ To run it from a clone instead, use `pnpm install && pnpm build` and point your 
 </details>
 
 <details>
-<summary><b>All 26 tools</b></summary>
+<summary><b>All 28 tools</b></summary>
 
 <br>
 
 | Tool | What it does |
 | --- | --- |
 | `get_bridge_status` | Connection state and the pairing code |
-| `get_chart_state` | Symbol, timeframe, last bar, visible range, indicators with latest values, drawings with ids, alerts, replay and layout. Note text is limited to 20 notes of 120 characters and marked as untrusted |
+| `get_chart_state` | Symbol, timeframe, last bar, visible range, indicators with latest values, compared symbols, drawings with ids, alerts, replay and layout. Note text is limited to 20 notes of 120 characters and marked as untrusted |
 | `set_symbol`, `set_timeframe` | Change the market or bar size. Exchange `csv` opens a dataset you imported |
 | `get_candles` | OHLCV bars by count or time range, optionally with indicator values per bar |
 | `add_indicator`, `remove_indicator`, `list_indicators` | Manage indicators and list the 36 available |
+| `add_compare`, `remove_compare` | Draw other symbols as lines over the main chart, with each one's change since the left edge |
 | `draw` | Trend line, horizontal line or ray, vertical line, ray, extended line, rectangle, Fibonacci retracement, text note, price range, all by price and time |
 | `remove_drawing`, `clear_drawings` | Remove drawings |
 | `screenshot` | PNG of a chart, returned as an image |
@@ -169,9 +170,10 @@ Settings: `--port` or `KANDLE_PORT` (default 7457, change the port in the Agent 
 - **36 indicators and the usual drawing tools.** Ichimoku Cloud, a volume profile, trend lines, channels, Fibonacci retracement, price ranges and notes.
 - **Your own scripts.** Write indicators in Kandle Script in an editor under the chart, with 15 examples and `request.security`. See [Scripts](#scripts).
 - **Strategy backtests.** Trades on the chart, net profit, drawdown, win rate, an equity curve and every trade. See [Strategies](#strategies-and-backtesting).
+- **Compare symbols.** Draw up to 5 other markets over the chart, such as ETH and SOL over BTC, on a percent scale. See [Compare symbols](#compare-symbols).
 - **Alerts, bar replay and up to 4 charts.** See [Alerts](#alerts), [Bar replay](#bar-replay) and [Layouts](#layouts).
 - **Share links and embeds.** The link carries the chart itself, and an iframe puts a live chart on any page. See [Share a chart](#share-a-chart).
-- **An agent bridge.** 26 MCP tools to read the chart, draw, set alerts, run scripts and take screenshots. See [above](#use-it-with-your-ai-agent).
+- **An agent bridge.** 28 MCP tools to read the chart, draw, compare symbols, set alerts, run scripts and take screenshots. See [above](#use-it-with-your-ai-agent).
 
 ### Let an agent mark up the chart
 
@@ -188,6 +190,12 @@ Ask for levels and the agent draws them on your chart: here the 120-bar high and
 Fills show as arrows on the chart, and the **Strategy** tab has the numbers and the list of trades.
 
 <img src="docs/screenshot-strategy.png" alt="A Donchian breakout strategy on BTC/USDT with its trades on the chart and the Strategy tab open" width="900">
+
+### Compare symbols
+
+BTC/USDT with ETH/USDT and SOL/USDT on the same percent scale, all starting at 0% on the left edge.
+
+<img src="docs/screenshot-compare.png" alt="BTC/USDT daily candles with ETH/USDT and SOL/USDT drawn as lines on a percent scale" width="900">
 
 ### Ichimoku and a volume profile
 
@@ -541,6 +549,14 @@ Click **Alerts** to create and manage alerts for the main chart's symbol:
 
 Each alert fires once, or every time (at most once per bar). When one fires you get a browser notification, a message in the app and a short sound. Kandle asks for notification permission when you create your first alert. Alerts are saved in your browser and are checked against live data while a Kandle tab is open; they do not run when the tab is closed. Alerts on a symbol shown in any of the charts on screen are checked.
 
+## Compare symbols
+
+Click **Compare** in the top bar and pick a symbol to draw it as a line over the main chart. It can come from any data source, so you can put ETH from Coinbase over BTC from Binance, or SPY from Twelve Data over a stock. Up to 5 symbols can be compared at once, each in its own color, and they stay when you change the chart's symbol or timeframe.
+
+Each line starts at the chart's price at the left edge and moves by the compared symbol's own percent changes, so the lines are rescaled as you scroll and zoom. The first symbol you add switches a normal price scale to percent, so the axis reads as the change since the left edge for the chart and every line; removing the last one switches it back, unless you picked a scale yourself in the meantime. The legend at the top shows each symbol's real price and change under the crosshair.
+
+Click **Compare** again to see the list with each symbol's change and remove one. Compared symbols are saved with the layout and travel in share links and embeds along with the indicators. Links only carry symbols from the crypto exchanges, because the stock and forex sources would use the viewer's own API key. Agents use `add_compare` and `remove_compare`, and `get_chart_state` lists the compared symbols. In the page, `await window.kandle.compare.add('ETHUSDT', 'binance')` adds one and `window.kandle.compare.list()` reads them.
+
 ## Bar replay
 
 Click **Replay**, then click a bar on the main chart. Every bar after it is hidden and indicators are calculated only on what is visible. Use the replay bar to play, pause, step forward one bar and pick a speed from 1x to 10x (bars per second). Keyboard: Space plays or pauses, Right arrow steps, Esc exits. Exiting returns the chart to live data. Changing the symbol or timeframe also ends replay. Replay can go back as far as the exchange has history; Kandle loads older bars when needed.
@@ -647,6 +663,7 @@ src/
   alerts/            alert evaluation, notifications, alert manager
   replay/            bar replay and the data loader it sits behind
   layout/            multi-chart layouts
+  compare/           compared symbols drawn over the main chart
   watchlist/         watchlist panel, quotes and their persistence
   share/             share links: encoding, the Share popover and the shared chart view
   embed/             embed mode: the chart alone in an iframe on another site

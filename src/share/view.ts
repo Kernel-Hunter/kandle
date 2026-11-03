@@ -133,10 +133,12 @@ export function openSharedView(base: KeyValueStorage, chart: SharedChart, notes:
     source: chart.source,
     symbol: chart.symbol,
     timeframe: chart.timeframe,
-    ...(chart.style ? { chartType: chart.style.type, scale: chart.style.scale } : {}),
+    ...(chart.style ? { chartType: chart.style.type, scale: chart.style.scale, compareScale: undefined } : {}),
     indicators: chart.indicators
       ? chart.indicators.map((i) => ({ name: i.name, params: [...i.params], pane: getIndicatorDef(i.name)?.pane ?? 'sub' }))
       : own.indicators,
+    // Compared symbols travel with the indicators: a link with indicators shows only its own.
+    compare: chart.indicators ? (chart.compare ?? []).map((c) => ({ ...c })) : own.compare,
     // Shared scripts wait for the user; the user's own are hidden meanwhile and come back on Keep.
     scripts: chart.scripts ? [] : own.scripts,
   };

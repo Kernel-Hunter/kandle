@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DRAWING_TOOLS } from '../src/chart/overlays';
 import {
+  COMPARE_KEYED_NOTE,
   CSV_NOTE,
   DEFAULT_INCLUDE,
   LIMITS,
@@ -96,6 +97,39 @@ describe('share links: round trips', () => {
   it('replace any fragment already on the page address', () => {
     expect(shareUrl(`${PAGE}#s=zOLD`, 'zNEW')).toBe(`${PAGE}#s=zNEW`);
     expect(shareUrl('http://localhost:5280/', 'jAAA')).toBe('http://localhost:5280/#s=jAAA');
+  });
+});
+
+describe('share links: compared symbols', () => {
+  const compare = [
+    { source: 'binance', symbol: 'SOLUSDT' },
+    { source: 'coinbase', symbol: 'ETH-USD' },
+  ];
+
+  it('travel with the indicators', async () => {
+    const { chart } = pickShared(snapshot({ compare }), DEFAULT_INCLUDE);
+    expect(toWire(chart).c).toEqual([['binance', 'SOLUSDT'], ['coinbase', 'ETH-USD']]);
+    expect((await roundTrip(chart)).chart.compare).toEqual(compare);
+    expect(pickShared(snapshot({ compare }), { ...DEFAULT_INCLUDE, indicators: false }).chart.compare).toBeUndefined();
+    expect(toWire(pickShared(snapshot(), DEFAULT_INCLUDE).chart).c).toBeUndefined();
+  });
+
+  it('leave out sources that need a key or local files, and say so', () => {
+    const { chart, notes } = pickShared(snapshot({ compare: [...compare, { source: 'polygon', symbol: 'AAPL' }, { source: 'csv', symbol: 'MINE' }] }), DEFAULT_INCLUDE);
+    expect(chart.compare).toEqual(compare);
+    expect(notes).toEqual([COMPARE_KEYED_NOTE]);
+  });
+
+  it('drop keyed sources from an edited link instead of using the viewer\'s key', () => {
+    const { chart, notes } = parseShared({ ...base, c: [['twelvedata', 'AAPL'], ['binance', 'SOLUSDT'], ['future', 'X'], ['binance', 'SOLUSDT']] });
+    expect(chart.compare).toEqual([{ source: 'binance', symbol: 'SOLUSDT' }]);
+    expect(notes).toHaveLength(2);
+  });
+
+  it('refuse bad compared symbols', () => {
+    expect(() => parseShared({ ...base, c: 'SOLUSDT' })).toThrow(/compared symbols must be a list/);
+    expect(() => parseShared({ ...base, c: [['binance', 'SOL USDT']] })).toThrow(/compared symbol is invalid/);
+    expect(() => parseShared({ ...base, c: Array(6).fill(['binance', 'SOLUSDT']) })).toThrow(/more than 5 compared symbols/);
   });
 });
 

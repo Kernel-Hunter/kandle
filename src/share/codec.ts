@@ -12,12 +12,14 @@
  *   k  chart type, a price scale                             chart
  *   r  [right edge bar time or null for the latest bar, bar spacing in px]   chart
  *   i  [[indicator name, [params]], ...]                     indicators
+ *   c  [[source id, symbol], ...]  compared symbols, keyless sources only   indicators
  *   d  [[overlay name, [time, price, time, price, ...], text?], ...]   drawings
  *   x  [{ c: source code, i?: { input title: value }, g?: strategy settings }, ...]   scripts
  *   l  { n: 1 | 2 | 4, y: [crosshair, timeframe, symbol] as 0 or 1,
  *        p: [[source, symbol, timeframe, [[name, [params]], ...], chart type?, scale?], ...] }   layout
  */
 import { isChartType, isPriceScale, type ChartType, type PriceScale } from '../chart/chartStyle';
+import { MAX_COMPARE, type CompareSymbol } from '../compare/series';
 import { getIndicatorDef } from '../chart/indicators';
 import { DRAWING_TOOLS } from '../chart/overlays';
 import { CSV_SOURCE_ID } from '../data/csv';
@@ -120,6 +122,8 @@ export interface SharedChart {
   style?: { type: ChartType; scale: PriceScale };
   range?: SharedRange;
   indicators?: Array<{ name: string; params: number[] }>;
+  /** Symbols drawn over the main chart. Travels with the indicators. */
+  compare?: CompareSymbol[];
   drawings?: DrawingRecord[];
   scripts?: SharedScript[];
   layout?: SharedLayout;
@@ -133,12 +137,22 @@ export interface ChartSnapshot {
   style: { type: ChartType; scale: PriceScale };
   range: SharedRange | null;
   indicators: Array<{ name: string; params: number[] }>;
+  compare: CompareSymbol[];
   drawings: DrawingRecord[];
   scripts: ScriptRecord[];
   layout: MultiChartConfig;
 }
 
 export const CSV_NOTE = 'Charts of imported CSV files cannot be shared: the data is only in your browser.';
+export const COMPARE_KEYED_NOTE = 'Compared symbols from sources that need an API key, or from imported files, were left out.';
+
+/**
+ * Compared symbols anyone can load. Keyed sources would use the viewer's own key, and
+ * imported files are only in the sender's browser.
+ */
+function shareableCompare(list: readonly CompareSymbol[]): CompareSymbol[] {
+  return list.filter((c) => c.source !== CSV_SOURCE_ID && SOURCES.some((s) => s.id === c.source && !s.auth)).map((c) => ({ ...c }));
+}
 
 /** Picks what goes into a link. Throws ShareError for a CSV chart; `notes` say what was left out. */
 export function pickShared(snapshot: ChartSnapshot, include: ShareInclude): { chart: SharedChart; notes: string[] } {
@@ -149,7 +163,12 @@ export function pickShared(snapshot: ChartSnapshot, include: ShareInclude): { ch
     chart.style = { ...snapshot.style };
     if (snapshot.range) chart.range = { ...snapshot.range };
   }
-  if (include.indicators) chart.indicators = snapshot.indicators.map((i) => ({ name: i.name, params: [...i.params] }));
+  if (include.indicators) {
+    chart.indicators = snapshot.indicators.map((i) => ({ name: i.name, params: [...i.params] }));
+    const compare = shareableCompare(snapshot.compare);
+    if (compare.length < snapshot.compare.length) notes.push(COMPARE_KEYED_NOTE);
+    if (compare.length > 0) chart.compare = compare;
+  }
   if (include.drawings) chart.drawings = snapshot.drawings.map((d) => ({ ...d, points: d.points.map((p) => ({ ...p })) }));
   if (include.scripts) {
     chart.scripts = snapshot.scripts.map((s) => ({ source: s.source, inputs: { ...s.inputs }, ...(s.strategy ? { strategy: { ...s.strategy } } : {}) }));
@@ -183,6 +202,7 @@ export function toWire(chart: SharedChart): Record<string, unknown> {
   }
   if (chart.range) wire.r = [chart.range.time, Math.round(chart.range.barSpace * 1000) / 1000];
   if (chart.indicators) wire.i = wireIndicators(chart.indicators);
+  if (chart.compare && chart.compare.length > 0) wire.c = chart.compare.map((c) => [c.source, c.symbol]);
   if (chart.drawings) {
     wire.d = chart.drawings.map((d) => {
       const row: unknown[] = [d.name, d.points.flatMap((p) => [p.timestamp, p.value])];
@@ -257,6 +277,27 @@ function indicators(raw: unknown, max: number, notes: Set<string>): Array<{ name
       continue;
     }
     out.push({ name, params });
+  }
+  return out;
+}
+
+function compare(raw: unknown, notes: Set<string>): CompareSymbol[] {
+  const out: CompareSymbol[] = [];
+  for (const item of list(raw, 'compared symbols', MAX_COMPARE)) {
+    const row = list(item, 'compared symbol fields', 2);
+    if (typeof row[1] !== 'string' || !SYMBOL.test(row[1])) fail('a compared symbol is invalid');
+    if (typeof row[0] !== 'string' || !SOURCES.some((s) => s.id === row[0])) {
+      notes.add('Some compared symbols from sources this version does not have were left out.');
+      continue;
+    }
+    const source = SOURCES.find((s) => s.id === row[0])!;
+    // Links never carry these; one that does was edited, and must not load with the viewer's key.
+    if (source.auth || source.id === CSV_SOURCE_ID) {
+      notes.add(COMPARE_KEYED_NOTE);
+      continue;
+    }
+    if (out.some((c) => c.source === source.id && c.symbol === row[1])) continue;
+    out.push({ source: source.id, symbol: row[1] });
   }
   return out;
 }
@@ -365,6 +406,7 @@ export function parseShared(raw: unknown): { chart: SharedChart; notes: string[]
     chart.range = { time, barSpace: finite(r[1], 'the bar spacing', BAR_SPACE.min, BAR_SPACE.max) };
   }
   if (raw.i !== undefined) chart.indicators = indicators(raw.i, LIMITS.indicators, notes);
+  if (raw.c !== undefined) chart.compare = compare(raw.c, notes);
   if (raw.d !== undefined) chart.drawings = drawings(raw.d, notes);
   if (raw.x !== undefined) chart.scripts = scripts(raw.x);
   if (raw.l !== undefined) chart.layout = layout(raw.l, notes);

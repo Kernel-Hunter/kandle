@@ -4,6 +4,8 @@ import { BridgeClient } from '../agent/client';
 import { createHandlers, dispatch, type HostEnv, type PaneLike } from '../agent/handlers';
 import { createAgentPanel } from '../agent/panel';
 import type { ChartStyle } from '../chart/chartStyle';
+import type { CompareReport } from '../compare/controller';
+import type { CompareSymbol } from '../compare/series';
 import { AlertEngine, type Alert, type AlertKind, type TickContext } from '../alerts/engine';
 import { ensureNotificationPermission, playAlertSound, showSystemNotification, unlockAudioOnGesture } from '../alerts/notify';
 import { createAlertsPanel } from '../alerts/panel';
@@ -36,6 +38,10 @@ export interface FeatureApp {
   removeIndicator(id: string): void;
   chartStyle(): ChartStyle;
   setChartStyle(change: Partial<ChartStyle>): ChartStyle;
+  compareReport(): CompareReport[];
+  addCompare(item: CompareSymbol): Promise<{ report: CompareReport; scaled: boolean }>;
+  removeCompare(item: CompareSymbol): boolean;
+  clearCompare(): number;
 }
 
 /** Shape of window.kandle as set up by App.exposeForAutomation (plus runScript when a script engine is present). */
@@ -322,6 +328,7 @@ export function createFeatures(deps: FeatureDeps): Features {
           style: app.chartStyle(),
           range: readRange(chart),
           indicators: api().listIndicators().map((i) => ({ name: i.name, params: [...i.params] })),
+          compare: app.compareReport().map((c) => ({ source: c.source, symbol: c.symbol })),
           drawings: state.drawings,
           scripts: state.scripts ?? [],
           layout: layout.currentConfig(),
@@ -385,6 +392,12 @@ export function createFeatures(deps: FeatureDeps): Features {
         replay,
         layout,
         watchlist: watchlist.controller,
+        compare: {
+          report: () => app.compareReport(),
+          add: (item) => app.addCompare(item),
+          remove: (item) => app.removeCompare(item),
+          clear: () => app.clearCompare(),
+        },
         share: (include) => makeShareLink(snapshot(), include),
         embed: (include) => makeEmbedLink(snapshot(), include),
       };

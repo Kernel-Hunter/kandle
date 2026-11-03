@@ -1,0 +1,73 @@
+/* The Compare dialog (src/compare/panel.ts). */
+
+.cmp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cmp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 4px 0 8px;
+  border-radius: 6px;
+}
+
+.cmp-row:hover {
+  background: var(--hover);
+}
+
+.cmp-swatch {
+  flex: none;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.cmp-name {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cmp-symbol {
+  font-weight: 650;
+}
+
+.cmp-name .muted {
+  font-size: 12px;
+}
+
+.cmp-change {
+  font-variant-numeric: tabular-nums;
+}
+
+.cmp-change.up {
+  color: var(--up);
+}
+
+.cmp-change.down {
+  color: var(--down);
+}
+
+.cmp-remove {
+  flex: none;
+}
+
+.cmp-actions {
+  display: flex;
+  margin-top: 12px;
+}
+
+.cmp-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+}

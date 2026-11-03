@@ -4,6 +4,7 @@
  * writes to browser storage.
  */
 import { DEFAULT_CHART_STYLE, type ChartStyle } from '../chart/chartStyle';
+import type { CompareSymbol } from '../compare/series';
 import { CsvStore, setCsvStore } from '../data/csv';
 import { KeyStore, setKeyStore } from '../data/keys';
 import type { TimeframeId } from '../data/timeframes';
@@ -26,6 +27,8 @@ export interface EmbedPane {
   timeframe: TimeframeId;
   style: ChartStyle;
   indicators: Array<{ name: string; params: number[] }>;
+  /** Symbols drawn over the chart; only the main chart has them. */
+  compare: CompareSymbol[];
   drawings: DrawingRecord[];
   range?: SharedRange;
 }
@@ -48,6 +51,7 @@ export function embedLayout(chart: SharedChart): EmbedLayout {
     timeframe: chart.timeframe,
     style: { ...(chart.style ?? DEFAULT_CHART_STYLE) },
     indicators: (chart.indicators ?? []).map((i) => ({ name: i.name, params: [...i.params] })),
+    compare: (chart.compare ?? []).map((c) => ({ ...c })),
     drawings: chart.drawings ?? [],
     ...(chart.range ? { range: { ...chart.range } } : {}),
   };
@@ -60,6 +64,7 @@ export function embedLayout(chart: SharedChart): EmbedLayout {
       timeframe: p.timeframe,
       style: { type: p.chartType ?? DEFAULT_CHART_STYLE.type, scale: p.scale ?? DEFAULT_CHART_STYLE.scale },
       indicators: p.indicators.map((i) => ({ name: i.name, params: [...i.params] })),
+      compare: [],
       drawings: [],
     };
   });

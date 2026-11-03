@@ -11,9 +11,11 @@ import { APP } from '../config';
 import { applyChartType, applyPriceScale, registerChartTypes } from '../chart/chartStyleRender';
 import { getIndicatorDef, registerCustomIndicators } from '../chart/indicators';
 import { createDataLoader } from '../chart/loader';
+import { CompareController } from '../compare/controller';
+import { SeriesFeeds } from '../data/feeds';
 import { registerCustomOverlays } from '../chart/overlays';
 import { displayName } from '../data/search';
-import { getSource } from '../data/sources';
+import { SOURCES, getSource } from '../data/sources';
 import { getTimeframe } from '../data/timeframes';
 import type { Candle, SymbolMeta } from '../data/types';
 import { gridShape } from '../layout/config';
@@ -101,6 +103,16 @@ async function mountPane(cell: HTMLElement, spec: EmbedPane, hooks: PaneHooks): 
     const id = pane === 'main' ? chart.createIndicator({ name: ind.name, calcParams: ind.params, paneId: CANDLE_PANE }, true) : chart.createIndicator({ name: ind.name, calcParams: ind.params }, false);
     const created = id ? chart.getIndicators({ id })[0] : undefined;
     if (pane === 'sub' && created) chart.setPaneOptions({ id: created.paneId, height: subHeight });
+  }
+  // Keyless sources only, like the chart itself: an embed never uses an API key.
+  const compare = spec.compare.filter((c) => SOURCES.some((s) => s.id === c.source && !s.auth && !s.local));
+  if (compare.length > 0) {
+    new CompareController({
+      chart: () => chart,
+      paneId: CANDLE_PANE,
+      feeds: new SeriesFeeds({ source: (id) => SOURCES.find((s) => s.id === id) }),
+      timeframe: () => spec.timeframe,
+    }).restore(compare);
   }
   if (spec.drawings.length > 0) {
     chart.createOverlay(spec.drawings.map((d) => ({ name: d.name, groupId: 'drawings', points: d.points, extendData: d.text ? { text: d.text } : undefined, lock: true })));

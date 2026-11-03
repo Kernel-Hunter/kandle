@@ -33,6 +33,7 @@ export function snapshot(over: Partial<ChartSnapshot> = {}): ChartSnapshot {
       { name: 'EMA', params: [20, 50, 200] },
       { name: 'RSI', params: [14] },
     ],
+    compare: [],
     drawings: ALL_DRAWINGS,
     scripts: [
       { id: 's1', source: '//@version=5\nindicator("Mine", overlay=true)\nlen = input.int(20, "Length")\nplot(ta.sma(close, len))', inputs: { Length: 34 } },

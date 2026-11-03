@@ -29,6 +29,9 @@ import type { ScriptPanel } from './ui/scriptPanel';
 import type { SharedView } from './share/view';
 import { createKeyCover, keyGate } from './share/keyGate';
 import { createUpdateBanner } from './update';
+import { CompareController, type CompareReport } from './compare/controller';
+import { createComparePanel, type ComparePanel } from './compare/panel';
+import { MAX_COMPARE, type CompareSymbol } from './compare/series';
 
 const DRAWINGS_GROUP = 'drawings';
 const CANDLE_PANE = 'candle_pane';
@@ -82,6 +85,9 @@ export class App {
   private lastPrice: number | null = null;
   /** Agent bridge, alerts, bar replay and multi-chart layouts (src/features). */
   private features!: Features;
+  /** Other symbols and timeframes, for request.security and compared symbols. */
+  private readonly feeds = new SeriesFeeds({ source: (id) => SOURCES.find((s) => s.id === id) });
+  private compare: CompareController | null = null;
 
   private readonly el = {
     symbolBtn: h('button', { class: 'symbol-btn', title: 'Search symbol (start typing anywhere)' }),
@@ -103,6 +109,8 @@ export class App {
   private readonly indicatorPanel;
   private readonly helpModal;
   private readonly styleControl;
+  private readonly compareSearch;
+  private readonly comparePanel: ComparePanel;
   private topbar!: TopbarFit;
 
   constructor(
@@ -133,6 +141,23 @@ export class App {
           : [],
     });
     this.helpModal = this.buildHelp();
+    this.compareSearch = createSymbolSearch({
+      storage,
+      title: 'Compare with',
+      currentSource: () => this.layout.compare?.[this.layout.compare.length - 1]?.source ?? this.layout.source,
+      onPick: (sourceId, meta) => {
+        this.comparePanel.close();
+        this.addCompare({ source: sourceId, symbol: meta.symbol }).then(
+          ({ report, scaled }) => this.toast(`Comparing ${report.symbol}${scaled ? '. The price scale is now percent' : ''}`),
+          (error: unknown) => this.toast(error instanceof Error ? error.message : String(error), 'error'),
+        );
+      },
+    });
+    this.comparePanel = createComparePanel({
+      report: () => this.compareReport(),
+      remove: (item) => void this.removeCompare(item),
+      search: () => this.compareSearch.open(),
+    });
     this.styleControl = createChartStyleControl({
       get: () => this.chartStyle(),
       set: (change) => this.setChartStyle(change),
@@ -181,6 +206,7 @@ export class App {
     });
 
     for (const ind of this.layout.indicators) this.addIndicator(ind.name, ind.params, false);
+    this.initCompare();
     this.restoreDrawings();
     this.updateHeader();
     this.bindKeys();
@@ -236,6 +262,7 @@ export class App {
       this.el.timeframeSelect,
       this.styleControl.el,
       indicatorsBtn,
+      this.comparePanel.button,
       h('div', { class: 'spacer' }),
       this.el.price,
       this.el.status,
@@ -248,6 +275,7 @@ export class App {
     this.topbar.add(
       { id: 'chartType', el: this.styleControl.button, run: (anchor) => this.styleControl.open(anchor) },
       { id: 'indicators', el: indicatorsBtn },
+      { id: 'compare', el: this.comparePanel.button },
       { id: 'image', el: imageBtn },
       { id: 'shortcuts', el: helpBtn },
       { id: 'theme', el: this.el.themeBtn },
@@ -622,6 +650,8 @@ export class App {
     if (next.type !== current.type) applyChartType(this.chart, next.type);
     if (next.scale !== current.scale) applyPriceScale(this.chart, next.scale);
     this.layout = { ...this.layout, chartType: next.type, scale: next.scale };
+    // A scale the user or an agent picks stays, even when the last compared symbol goes.
+    if (change.scale !== undefined) delete this.layout.compareScale;
     this.persistLayout();
     this.styleControl.refresh();
     return next;
@@ -835,8 +865,77 @@ export class App {
         this.saveDrawings();
         return id;
       },
+      compare: {
+        /** Compared symbols with their color, last close and change since the first bar on screen. */
+        list: () => this.compareReport(),
+        add: (symbol: string, source = this.layout.source) => this.addCompare({ source, symbol }),
+        remove: (symbol: string, source?: string) =>
+          (this.layout.compare ?? []).filter((c) => c.symbol === symbol && (source === undefined || c.source === source)).filter((c) => this.removeCompare(c)).length,
+        clear: () => this.clearCompare(),
+      },
       chart: () => this.chart,
     };
+  }
+
+  // ---------------------------------------------------------------- compare
+
+  /** Restores the compared symbols of the saved layout. */
+  private initCompare(): void {
+    this.compare = new CompareController({
+      chart: () => this.chart,
+      paneId: CANDLE_PANE,
+      feeds: this.feeds,
+      timeframe: () => this.layout.timeframe,
+      onChange: (list) => {
+        this.layout = { ...this.layout, compare: list };
+        this.persistLayout();
+        this.comparePanel.refresh();
+      },
+    });
+    this.compare.restore((this.layout.compare ?? []).filter((c) => SOURCES.some((s) => s.id === c.source)));
+    this.feeds.onChange(() => this.comparePanel.refresh());
+    this.comparePanel.refresh();
+  }
+
+  compareReport(): CompareReport[] {
+    return this.compare?.report() ?? [];
+  }
+
+  /**
+   * Draws another symbol over the main chart. The first one switches a normal price scale to
+   * percent, so the lines and the chart are read as change from the left edge.
+   */
+  async addCompare(item: CompareSymbol): Promise<{ report: CompareReport; scaled: boolean }> {
+    const compare = this.compare;
+    if (!compare) throw new Error('The chart is not ready');
+    if (!SOURCES.some((s) => s.id === item.source)) throw new Error(`Unknown data source ${item.source}`);
+    if (compare.has(item)) throw new Error(`${item.symbol} on ${getSource(item.source).name} is already compared`);
+    if (compare.size >= MAX_COMPARE) throw new Error(`At most ${MAX_COMPARE} symbols can be compared. Remove one first.`);
+    const scaled = compare.size === 0 && this.chartStyle().scale === 'normal';
+    const added = compare.add(item);
+    if (scaled) {
+      this.setChartStyle({ scale: 'percent' });
+      this.layout = { ...this.layout, compareScale: true };
+      this.persistLayout();
+    }
+    return { report: await added, scaled };
+  }
+
+  /** Removes a compared symbol; the last one takes the scale back to normal if adding it changed it. */
+  removeCompare(item: CompareSymbol): boolean {
+    const removed = this.compare?.remove(item) ?? false;
+    if (removed) this.afterCompareRemoved();
+    return removed;
+  }
+
+  clearCompare(): number {
+    const count = this.compare?.clear() ?? 0;
+    if (count) this.afterCompareRemoved();
+    return count;
+  }
+
+  private afterCompareRemoved(): void {
+    if (this.compare?.size === 0 && this.layout.compareScale && this.chartStyle().scale === 'percent') this.setChartStyle({ scale: 'normal' });
   }
 
   // ---------------------------------------------------------------- scripts
@@ -852,7 +951,7 @@ export class App {
       chart: () => this.chart,
       candlePaneId: CANDLE_PANE,
       symbol: () => symbolContext(this.layout.symbol, getTimeframe(this.layout.timeframe)?.ms ?? 3_600_000, this.meta?.pricePrecision ?? 2, this.layout.source),
-      feeds: new SeriesFeeds({ source: (id) => SOURCES.find((s) => s.id === id) }),
+      feeds: this.feeds,
       persist: (records) => {
         this.layout = { ...this.layout, scripts: records };
         this.persistLayout();
