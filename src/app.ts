@@ -342,7 +342,7 @@ export class App {
     this.el.timeframeSelect.value = this.layout.timeframe;
     // The symbol button may be squeezed, so a longer name does not always resize it.
     this.topbar.schedule();
-    document.title = `${this.layout.symbol} ${getTimeframe(this.layout.timeframe)?.label ?? ''} - ${APP.name}`;
+    document.title = `${this.layout.symbol} ${getTimeframe(this.layout.timeframe)?.label ?? ''} chart - ${APP.name}, free TradingView alternative`;
   }
 
   // ---------------------------------------------------------------- symbol + timeframe

@@ -53,7 +53,7 @@ function showFramed(el: HTMLElement): void {
   );
 }
 
-document.title = APP.name;
+document.title = `${APP.name}: Free Open-Source TradingView Alternative with Bar Replay`;
 const embed = parseEmbedParams(window.location.search);
 if (embed.embed) {
   // An iframe on another site: the chart only, and nothing read from or written to browser storage.
